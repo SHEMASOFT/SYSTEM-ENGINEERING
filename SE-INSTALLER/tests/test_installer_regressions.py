@@ -184,3 +184,32 @@ def test_orchestrator_fails_cleanly_when_no_installer_is_registered():
     assert (orphan.error_message or "").startswith(
         "No installer registered for component 'orphan'"
     )
+
+
+INSTALLER_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_bootstrap_ps1_forwards_positional_arguments():
+    """`[CmdletBinding()]` rejects unbound positional arguments, so the Windows
+    bootstrap must declare a remaining-args catch-all and splat it. Without the
+    catch-all the documented command
+    (`bootstrap.ps1 install --recommended --dry-run`) fails with
+    "A positional parameter cannot be found that accepts argument 'install'".
+    """
+    src = (INSTALLER_ROOT / "bootstrap.ps1").read_text(encoding="utf-8")
+    assert "ValueFromRemainingArguments" in src, (
+        "bootstrap.ps1 must declare a catch-all for the forwarded arguments"
+    )
+    assert "@InstallerArgs" in src, (
+        "bootstrap.ps1 must splat the bound catch-all parameter"
+    )
+    assert "@args" not in src, (
+        "bootstrap.ps1 must not splat the automatic $args (unbound under "
+        "[CmdletBinding()])"
+    )
+
+
+def test_bootstrap_sh_forwards_positional_arguments():
+    """The POSIX entry point must forward every argument verbatim to the CLI."""
+    src = (INSTALLER_ROOT / "install.sh").read_text(encoding="utf-8")
+    assert '"$@"' in src, "install.sh must forward its arguments verbatim"

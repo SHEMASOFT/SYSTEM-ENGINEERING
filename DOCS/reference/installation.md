@@ -68,6 +68,13 @@ Add `--dry-run` to plan without installing, or pass `tui` for the interactive
 selector. From an already-cloned checkout you can also chain it through the CLI with
 `se install --bootstrap` (see §7).
 
+> **Where to put a virtualenv.** The one-command entry points keep their venv at
+> `SE-INSTALLER/.venv`, which `se doctor` audits cleanly. If you create your own venv,
+> keep it **outside** the repository or name it `.venv` at the repository root. Any
+> other venv directory *inside* the repo is an unregistered root directory, and one
+> whose name is not `.venv` also trips the `secrets` scan (the bundled
+> `certifi/cacert.pem`), so `se doctor` reports `FAIL`.
+
 ---
 
 ## 4. Validate
