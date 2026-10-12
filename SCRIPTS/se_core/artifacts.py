@@ -20,6 +20,7 @@ COLLECTIONS = {
     "release": {"dir": "releases", "prefix": "REL"},
     "sdd": {"dir": "sdds", "prefix": "SDD"},
     "odd": {"dir": "odds", "prefix": "ODD"},
+    "rdd": {"dir": "rdds", "prefix": "RDD"},
     "run": {"dir": "runs", "prefix": "RUN"},
 }
 
@@ -34,6 +35,7 @@ WORKSPACE_DIRS = [
     "releases",
     "sdds",
     "odds",
+    "rdds",
     "runs",
     "docs",
 ]
@@ -49,6 +51,7 @@ ID_FIELD = {
     "release": "id",
     "sdd": "sdd_id",
     "odd": "odd_id",
+    "rdd": "rdd_id",
     "run": "run_id",
 }
 

@@ -13,6 +13,7 @@
     "decision": "SCHEMAS/decision/decision.schema.json",
     "sdd": "SCHEMAS/sdd/sdd.schema.json",
     "odd": "SCHEMAS/odd/odd.schema.json",
+    "rdd": "SCHEMAS/rdd/rdd.schema.json",
     "run": "SCHEMAS/run/run.schema.json",
     "release": "SCHEMAS/release/release.schema.json",
     "discovery": "SCHEMAS/discovery/discovery.schema.json",

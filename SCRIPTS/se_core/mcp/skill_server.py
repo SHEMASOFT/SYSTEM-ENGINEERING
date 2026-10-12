@@ -197,6 +197,69 @@ class SkillServer:
                     "required": ["project"],
                 },
             },
+            {
+                "name": "skill_rdd_create",
+                "description": "Create a new RDD (review receipt) that binds a verdict to a change candidate and its evidence",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {"type": "string", "description": "Project directory name"},
+                        "title": {"type": "string", "description": "Receipt title"},
+                        "candidate": {
+                            "type": "object",
+                            "description": "The exact artifact under review",
+                            "properties": {
+                                "kind": {"type": "string", "enum": ["commit", "worktree", "artifact", "release", "patch"]},
+                                "ref": {"type": "string"},
+                                "hash": {"type": "string"},
+                                "captured_at": {"type": "string"},
+                            },
+                            "required": ["kind", "ref", "hash"],
+                        },
+                        "verdict": {"type": "string", "enum": ["PASS", "PARTIAL", "BLOCKED", "FAIL"]},
+                        "evidence": {
+                            "type": "array",
+                            "description": "Evidence supporting the verdict",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {"type": "string"},
+                                    "claim": {"type": "string"},
+                                    "result": {"type": "string", "enum": ["PASS", "PARTIAL", "BLOCKED", "FAIL", "INFO"]},
+                                    "path": {"type": "string"},
+                                },
+                                "required": ["id", "claim", "result"],
+                            },
+                        },
+                        "linked_change": {"type": "string", "description": "Task/artifact id this review belongs to"},
+                        "scope": {"type": "string", "description": "What was reviewed"},
+                    },
+                    "required": ["project", "title"],
+                },
+            },
+            {
+                "name": "skill_rdd_validate",
+                "description": "Validate an RDD artifact against schema",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {"type": "string", "description": "Project directory name"},
+                        "rdd_id": {"type": "string", "description": "RDD ID (e.g., RDD-0001)"},
+                    },
+                    "required": ["project", "rdd_id"],
+                },
+            },
+            {
+                "name": "skill_rdd_list",
+                "description": "List all RDD artifacts in a project",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {"type": "string", "description": "Project directory name"},
+                    },
+                    "required": ["project"],
+                },
+            },
         ]
 
     def call_tool(self, name: str, arguments: Dict) -> Dict:
@@ -216,6 +279,12 @@ class SkillServer:
                 return self._odd_evaluate(arguments)
             elif name == "skill_odd_list":
                 return self._odd_list(arguments)
+            elif name == "skill_rdd_create":
+                return self._rdd_create(arguments)
+            elif name == "skill_rdd_validate":
+                return self._rdd_validate(arguments)
+            elif name == "skill_rdd_list":
+                return self._rdd_list(arguments)
             else:
                 return {"error": f"Unknown tool: {name}"}
         except Exception as e:
@@ -300,6 +369,46 @@ class SkillServer:
         items, _ = all_collections(project_dir).get("odd", ([], []))
         odds = [{"id": d.get("odd_id"), "title": d.get("title"), "status": d.get("status")} for _, d in items]
         return {"odds": odds}
+
+    def _rdd_create(self, args: Dict) -> Dict:
+        project_dir = self._get_project_dir(args["project"])
+        overrides = {"title": args["title"]}
+        for key in ("candidate", "verdict", "evidence", "linked_change", "scope"):
+            if key in args and args[key] is not None:
+                overrides[key] = args[key]
+        path, identifier, errors = create_record(
+            Path(project_dir), "rdd", overrides
+        )
+        if errors:
+            return {"error": errors}
+        return {"rdd_id": identifier, "path": str(path.relative_to(self.project_root))}
+
+    def _rdd_validate(self, args: Dict) -> Dict:
+        rdd_id = args["rdd_id"]
+        project_dir = self._get_project_dir(args["project"])
+        rdd_path = project_dir / "rdds" / f"{rdd_id}.json"
+        if not rdd_path.exists():
+            return {"error": f"RDD {rdd_id} not found"}
+        from se_core.paths import load_json
+        rdd = load_json(rdd_path)
+        schemas = self._get_schemas()
+        errors = validate(rdd, schemas["rdd"])
+        return {"valid": len(errors) == 0, "errors": errors}
+
+    def _rdd_list(self, args: Dict) -> Dict:
+        project_dir = self._get_project_dir(args["project"])
+        items, _ = all_collections(project_dir).get("rdd", ([], []))
+        rdds = [
+            {
+                "id": d.get("rdd_id"),
+                "title": d.get("title"),
+                "status": d.get("status"),
+                "verdict": d.get("verdict"),
+                "candidate": (d.get("candidate") or {}).get("ref"),
+            }
+            for _, d in items
+        ]
+        return {"rdds": rdds}
 
     def _get_schemas(self):
         if self._schemas is None:

@@ -1783,7 +1783,7 @@ def cmd_verify(args) -> int:
     return 0 if report["status"] in {"PASS", "MANUAL"} else 1
 
 
-PROJECT_SCHEMA_KINDS = ["objective", "requirement", "task", "artifact", "evidence", "acceptance", "decision", "release", "sdd", "odd", "run"]
+PROJECT_SCHEMA_KINDS = ["objective", "requirement", "task", "artifact", "evidence", "acceptance", "decision", "release", "sdd", "odd", "rdd", "run"]
 
 REFERENCE_FIELDS = [
     "related_requirements",
@@ -2136,6 +2136,9 @@ NEW_TEMPLATES = {
     "evidence": "evidence.template.json",
     "acceptance": "acceptance.template.json",
     "decision": "decision.template.json",
+    "sdd": "sdd.template.json",
+    "odd": "odd.template.json",
+    "rdd": "rdd.template.json",
     "run": "run.template.json",
 }
 
@@ -2147,6 +2150,13 @@ RESET_FIELDS = {
     "evidence": ["related_requirements", "related_tasks", "related_artifacts", "related_releases"],
     "acceptance": ["criteria_refs", "related_requirements", "evidence"],
     "decision": ["options_considered", "related_tasks", "related_requirements"],
+    "sdd": ["interfaces", "data_models", "requirements_coverage", "open_questions", "risks", "related_decisions", "related_tasks"],
+    # ``alternatives`` is required with minItems 1 by the schema, so it is not
+    # reset: an ODD with no alternatives is not an ODD.
+    "odd": ["assumptions", "constraints", "open_questions", "next_steps", "related_requirements", "related_decisions", "related_sdds"],
+    # ``findings`` only: an RDD's evidence list is part of its identity and must
+    # keep at least the template entry (the schema requires minItems 1).
+    "rdd": ["findings"],
     "run": ["evidence", "artifacts", "reports"],
 }
 
@@ -2158,6 +2168,9 @@ TEXT_PLACEHOLDERS = {
     "evidence": ["location", "command", "description"],
     "acceptance": ["notes"],
     "decision": [],
+    "sdd": [],
+    "odd": [],
+    "rdd": [],
     "run": [],
 }
 
@@ -2403,6 +2416,25 @@ def cmd_new(args) -> int:
                 "acceptance": [],
             },
         })
+    elif kind == "sdd":
+        overrides.update({
+            "title": args.title or "(untitled SDD)",
+            "status": args.status or "DRAFT",
+            "summary": args.description or "To be defined.",
+        })
+    elif kind == "odd":
+        overrides.update({
+            "title": args.title or "(untitled ODD)",
+            "status": args.status or "DRAFT",
+            "summary": args.description or "To be defined.",
+            "problem": args.problem or args.description or "To be defined.",
+        })
+    elif kind == "rdd":
+        overrides.update({
+            "title": args.title or "(untitled RDD)",
+            "status": args.status or "DRAFT",
+            "scope": args.scope or "",
+        })
     else:  # pragma: no cover - argparse restricts choices
         print(f"FAIL: unknown record type {kind}")
         return 1
@@ -2418,7 +2450,7 @@ def cmd_new(args) -> int:
     return 0
 
 
-RECORD_TYPES = ["objective", "requirement", "task", "artifact", "evidence", "acceptance", "decision", "release", "run"]
+RECORD_TYPES = ["objective", "requirement", "task", "artifact", "evidence", "acceptance", "decision", "release", "sdd", "odd", "rdd", "run"]
 
 IMMUTABLE_FIELDS = {
     "objective": {"objective_id", "project_id", "schema_version", "created_at"},
@@ -2429,6 +2461,9 @@ IMMUTABLE_FIELDS = {
     "acceptance": {"acceptance_id", "project_id", "schema_version", "created_at"},
     "decision": {"decision_id", "project_id", "schema_version", "created_at"},
     "release": {"id", "project_id", "schema_version", "created_at"},
+    "sdd": {"sdd_id", "project_id", "schema_version", "created_at"},
+    "odd": {"odd_id", "project_id", "schema_version", "created_at"},
+    "rdd": {"rdd_id", "project_id", "schema_version", "created_at"},
     "run": {"run_id", "project_id", "schema_version", "created_at"},
 }
 

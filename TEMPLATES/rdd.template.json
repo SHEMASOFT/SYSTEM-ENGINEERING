@@ -1,0 +1,35 @@
+{
+  "schema_version": "1",
+  "rdd_id": "RDD-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "title": "Review receipt title",
+  "version": "0.1.0",
+  "status": "DRAFT",
+  "candidate": {
+    "kind": "commit",
+    "ref": "0000000",
+    "hash": "0000000000000000000000000000000000000000",
+    "captured_at": "1970-01-01T00:00:00Z"
+  },
+  "verdict": "PASS",
+  "evidence": [
+    {
+      "id": "EVD-0001",
+      "claim": "What this evidence proves about the reviewed candidate",
+      "result": "PASS",
+      "path": "evidence/EVD-0001.json"
+    }
+  ],
+  "reviewer": "reviewer-name",
+  "reviewed_at": "1970-01-01T00:00:00Z",
+  "linked_change": "TASK-0001",
+  "scope": "What was reviewed",
+  "findings": [
+    "Finding 1"
+  ],
+  "supersedes": null,
+  "author": "author-name",
+  "created_at": "1970-01-01T00:00:00Z",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "metadata": {}
+}

@@ -173,7 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # new
     p_new = sub.add_parser("new", help="Create a record from its template")
-    p_new.add_argument("record", choices=["objective", "requirement", "task", "artifact", "evidence", "acceptance", "decision", "run"])
+    p_new.add_argument("record", choices=["objective", "requirement", "task", "artifact", "evidence", "acceptance", "decision", "sdd", "odd", "rdd", "run"])
     p_new.add_argument("--project", required=True)
     p_new.add_argument("--title", default=None)
     p_new.add_argument("--description", default=None)

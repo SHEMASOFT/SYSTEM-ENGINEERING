@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/rdd.schema.json",
+  "title": "RDD",
+  "description": "Review receipt (Receipt-Driven Development) — binds a review verdict to the exact change candidate it evaluated, with the evidence that supports it, so a review can never drift from the version it reviewed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "rdd_id", "project_id", "title", "version", "status", "candidate", "verdict", "evidence"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "rdd_id": { "type": "string", "pattern": "^RDD-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "status": { "enum": ["DRAFT", "REVIEW", "APPROVED", "SUPERSEDED", "ARCHIVED"] },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref", "hash"],
+      "description": "The exact artifact under review. A receipt is invalid if it cannot name what it reviewed.",
+      "properties": {
+        "kind": { "enum": ["commit", "worktree", "artifact", "release", "patch"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{7,64}$" },
+        "captured_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "verdict": { "enum": ["PASS", "PARTIAL", "BLOCKED", "FAIL"] },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Evidence that supports the verdict. A verdict with no evidence is not a receipt.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "claim", "result"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^EVD-\\d{4}$" },
+          "claim": { "type": "string", "minLength": 1 },
+          "result": { "enum": ["PASS", "PARTIAL", "BLOCKED", "FAIL", "INFO"] },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "reviewer": { "type": "string" },
+    "reviewed_at": { "type": "string", "format": "date-time" },
+    "linked_change": { "type": "string" },
+    "scope": { "type": "string" },
+    "findings": { "type": "array", "items": { "type": "string" } },
+    "supersedes": {
+      "type": ["string", "null"],
+      "pattern": "^RDD-\\d{4}$"
+    },
+    "author": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "metadata": { "type": "object" }
+  }
+}
