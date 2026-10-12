@@ -494,9 +494,28 @@ def _indent_fragment(fragment: str, base: str, strip: int = 2) -> str:
     """
     lines = [
         line[strip:] if line.startswith(" " * strip) else line
-        for line in fragment.splitlines()
+        for line in fragment.strip("\n").splitlines()
     ]
     return "\n".join(base + line for line in lines)
+
+
+def _reindent_value(fragment: str, base: str) -> str:
+    """Re-indent a ``json.dumps(..., indent=2)`` value to match its key.
+
+    The opening brace stays inline with the property key (so the caller can
+    splice the result right after ``"key": ``); inner lines are indented one
+    level past ``base`` and the closing brace sits at ``base``. Single-line
+    fragments are returned unchanged.
+    """
+    lines = fragment.splitlines()
+    if len(lines) <= 1:
+        return fragment
+    out = [lines[0]]
+    for line in lines[1:-1]:
+        stripped = line[2:] if line.startswith("  ") else line
+        out.append(base + "  " + stripped)
+    out.append(base + lines[-1])
+    return "\n".join(out)
 
 
 def _insert_property(raw: str, segments: list[str], property_text: str) -> str:
@@ -592,7 +611,12 @@ def add_server_text(
             if located is None:
                 raise ValueError("could not locate the existing server entry")
             _key_start, _key_text, v_start, v_end = located
-            new_text = raw[:v_start] + json.dumps(server_config, indent=2, ensure_ascii=False) + raw[v_end:]
+            key_line_start = raw.rfind("\n", 0, _key_start) + 1
+            key_indent = raw[key_line_start:_key_start]
+            if key_indent.strip():
+                key_indent = ""
+            dumped = json.dumps(server_config, indent=2, ensure_ascii=False)
+            new_text = raw[:v_start] + _reindent_value(dumped, key_indent) + raw[v_end:]
             result["updated"] = True
         elif isinstance(servers, dict):
             fragment = json.dumps({name: server_config}, indent=2, ensure_ascii=False)[1:-1]

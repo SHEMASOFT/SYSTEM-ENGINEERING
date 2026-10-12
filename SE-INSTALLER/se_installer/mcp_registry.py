@@ -154,7 +154,7 @@ class MCPRegistry:
             description="Documentación actualizada de librerías/frameworks via Context7 API",
             transport=MCPTransport.STDIO,
             command="npx",
-            args=["-y", "@context7/mcp-server"],
+            args=["-y", "@upstash/context7-mcp"],
             env={"CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"},
             env_required=["CONTEXT7_API_KEY"],
             capabilities=[
@@ -180,7 +180,7 @@ class MCPRegistry:
                 ),
             ],
             install_method="npx",
-            verification_command="npx -y @context7/mcp-server --help",
+            verification_command="npx -y @upstash/context7-mcp --help",
             homepage="https://context7.com",
             category="Documentation",
             tags=["documentation", "libraries", "api"],
