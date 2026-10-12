@@ -18,7 +18,15 @@
     powershell -ExecutionPolicy Bypass -File bootstrap.ps1 list --json
 #>
 [CmdletBinding()]
-param()
+param(
+    # Every argument after the script name is forwarded verbatim to the
+    # `se-installer` CLI. Without this catch-all, `[CmdletBinding()]` rejects
+    # positional arguments ("A positional parameter cannot be found that
+    # accepts argument 'install'"), which broke the documented one-command
+    # entry point on Windows.
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]] $InstallerArgs
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -69,8 +77,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "bootstrap: running se-installer ..."
 if (Test-Path $InstallerExe) {
-    & $InstallerExe @args
+    & $InstallerExe @InstallerArgs
 } else {
-    & $VenvPython -m se_installer.cli @args
+    & $VenvPython -m se_installer.cli @InstallerArgs
 }
 exit $LASTEXITCODE
