@@ -348,8 +348,8 @@ class BuildRegistrationsTests(unittest.TestCase):
         reg = self._build(["skill-server"])[0]
         self.assertEqual(
             reg["command"],
-            ["opencode", "mcp", "add", "--env", "ENGRAM_PROJECT=PRJ-X", "--env", "SE_ROOT=/se",
-             "se-skill-server", "--", "python3", "-m", "se_core.mcp.skill_server"],
+            ["opencode", "mcp", "add", "--env", "ENGRAM_PROJECT=PRJ-X",
+             "se-skill-server", "--", "python3", "/se/SCRIPTS/se_core/mcp/skill_server.py"],
         )
 
     def test_secret_env_ref_becomes_env_substitution(self):
@@ -657,10 +657,12 @@ class EnvironmentTargetTests(unittest.TestCase):
         self.assertIsNone(install.path_mapper_for("windows", "auto"))
         self.assertIsNotNone(install.path_mapper_for("windows", "wsl"))
 
-    def test_python_interpreter_per_env(self):
-        which = lambda name: name in ("python", "python3")
-        self.assertEqual(install.resolve_python_interpreter(which, env_target="windows"), "python")
-        self.assertEqual(install.resolve_python_interpreter(which, env_target="wsl"), "python3")
+    def test_python_interpreter_prefers_portable_spelling(self):
+        both = lambda name: name in ("python", "python3")
+        self.assertEqual(install.resolve_python_interpreter(both, env_target="windows"), "python3")
+        self.assertEqual(install.resolve_python_interpreter(both, env_target="wsl"), "python3")
+        only_python = lambda name: name == "python"
+        self.assertEqual(install.resolve_python_interpreter(only_python, env_target="windows"), "python")
 
     def test_probe_reports_stub_failure_with_remedy(self):
         class R:

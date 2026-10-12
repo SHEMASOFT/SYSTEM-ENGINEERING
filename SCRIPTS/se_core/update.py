@@ -74,7 +74,8 @@ def plan_diff(declared: dict, state: dict) -> dict:
 
 
 def verify_update(
-    *, se_root, project, os_name, templates, preflight, interpreter, changed_names, path_mapper=None
+    *, se_root, project, os_name, templates, preflight, interpreter, changed_names, path_mapper=None,
+    portable=False,
 ) -> list[str]:
     """Post-apply verification; returns a list of error strings (empty = PASS).
 
@@ -99,6 +100,7 @@ def verify_update(
             project_id=install.read_project_id(project),
             interpreter=interpreter,
             path_mapper=path_mapper,
+            portable=portable,
         )
         for name in changed_names:
             record = (state.get("servers") or {}).get(name)
@@ -122,7 +124,7 @@ def verify_update(
     return errors
 
 
-def declared_view(templates, *, se_root, project, project_id, interpreter, path_mapper=None) -> dict:
+def declared_view(templates, *, se_root, project, project_id, interpreter, path_mapper=None, portable=False) -> dict:
     """Map registered server name -> {"template", "spec", "hash"} (same as sync)."""
     view = {}
     for template in templates:
@@ -133,6 +135,7 @@ def declared_view(templates, *, se_root, project, project_id, interpreter, path_
             project_id=project_id,
             interpreter=interpreter,
             path_mapper=path_mapper,
+            portable=portable,
         )
         view[spec["name"]] = {
             "template": template,
@@ -219,6 +222,7 @@ def cmd_update(args, *, platform_name=None, runner=None, which=None) -> int:
     declared = declared_view(
         templates, se_root=se_root, project=project, project_id=project_id,
         interpreter=interpreter, path_mapper=path_mapper,
+        portable=install.is_master_repo(project),
     )
     diff = plan_diff(declared, state)
 
@@ -322,6 +326,7 @@ def cmd_update(args, *, platform_name=None, runner=None, which=None) -> int:
             interpreter=interpreter,
             changed_names=changed_names,
             path_mapper=path_mapper,
+            portable=install.is_master_repo(project),
         )
 
     if failed is None and not verify_errors:

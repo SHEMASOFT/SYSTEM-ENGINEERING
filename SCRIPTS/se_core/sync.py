@@ -39,13 +39,13 @@ from .reporting import build_envelope, render_json, wants_json
 SCOPE = "project"
 
 
-def declared_view(templates, *, se_root, project, project_id, interpreter, path_mapper=None) -> dict:
+def declared_view(templates, *, se_root, project, project_id, interpreter, path_mapper=None, portable=False) -> dict:
     """Map registered server name -> declared info.
 
     Each entry is ``{"template", "spec" (resolved config entry), "hash"}``;
     the hash is the canonical declared spec hash lifecycle state records.
-    ``path_mapper`` must be the one the recorded state used, or the hashes
-    diverge on a translate-target install (see ``install.resolved_server_spec``).
+    ``path_mapper``/``portable`` must be the ones the recorded state used, or the
+    hashes diverge (see ``install.resolved_server_spec``).
     """
     view = {}
     for template in templates:
@@ -56,6 +56,7 @@ def declared_view(templates, *, se_root, project, project_id, interpreter, path_
             project_id=project_id,
             interpreter=interpreter,
             path_mapper=path_mapper,
+            portable=portable,
         )
         view[spec["name"]] = {
             "template": template,
@@ -231,6 +232,7 @@ def cmd_sync(args, *, platform_name=None, runner=None, which=None) -> int:
     declared = declared_view(
         templates, se_root=se_root, project=project, project_id=project_id,
         interpreter=interpreter, path_mapper=path_mapper,
+        portable=install.is_master_repo(project),
     )
     actions = reconcile(declared=declared, state=state, cfg=cfg)
     register_names = {entry["name"] for entry in actions["register"]}

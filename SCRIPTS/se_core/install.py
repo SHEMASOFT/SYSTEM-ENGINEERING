@@ -259,6 +259,19 @@ def path_mapper_for(host_env: str, env_target: str):
     return lambda value: translate_host_path(value, host_env, env_target)
 
 
+def is_master_repo(project: Path | str) -> bool:
+    """True when the target is the SE repository itself.
+
+    The master repository's ``opencode.jsonc`` is version-tracked, so its SE
+    servers are written as *portable* entries (project-relative paths + ``cwd``),
+    never as resolved host paths.
+    """
+    try:
+        return Path(project).resolve() == repo_root().resolve()
+    except OSError:
+        return False
+
+
 def default_probe_runner(command, timeout=20):
     """Run a probe command capturing output (production seam; tests inject fakes)."""
     return subprocess.run(command, capture_output=True, text=True, timeout=timeout)
@@ -390,16 +403,17 @@ def select_servers(
 
 
 def resolve_python_interpreter(which=None, env_target: str | None = None) -> str | None:
-    """Return the python command to register, honouring the target environment.
+    """Return the python command to register.
 
-    Windows teaches ``python``; POSIX (Linux/WSL/macOS) teaches ``python3``. Each
-    order falls back to the other name, so a machine that only provides one still
-    resolves. ``which`` is injectable for tests; returns ``None`` when neither
-    candidate resolves.
+    ``python3`` is preferred everywhere: it is the portable spelling (present on
+    Linux/WSL and, as an alias, on Windows) and the one the version-tracked
+    configuration uses, so install/sync/update all resolve the same command.
+    ``python`` is the fallback for Windows installs that only provide it.
+    ``env_target`` is accepted for symmetry with the other resolvers and does not
+    change the order. ``which`` is injectable for tests.
     """
     which = which or shutil.which
-    candidates = ("python", "python3") if env_target == "windows" else ("python3", "python")
-    for candidate in candidates:
+    for candidate in ("python3", "python"):
         if which(candidate):
             return candidate
     return None
@@ -580,6 +594,7 @@ def resolved_server_spec(
     project_id: str,
     interpreter: str | None,
     path_mapper=None,
+    portable: bool = False,
 ) -> dict:
     """Resolve a template into the config-entry spec it registers at ``project``.
 
@@ -593,32 +608,57 @@ def resolved_server_spec(
     ``path_mapper`` optionally translates the resolved host paths (for example a
     Windows drive path to its WSL mount when the runtime lives in WSL); install,
     sync and the recorded state must use the same mapper or their hashes diverge.
+
+    ``portable`` renders the spec for a version-tracked config (the master
+    repository): root placeholders become project-relative paths (``.``), and the
+    entry carries ``cwd: "."`` so the runtime resolves them from the workspace.
     """
     se_root_value = str(se_root)
     project_value = str(project)
     if path_mapper is not None:
         se_root_value = path_mapper(se_root_value)
         project_value = path_mapper(project_value)
+    if portable:
+        se_root_value = "."
+        project_value = "."
     context = {
         "se_root": se_root_value,
         "se_project_root": project_value,
         "project_id": project_id,
     }
+    uses_root = [
+        SE_ROOT_PLACEHOLDER in value or SE_PROJECT_ROOT_PLACEHOLDER in value
+        for value in [*template["args"], *template["env"].values()]
+    ]
     command_name = template["command"]
     if command_name.startswith("python"):
         command_name = interpreter or "python3"
-    args = [resolve_placeholders(a, context) for a in template["args"]]
+    args = [_portable_value(a, context) if portable else resolve_placeholders(a, context)
+            for a in template["args"]]
     environment = {
-        env_name: resolve_placeholders(
-            template["env"][env_name], context, env_mode=True
+        env_name: (
+            _portable_value(template["env"][env_name], context)
+            if portable
+            else resolve_placeholders(template["env"][env_name], context, env_mode=True)
         )
         for env_name in sorted(template["env"])
     }
-    return {
+    spec = {
         "name": template["name"],
         "command": [command_name, *args],
         "environment": environment,
     }
+    if portable and any(uses_root):
+        spec["cwd"] = "."
+    return spec
+
+
+def _portable_value(value: str, context: dict) -> str:
+    """Resolve ``value`` for a portable spec: roots become project-relative."""
+    resolved = resolve_placeholders(value, context, env_mode=True)
+    if resolved.startswith("./"):
+        resolved = resolved[2:]
+    return resolved
 
 
 def probe_global_support(runner, command=None) -> bool:
@@ -666,12 +706,14 @@ def write_server_configs_direct(
     target: Path | str,
     scope: str = "project",
     path_mapper=None,
+    portable: bool = False,
 ) -> list[dict]:
     """Write server configs directly to opencode.jsonc using surgical editing.
 
     Returns list of results for each server. ``path_mapper`` (see
     :func:`resolved_server_spec`) keeps the written spec identical to the one
-    :func:`record_lifecycle_state` hashes.
+    :func:`record_lifecycle_state` hashes; ``portable`` writes version-tracked
+    entries (the master repository) as project-relative specs.
     """
     from .mcpconfig import add_server_text, config_path
 
@@ -686,12 +728,15 @@ def write_server_configs_direct(
             project_id=project_id,
             interpreter=interpreter,
             path_mapper=path_mapper,
+            portable=portable,
         )
         server_config = {
             "type": "local",
             "command": spec["command"],
             "environment": spec["environment"],
         }
+        if spec.get("cwd"):
+            server_config["cwd"] = spec["cwd"]
         result = add_server_text(config_file, spec["name"], server_config, target=target)
         results.append({
             "server": template["key"],
@@ -724,6 +769,7 @@ def record_lifecycle_state(
     adapter: dict,
     env_target: str | None = None,
     path_mapper=None,
+    portable: bool = False,
 ) -> dict:
     """Persist the SE-owned lifecycle state after real registrations.
 
@@ -769,6 +815,7 @@ def record_lifecycle_state(
             project_id=project_id,
             interpreter=interpreter,
             path_mapper=path_mapper,
+            portable=portable,
         )
         lc.record_server(
             state,
@@ -1104,6 +1151,7 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None, prob
         # installer never registers a server it cannot launch.
         planned_keys = {r["server"] for r in registrations if r["status"] == "planned"}
         planned_templates = [t for t in selected_templates if t["key"] in planned_keys]
+        portable = is_master_repo(project)
         config_results = write_server_configs_direct(
             planned_templates,
             se_root=se_root,
@@ -1113,6 +1161,7 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None, prob
             target=project,
             scope=scope,
             path_mapper=path_mapper,
+            portable=portable,
         )
         results_by_key = {r["server"]: r for r in config_results}
         for reg in registrations:
@@ -1136,6 +1185,7 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None, prob
                     adapter=adapter,
                     env_target=env_target,
                     path_mapper=path_mapper,
+                    portable=portable,
                 )
             except Exception as exc:  # noqa: BLE001 - state write is part of a successful install
                 plan["status"] = "FAIL"
