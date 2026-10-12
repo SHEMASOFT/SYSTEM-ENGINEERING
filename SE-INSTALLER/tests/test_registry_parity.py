@@ -127,3 +127,39 @@ def test_sequential_thinking_gap_is_closed():
     the installer must install it, not silently ignore it."""
     installed = _component_ids()
     assert "sequential-thinking" in installed
+
+    from se_installer.installers.mcp import MCP_INSTALLERS
+
+    assert "sequential-thinking" in MCP_INSTALLERS, (
+        "sequential-thinking is a selectable component but has no registered "
+        "installer; selecting it would fail with 'No installer for MCP'"
+    )
+
+
+def test_every_installable_component_has_a_registered_installer():
+    """Every component the orchestrator dispatches to an installer registry
+    must have an entry there.
+
+    ``sequential-thinking`` and ``rust`` were declared components with no
+    registry entry, so ``install --all`` (or an explicit selection) reported
+    them as FAILED. This locks the installer/component parity so a new
+    component cannot be added without an installer.
+    """
+    from se_installer.installers.mcp import MCP_INSTALLERS
+    from se_installer.installers.runtime import RUNTIME_INSTALLERS
+    from se_installer.models import ComponentType
+
+    missing: list[str] = []
+    for component in get_all_components():
+        if component.component_type == ComponentType.MCP:
+            if component.id not in MCP_INSTALLERS:
+                missing.append(component.id)
+        elif component.component_type == ComponentType.RUNTIME:
+            if component.id not in RUNTIME_INSTALLERS:
+                missing.append(component.id)
+
+    assert missing == [], (
+        "components with no registered installer: "
+        + ", ".join(missing)
+        + " (add an entry to MCP_INSTALLERS/RUNTIME_INSTALLERS or drop the component)"
+    )

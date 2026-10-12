@@ -142,7 +142,15 @@ class InstallerOrchestrator:
             return True
         
         # Check if already installed
-        installer = self._get_installer(comp)
+        try:
+            installer = self._get_installer(comp)
+        except ValueError as exc:
+            # A selectable component with no registered installer must fail
+            # with a readable message, never an unhandled traceback.
+            comp.status = InstallStatus.FAILED
+            comp.error_message = f"No installer registered for component '{comp.id}': {exc}"
+            self._emit("component_failed", {"component": comp.id, "error": comp.error_message})
+            return False
         if installer:
             installed, version = installer.check_installed()
             if installed and not self.plan.force_reinstall:
