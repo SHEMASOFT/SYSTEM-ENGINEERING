@@ -246,11 +246,12 @@ Shipped:
 - **Work-mode skill** → `SKILLS/work-mode-selection` (SK-0007) plus `se ceremony`.
 - **Receipts by default** → the ceremony floor requires a passing RDD for
   medium/large (and high-risk / critical) work.
+- **Coordinator capability** → the coordinator contract (AG-0003) declares
+  `work_mode_selection` as a capability and responsibility, so every deployed
+  runtime coordinator advertises the rule.
 
 Still open:
 
-- **Coordinator capability** — expose work-mode selection as a first-class coordinator
-  capability in the agent contracts, so the runtime advertises it.
 - **Installer UX** — one-command install for SE + MCP servers + runtimes.
 
 ---

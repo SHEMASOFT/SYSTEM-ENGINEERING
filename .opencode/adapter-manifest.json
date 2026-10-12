@@ -92,10 +92,10 @@
   },
   "metadata": {
     "content_hashes": {
-      "AGENTS.md": "df7bb4090cc7b82c60767e585312202de255df3be3e1e379b4dc99ac574bece8",
+      "AGENTS.md": "357a36ec41409bd0345e5dd86b211d34392e49775f1f26eda991a72a0cad91ae",
       "agents/analyst.md": "bef47f23e8397e2582eda134ba0cac8ac62675773c898a4ebeb4ad90241d5f04",
       "agents/architect.md": "a7b525b9c88dadb5b8ad555c236d107735ce983c9c7c4c67580202b5ebbc64ad",
-      "agents/coordinator.md": "031ca519cabb34e9d5a5f549586746f01ba4dcbfab6279a0cb68c2b988a177fe",
+      "agents/coordinator.md": "7a79708c0eba456166442a85a89561e51a57a4b4779e4bcf09faef92037bcc24",
       "agents/devops.md": "eb6dac29925e361207df3557c236226ef608889cf6209b79e5f64ede09268fde",
       "agents/documentation.md": "dc4c1fc0c312cecad6a305069eed10da64fbb2d9d329cccfc4104fb0c282ca85",
       "agents/explorer.md": "f8fa69c06ddc5a5e8e03f2813a44c3e8a54e96595cc65cdec5aeb7d1f8c0c995",
@@ -164,7 +164,7 @@
         "type": "agent"
       },
       {
-        "description": "Orchestrate the lifecycle, route work to agents and enforce gates and traceability.",
+        "description": "Orchestrate the lifecycle, route work to agents, enforce gates and traceability, and resolve the work mode for each change from the project profile.",
         "format": "markdown",
         "path": ".opencode/agents/coordinator.md",
         "type": "agent"

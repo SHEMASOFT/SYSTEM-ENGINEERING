@@ -51,6 +51,18 @@ class AgentTests(unittest.TestCase):
         for name, agent in self.agents.items():
             self.assertTrue(agent["verification_requirements"], name)
 
+    def test_coordinator_declares_work_mode_selection(self):
+        """The work-mode selection rule must be advertised by the coordinator contract
+        (roadmap: work-mode skill + coordinator capability), not only by the policy files."""
+        coordinator = self.agents["coordinator"]
+        names = {cap["name"] for cap in coordinator["capabilities"]}
+        self.assertIn("work_mode_selection", names)
+        capability = next(c for c in coordinator["capabilities"] if c["name"] == "work_mode_selection")
+        for word in ("organic", "spec", "receipt"):
+            self.assertIn(word, capability["description"])
+        joined = " ".join(coordinator["responsibilities"])
+        self.assertIn("work mode", joined)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,14 +3,15 @@
   "id": "AG-0003",
   "version": "1.0.0",
   "role": "coordinator",
-  "description": "Orchestrate the lifecycle, route work to agents and enforce gates and traceability.",
+  "description": "Orchestrate the lifecycle, route work to agents, enforce gates and traceability, and resolve the work mode for each change from the project profile.",
   "name": "coordinator",
-  "purpose": "Orchestrate the lifecycle, route work to agents and enforce gates and traceability.",
+  "purpose": "Orchestrate the lifecycle, route work to agents, enforce gates and traceability, and resolve the work mode (organic/spec/receipt) from the project profile.",
   "responsibilities": [
     "Maintain the project manifest and lifecycle state.",
     "Route tasks to the appropriate agents.",
     "Ensure gates are evaluated before any transition.",
     "Maintain traceability between objectives, requirements, tasks and evidence.",
+    "Resolve the work mode (organic/spec/receipt) from the declared project profile before planning or implementing, and confirm the ceremony floor with `se ceremony`.",
     "Escalate blockers and record BLOCKED conditions with a resolution path."
   ],
   "inputs": [
@@ -67,6 +68,10 @@
     {
       "name": "traceability",
       "description": "Maintain traceability between objectives, requirements, tasks and evidence."
+    },
+    {
+      "name": "work_mode_selection",
+      "description": "Resolve the work mode (organic/spec/receipt) from the project profile (profiles.work type/scale/risk, criticality, contract impact) before planning or implementing, and confirm the ceremony floor with `se ceremony`."
     }
   ],
   "lifecycle": {

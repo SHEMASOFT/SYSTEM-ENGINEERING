@@ -87,3 +87,7 @@ The selection rule ships as the canonical skill **`work-mode-selection`** (SK-00
 loaded on demand, so the rule travels with the agent instead of being prose it may
 skip. The ceremony floor is enforced by `se validate --project` (see **Enforcement**
 above), which closes the loop: the mode is not advice, it is a validation outcome.
+The **coordinator contract** (`AGENTS/coordinator/agent.json`, AG-0003) now also
+declares `work_mode_selection` as a capability and a responsibility, so the deployed
+runtime coordinator advertises the rule and applies it before planning or implementing
+— it is no longer prose the agent may skip, nor only a validation gate.

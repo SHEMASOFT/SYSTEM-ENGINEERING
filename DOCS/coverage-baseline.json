@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-10-12T10:31:48Z",
+  "created_at": "2026-10-12T10:48:31Z",
   "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
   "minimums": {
     "reference": 30
@@ -161,7 +161,7 @@
       },
       {
         "path": "DOCS/reference/work-modes.md",
-        "hash": "15fabeb58ec6a05d"
+        "hash": "78049d3862989a5f"
       },
       {
         "path": "DOCS/reference/workflows.md",
