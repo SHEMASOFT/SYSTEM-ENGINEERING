@@ -161,6 +161,27 @@ def get_all_components() -> list:
         category="Web Scraping",
     ))
 
+    components.append(InstallableComponent(
+        id="sequential-thinking",
+        name="Sequential Thinking MCP",
+        description="Deliberate, structured and revisable multi-step reasoning",
+        component_type=ComponentType.MCP,
+        long_description=(
+            "Servidor MCP de referencia para razonamiento secuencial estructurado. "
+            "Descompone problemas complejos en pasos revisables, encadena pensamientos "
+            "y permite backtracking controlado. Util para depurar, disenar y analizar "
+            "decisiones multi-etapa."
+        ),
+        requires=["se_core", "node"],
+        supported_os=[OSType.WINDOWS, OSType.MACOS, OSType.LINUX],
+        install_method="npx",
+        verification_command="npx -y @modelcontextprotocol/server-sequential-thinking --help",
+        homepage="https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+        docs_url="https://modelcontextprotocol.io",
+        recommended=False,
+        category="Reasoning",
+    ))
+
     # ============================================
     # MCPs - Binary-based
     # ============================================

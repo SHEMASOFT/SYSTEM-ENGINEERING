@@ -249,10 +249,10 @@ Shipped:
 - **Coordinator capability** → the coordinator contract (AG-0003) declares
   `work_mode_selection` as a capability and responsibility, so every deployed
   runtime coordinator advertises the rule.
-
-Still open:
-
-- **Installer UX** — one-command install for SE + MCP servers + runtimes.
+- **Installer UX** → one-command bootstrap (`SE-INSTALLER/bootstrap.ps1` and
+  `SE-INSTALLER/install.sh`) over the unified `se-installer` package for
+  SE + MCP servers + runtimes, with a CI-enforced installer test suite and a
+  registry-parity contract against `CORE/capabilities/capabilities.json`.
 
 ---
 

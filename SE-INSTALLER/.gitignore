@@ -1,0 +1,8 @@
+# SE-INSTALLER — build/runtime hygiene (none of it is tracked)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+build/
+dist/

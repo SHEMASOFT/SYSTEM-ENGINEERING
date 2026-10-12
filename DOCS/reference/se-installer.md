@@ -6,7 +6,7 @@ The **SE Installer** (`se-installer`) is a standalone package that provides an i
 
 - **SE Core** — schemas, lifecycle, agents, commands, CLI (`se.py`)
 - **SE Console** — local-first read-only web console (http://localhost:8777)
-- **MCPs** — Model Context Protocol servers (Context7, Filesystem, Playwright, Firecrawl, Engram, CodeGraph)
+- **MCPs** — Model Context Protocol servers (Context7, Filesystem, Sequential Thinking, Playwright, Firecrawl, Engram, CodeGraph)
 - **Runtime Adapters** — OpenCode, Codex CLI, Claude Code
 - **User-selectable Models** — not tied to specific models; free tiers for OpenCode
 
@@ -17,9 +17,9 @@ The **SE Installer** (`se-installer`) is a standalone package that provides an i
 ```
 se_installer/
 ├── models.py                 # Core data models (Component, Plan, Status, OSType)
-├── components.py             # 13 component definitions with metadata
+├── components.py             # 14 component definitions with metadata
 ├── orchestrator.py           # Installation orchestration (topo sort, progress, state)
-├── state.py                  # Persistent installation state (JSON)
+├── state/                    # Persistent installation state (JSON)
 ├── cli.py                    # CLI: install, list, status, doctor, tui
 ├── tui.py                    # Textual TUI (interactive component selection)
 ├── model_registry.py         # 14 models, user selections, recommendations
@@ -46,6 +46,7 @@ se_installer/
 | `filesystem` | Filesystem MCP | `mcp` | File Operations | ✅ | npx |
 | `playwright` | Playwright MCP | `mcp` | Browser Automation | ❌ | npx + `playwright install chromium` |
 | `firecrawl` | Firecrawl | `mcp` | Web Scraping | ❌ | npx (requires API key) |
+| `sequential-thinking` | Sequential Thinking MCP | `mcp` | Reasoning | ❌ | npx |
 | `codegraph` | CodeGraph | `mcp` | Code Intelligence | ❌ | cargo (Rust) |
 | `node` | Node.js / npx | `mcp` | Runtime | ✅ | auto (fnm/winget/brew) |
 | `rust` | Rust / Cargo | `mcp` | Runtime | ❌ | rustup |
@@ -53,7 +54,7 @@ se_installer/
 | `codex` | Codex CLI | `runtime` | Runtime | ❌ | npm |
 | `claude_code` | Claude Code | `runtime` | Runtime | ❌ | npm |
 
-> **Note**: MCPs requiring Node.js (`context7`, `filesystem`, `playwright`, `firecrawl`) declare `requires: ["node"]`. The installer auto-installs Node.js only when at least one of these is selected.
+> **Note**: MCPs requiring Node.js (`context7`, `filesystem`, `playwright`, `firecrawl`, `sequential-thinking`) declare `requires: ["node"]`. The installer auto-installs Node.js only when at least one of these is selected.
 
 ---
 
@@ -347,7 +348,11 @@ The SE Installer is **independent** from the SE Core lifecycle commands (`se ins
 | `se update` | **Update**: diff + apply + verify + rollback |
 | `se uninstall` | **Remove**: SE-owned entries only, preserve foreign config |
 
-> **Future**: `se install --bootstrap` will delegate to `se-installer` for the bootstrap phase.
+`se install --bootstrap` delegates to `se-installer` for the bootstrap phase
+(installing SE Core, Console, MCPs and runtimes) and then continues with the MCP
+registration described in [`installation.md`](installation.md). The one-command
+entry points are `SE-INSTALLER/bootstrap.ps1` (Windows) and `SE-INSTALLER/install.sh`
+(Linux/macOS).
 
 ---
 
@@ -383,7 +388,7 @@ python -m se_installer.cli doctor --json
 3. **Agent awareness** — Agents know which MCPs are available (like skills).
 4. **Skill-MCP bridge** — Skills declare capabilities; bridge resolves to MCP functions.
 5. **Runtime configs** — Generated, not hand-written; OpenCode V2 format native.
-6. **Node conditional** — Node.js only installed when Context7/Filesystem/Playwright/Firecrawl selected.
+6. **Node conditional** — Node.js only installed when an npx-based MCP (Context7, Filesystem, Playwright, Firecrawl, Sequential Thinking) is selected.
 7. **Hermetic tests** — Fake runners, temp sandboxes, no real CLI invocation.
 
 ---

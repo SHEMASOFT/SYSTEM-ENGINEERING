@@ -11,6 +11,7 @@ Instalador unificado para **System Engineering Master System (SE)**.
 - **Multi-plataforma**: Windows (winget/scoop/choco), macOS (brew), Linux (apt/dnf/pacman)
 - **Dry-run**: Valida y planifica sin instalar
 - **Estado persistente**: Guarda progreso y permite reanudar
+- **Paridad con el registro**: el catálogo de componentes se verifica contra `CORE/capabilities/capabilities.json` (fuente de verdad única)
 
 ## Componentes incluidos
 
@@ -26,6 +27,7 @@ Instalador unificado para **System Engineering Master System (SE)**.
 | **Filesystem** | Read/write files MCP | node |
 | **Playwright** | Browser automation | node + browsers |
 | **Firecrawl** | Web scraping/search | node + API key |
+| **Sequential Thinking** | Razonamiento estructurado multi-paso | node |
 | **CodeGraph** | Code intelligence (Rust) | cargo |
 
 ### Runtimes (para adaptar SE)
@@ -35,7 +37,23 @@ Instalador unificado para **System Engineering Master System (SE)**.
 | **Codex** | OpenAI Codex CLI |
 | **Claude Code** | Anthropic Claude Code CLI |
 
-## Instalación rápida
+## Instalación rápida — un solo comando
+
+```bash
+# Windows (PowerShell)
+git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git
+powershell -ExecutionPolicy Bypass -File SYSTEM-ENGINEERING/SE-INSTALLER/bootstrap.ps1 tui
+
+# Linux / macOS
+git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git
+bash SYSTEM-ENGINEERING/SE-INSTALLER/install.sh install --recommended --dry-run
+```
+
+El script crea un virtualenv aislado (`.venv`), instala el paquete `se-installer`
+dentro y reenvía los argumentos restantes a la CLI (`se-installer`). Sin argumentos,
+ejecuta la ayuda del CLI.
+
+### Instalación manual
 
 ```bash
 # Clonar
@@ -80,19 +98,22 @@ python -m se_installer.cli tui
 ## Arquitectura
 
 ```
-se-installer/
-├── components.py      # Definiciones de todos los componentes
-├── models.py          # Modelos de datos (Plan, Component, Status, OS)
-├── orchestrator.py    # Orquestador de instalación (topological sort)
-├── state.py           # Persistencia de estado (JSON + history)
-├── tui.py             # TUI interactivo (Textual)
-├── cli.py             # CLI entry point (Typer-like)
-├── components.py      # Definiciones de componentes
-├── installers/
-│   ├── base.py        # BaseInstaller + mixins OS
-│   ├── mcp/           # MCP installers (6 MCPs)
-│   └── runtime/       # Runtime installers (3 runtimes)
-└── state/             # Persistencia JSON
+se_installer/
+├── models.py                     # Modelos de datos (Plan, Component, Status, OS)
+├── components.py                 # Definiciones de todos los componentes
+├── orchestrator.py               # Orquestador de instalación (topological sort)
+├── cli.py                        # CLI: install, list, status, doctor, tui
+├── tui.py                        # TUI interactivo (Textual)
+├── state/                        # Persistencia de estado (JSON)
+├── model_registry.py             # Modelos seleccionables por agente
+├── mcp_registry.py               # Registro de MCPs con schemas de funciones
+├── agent_mcp_binding.py          # Bindings agente → MCP + modelo
+├── skill_mcp_bridge.py           # Skills declaran capacidades MCP
+├── runtime_config_generator.py   # Generación de configs de runtime
+└── installers/
+    ├── base.py                   # BaseInstaller + mixins OS
+    ├── mcp/                      # Instaladores MCP (npx/binary/cargo)
+    └── runtime/                  # Instaladores de runtimes
 ```
 
 ## Ejemplos
@@ -116,4 +137,4 @@ se-installer install --dry-run --all
 
 ## Licencia
 
-UNKNOWN — no license declared. REQUIRES_VERIFICATION before public distribution.
+MIT — misma licencia que el repositorio SYSTEM-ENGINEERING (ver [`LICENSE`](../LICENSE)).
