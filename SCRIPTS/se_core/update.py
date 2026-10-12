@@ -74,7 +74,7 @@ def plan_diff(declared: dict, state: dict) -> dict:
 
 
 def verify_update(
-    *, se_root, project, os_name, templates, preflight, interpreter, changed_names
+    *, se_root, project, os_name, templates, preflight, interpreter, changed_names, path_mapper=None
 ) -> list[str]:
     """Post-apply verification; returns a list of error strings (empty = PASS).
 
@@ -98,6 +98,7 @@ def verify_update(
             project=project,
             project_id=install.read_project_id(project),
             interpreter=interpreter,
+            path_mapper=path_mapper,
         )
         for name in changed_names:
             record = (state.get("servers") or {}).get(name)
@@ -121,7 +122,7 @@ def verify_update(
     return errors
 
 
-def declared_view(templates, *, se_root, project, project_id, interpreter) -> dict:
+def declared_view(templates, *, se_root, project, project_id, interpreter, path_mapper=None) -> dict:
     """Map registered server name -> {"template", "spec", "hash"} (same as sync)."""
     view = {}
     for template in templates:
@@ -131,6 +132,7 @@ def declared_view(templates, *, se_root, project, project_id, interpreter) -> di
             project=project,
             project_id=project_id,
             interpreter=interpreter,
+            path_mapper=path_mapper,
         )
         view[spec["name"]] = {
             "template": template,
@@ -209,10 +211,14 @@ def cmd_update(args, *, platform_name=None, runner=None, which=None) -> int:
         return _finish(args, "update", "BLOCKED", report=None, blockers=[message])
 
     templates = install.load_mcp_templates(se_root)
-    interpreter = install.resolve_python_interpreter(which)
+    host_env = install.detect_env_target(platform_name)
+    recorded_target = str(state.get("env_target") or host_env)
+    path_mapper = install.path_mapper_for(host_env, recorded_target)
+    interpreter = install.resolve_python_interpreter(which, env_target=recorded_target)
     project_id = install.read_project_id(project)
     declared = declared_view(
-        templates, se_root=se_root, project=project, project_id=project_id, interpreter=interpreter
+        templates, se_root=se_root, project=project, project_id=project_id,
+        interpreter=interpreter, path_mapper=path_mapper,
     )
     diff = plan_diff(declared, state)
 
@@ -315,6 +321,7 @@ def cmd_update(args, *, platform_name=None, runner=None, which=None) -> int:
             preflight=preflight,
             interpreter=interpreter,
             changed_names=changed_names,
+            path_mapper=path_mapper,
         )
 
     if failed is None and not verify_errors:

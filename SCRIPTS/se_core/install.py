@@ -103,62 +103,6 @@ DEPENDENCIES = (
     },
 )
 
-#: External tools probed by preflight, in report order. Each entry declares the
-#: candidate executable names to probe and per-OS install guidance. v1 never
-#: installs anything automatically; it reports and guides.
-#:
-#: ``node`` is special: it is only required when MCP servers that depend on it
-#: (``context7``, ``filesystem``) are selected. The preflight logic handles this
-#: conditionally based on the selected servers.
-DEPENDENCIES = (
-    {
-        "name": "python",
-        "commands": ("python3", "python"),
-        "purpose": "Runs the SE reference CLI and the SE skill-server MCP.",
-        "guidance": {
-            "windows": "Install Python 3 from https://www.python.org/downloads/ "
-                       "(winget install Python.Python.3.12) and ensure it is on PATH.",
-            "linux": "Install Python 3 with your package manager "
-                     "(apt install python3 / dnf install python3).",
-            "macos": "Install Python 3 (brew install python@3.12 or python.org).",
-        },
-    },
-    {
-        "name": "node",
-        "commands": ("npx", "node"),
-        "purpose": "Runs the npx-based MCP servers (context7, filesystem). Only required when those servers are selected.",
-        "guidance": {
-            "windows": "Install Node.js LTS: winget install OpenJS.NodeJS.LTS "
-                       "(provides node and npx).",
-            "linux": "Install Node.js with your package manager (apt install nodejs npm).",
-            "macos": "Install Node.js (brew install node).",
-        },
-    },
-    {
-        "name": "opencode",
-        "commands": ("opencode",),
-        "purpose": "The runtime that loads the registered MCP servers.",
-        "guidance": {
-            "windows": "Install the OpenCode CLI: npm install -g opencode-ai.",
-            "linux": "Install the OpenCode CLI: curl -fsSL https://opencode.ai/install | bash.",
-            "macos": "Install the OpenCode CLI: brew install sst/tap/opencode.",
-        },
-    },
-    {
-        "name": "engram",
-        "commands": ("engram",),
-        "purpose": "Persistent memory MCP.",
-        "guidance": {
-            "windows": "Install the Engram binary from "
-                       "https://github.com/Gentleman-Programming/engram (prebuilt release) "
-                       "and run: engram setup opencode.",
-            "linux": "brew install gentleman-programming/tap/engram (or "
-                     "go install github.com/Gentleman-Programming/engram/v3/cmd/engram@latest).",
-            "macos": "brew install gentleman-programming/tap/engram and run: engram setup opencode.",
-        },
-    },
-)
-
 #: MCP server key -> dependency name required to launch it (see :data:`DEPENDENCIES`).
 SERVER_DEPENDENCY = {
     "context7": "node",
@@ -256,6 +200,145 @@ def detect_os(platform_name: str | None = None) -> str:
     raise ValueError(f"unsupported platform: {platform_name or value}")
 
 
+#: Runtime environments the installer can target. ``auto`` resolves to the host
+#: environment at run time; ``wsl`` is the Linux distribution while the OpenCode
+#: the user actually runs may live on either side of the boundary.
+ENV_TARGETS = ("auto", "windows", "wsl", "linux", "macos")
+
+
+def detect_env_target(
+    platform_name: str | None = None, *, wsl_distro: str | None = None
+) -> str:
+    """Return ``windows`` | ``wsl`` | ``linux`` | ``macos`` for this process.
+
+    ``sys.platform`` reads ``linux`` inside WSL, so the host environment is
+    refined with ``WSL_DISTRO_NAME`` (set by WSL itself). ``wsl_distro`` is
+    injectable for tests.
+    """
+    os_name = detect_os(platform_name)
+    if os_name == "linux":
+        probe = wsl_distro if wsl_distro is not None else __import__("os").environ.get("WSL_DISTRO_NAME")
+        if probe:
+            return "wsl"
+    return os_name
+
+
+def translate_host_path(path: str | Path, source: str, target: str) -> str:
+    """Translate an absolute path between Windows and WSL/Unix spellings.
+
+    A Windows drive path becomes the WSL mount of that drive, and vice versa.
+    Only paths that match the source spelling are translated; anything else is
+    returned unchanged, so the call is safe to apply defensively. Same
+    source/target pairs are a no-op.
+    """
+    text = str(path)
+    if source == target:
+        return text
+    normalized = text.replace("\\", "/")
+    if source == "windows" and target in ("wsl", "linux"):
+        match = re.match(r"^([A-Za-z]):(?:/(.*))?$", normalized)
+        if not match:
+            return normalized
+        drive = match.group(1).lower()
+        rest = (match.group(2) or "").strip("/")
+        return f"/mnt/{drive}/{rest}" if rest else f"/mnt/{drive}"
+    if source in ("wsl", "linux") and target == "windows":
+        match = re.match(r"^/mnt/([A-Za-z])(?:/(.*))?$", normalized)
+        if match:
+            drive = match.group(1).upper()
+            rest = (match.group(2) or "").strip("/").replace("/", "\\")
+            return f"{drive}:\\{rest}" if rest else f"{drive}:\\"
+        return normalized.replace("/", "\\")
+    return normalized if source == "windows" else text
+
+
+def path_mapper_for(host_env: str, env_target: str):
+    """Return a ``str -> str`` mapper or ``None`` when no translation is needed."""
+    if not env_target or env_target == "auto" or env_target == host_env:
+        return None
+    return lambda value: translate_host_path(value, host_env, env_target)
+
+
+def default_probe_runner(command, timeout=20):
+    """Run a probe command capturing output (production seam; tests inject fakes)."""
+    return subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+
+
+def probe_command_version(command: str, *, runner=None, timeout: int = 20):
+    """Execute ``command --version`` and report whether it really runs.
+
+    Returns ``(ok, version, detail)``: ``version`` is the first non-empty output
+    line when the command exits 0; ``detail`` carries truncated failure output
+    otherwise. A stub whose postinstall never ran exits non-zero, which is how a
+    broken ``opencode`` npm install is detected before anything depends on it.
+    """
+    runner = runner or default_probe_runner
+    # Resolve first: on Windows the shims are ``.cmd``/``.ps1`` and CreateProcess
+    # does not append those extensions to a bare name from PATH.
+    resolved = shutil.which(command) or command
+    try:
+        result = runner([resolved, "--version"], timeout=timeout)
+    except FileNotFoundError:
+        return False, None, "executable not found"
+    except Exception as exc:  # noqa: BLE001 - reported as a probe failure
+        return False, None, str(exc)[:300]
+    output = ((getattr(result, "stdout", "") or "") + (getattr(result, "stderr", "") or "")).strip()
+    if getattr(result, "returncode", None) == 0:
+        first = next((line.strip() for line in output.splitlines() if line.strip()), "")
+        return True, (first or None), None
+    return False, None, output[:300] or f"exit {getattr(result, 'returncode', 'unknown')}"
+
+
+_OPENCODE_BROKEN_HINTS = ("postinstall", "not a valid application", "is not recognized", "no such file")
+_OPENCODE_VERSION_RE = re.compile(r"(\d+)\.(\d+)")
+
+
+def classify_opencode(*, ok: bool, version: str | None, detail: str | None, os_name: str) -> tuple[str, str, str | None]:
+    """Classify the opencode preflight probe into ``(status, note, remedy)``.
+
+    * broken binary (stub, failed postinstall, wrong platform build) -> WARN with
+      the exact remedy;
+    * v1 running -> WARN: this project targets v2;
+    * v2 running -> PASS;
+    * anything else runnable -> PASS (version reported verbatim).
+    """
+    if not ok:
+        lowered = (detail or "").lower()
+        platform_mismatch = any(
+            hint in lowered
+            for hint in ("not a valid application", "aplicación válida", "not compatible", "no es compatible")
+        )
+        postinstall_missed = any(hint in lowered for hint in _OPENCODE_BROKEN_HINTS) or "postinstall" in lowered
+        if platform_mismatch:
+            remedy = (
+                "The installed opencode binary cannot run on this platform (a partially "
+                "installed or wrong-platform npm package). Reinstall with scripts enabled: "
+                "npm install -g @opencode/cli (with pnpm, run pnpm approve-builds first)."
+            )
+        elif postinstall_missed:
+            remedy = (
+                "The npm package's postinstall did not run. Fix it with: "
+                "npm rebuild -g @opencode/cli. With pnpm, approve build scripts first: "
+                "pnpm approve-builds, then reinstall."
+            )
+        else:
+            remedy = (
+                "The opencode CLI did not run. Repair or reinstall it: "
+                "npm rebuild -g @opencode/cli (with pnpm: pnpm approve-builds first), or use the "
+                "official installer at https://opencode.ai/install."
+            )
+        return "WARN", f"does not run: {(detail or '').strip()[:160]}", remedy
+    match = _OPENCODE_VERSION_RE.search(version or "")
+    if match and match.group(1) == "1":
+        return (
+            "WARN",
+            f"v1 detected ({version}); this project targets OpenCode v2",
+            "Upgrade the CLI: npm install -g @opencode/cli, or re-run the official installer "
+            "(https://opencode.ai/install).",
+        )
+    return "PASS", version or "runs", None
+
+
 def load_mcp_templates(root: Path | str) -> list[dict]:
     """Load ``TEMPLATES/mcp/*.json.tmpl`` as portable registration specs.
 
@@ -305,21 +388,25 @@ def select_servers(
     return sorted(set(selected))
 
 
-def resolve_python_interpreter(which=None) -> str | None:
-    """Return ``python3`` when available, else ``python`` (order matters on Windows).
+def resolve_python_interpreter(which=None, env_target: str | None = None) -> str | None:
+    """Return the python command to register, honouring the target environment.
 
-    ``which`` is injectable for tests; it defaults to :func:`shutil.which`. Returns
-    ``None`` when neither candidate resolves.
+    Windows teaches ``python``; POSIX (Linux/WSL/macOS) teaches ``python3``. Each
+    order falls back to the other name, so a machine that only provides one still
+    resolves. ``which`` is injectable for tests; returns ``None`` when neither
+    candidate resolves.
     """
     which = which or shutil.which
-    for candidate in ("python3", "python"):
+    candidates = ("python", "python3") if env_target == "windows" else ("python3", "python")
+    for candidate in candidates:
         if which(candidate):
             return candidate
     return None
 
 
 def preflight_dependencies(
-    os_name: str, which=None, interpreter: str | None = None, selected_servers: list[str] | None = None
+    os_name: str, which=None, interpreter: str | None = None, selected_servers: list[str] | None = None,
+    probe=None,
 ) -> list[dict]:
     """Probe external tools and return per-dependency preflight items.
 
@@ -329,6 +416,12 @@ def preflight_dependencies(
 
     ``selected_servers`` controls conditional dependencies: ``node`` is only
     probed when ``context7`` or ``filesystem`` are in the selected servers.
+
+    ``probe`` is an optional ``command -> (ok, version, detail)`` callable
+    (see :func:`probe_command_version`). When provided, node/opencode/engram are
+    *executed* instead of only looked up, so a broken npm install (a stub whose
+    postinstall never ran) or an OpenCode v1 binary is reported with a remedy
+    instead of a false PASS. Tests leave it ``None`` to stay hermetic.
     """
     which = which or shutil.which
     items = []
@@ -351,16 +444,32 @@ def preflight_dependencies(
             )
         else:
             found_command = next((c for c in dep["commands"] if which(c)), None)
+
+        status = "PASS" if found_command else "WARN"
+        detail = found_command or f"not found (tried: {', '.join(dep['commands'])})"
+        guidance = dep["guidance"][os_name]
+
+        if found_command and probe is not None and dep["name"] in ("node", "opencode", "engram"):
+            ok, version, probe_detail = probe(found_command)
+            if dep["name"] == "opencode":
+                status, note, remedy = classify_opencode(
+                    ok=ok, version=version, detail=probe_detail, os_name=os_name
+                )
+                detail = f"{found_command}: {note}"
+                if remedy:
+                    guidance = guidance + " Remedy: " + remedy
+            elif ok:
+                detail = f"{found_command} ({version})" if version else found_command
+            else:
+                status = "WARN"
+                detail = f"{found_command} does not run: {(probe_detail or '').strip()[:160]}"
+
         items.append(
             {
                 "name": dep["name"],
-                "status": "PASS" if found_command else "WARN",
-                "detail": (
-                    found_command
-                    if found_command
-                    else f"not found (tried: {', '.join(dep['commands'])})"
-                ),
-                "guidance": dep["guidance"][os_name],
+                "status": status,
+                "detail": detail,
+                "guidance": guidance,
                 "purpose": dep["purpose"],
             }
         )
@@ -469,6 +578,7 @@ def resolved_server_spec(
     project: Path | str,
     project_id: str,
     interpreter: str | None,
+    path_mapper=None,
 ) -> dict:
     """Resolve a template into the config-entry spec it registers at ``project``.
 
@@ -478,10 +588,19 @@ def resolved_server_spec(
     reference ``{env:OTHER}``). This is the canonical DECLARED shape that
     ``se sync`` / ``se update`` compare against the runtime config and that
     lifecycle state hashes.
+
+    ``path_mapper`` optionally translates the resolved host paths (for example a
+    Windows drive path to its WSL mount when the runtime lives in WSL); install,
+    sync and the recorded state must use the same mapper or their hashes diverge.
     """
+    se_root_value = str(se_root)
+    project_value = str(project)
+    if path_mapper is not None:
+        se_root_value = path_mapper(se_root_value)
+        project_value = path_mapper(project_value)
     context = {
-        "se_root": str(se_root),
-        "se_project_root": str(project),
+        "se_root": se_root_value,
+        "se_project_root": project_value,
         "project_id": project_id,
     }
     command_name = template["command"]
@@ -536,31 +655,6 @@ def execute_registrations(registrations: list[dict], runner) -> None:
             )
 
 
-def write_server_configs(
-    registrations: list[dict],
-    target: Path | str,
-    scope: str = "project",
-) -> None:
-    """Write server configs directly to opencode.jsonc, bypassing CLI.
-
-    Uses surgical config editing to add/update servers in mcp.servers (V2 format).
-    Only processes registrations with status "planned".
-    """
-    target = Path(target)
-    for registration in registrations:
-        if registration["status"] != "planned":
-            continue
-
-        # Get the resolved server spec (already has placeholders resolved)
-        # We need to build it from the registration's command info
-        # The registration has the raw command argv, but we need the structured config
-        # Use resolved_server_spec which is the canonical format
-
-        # For now, extract from registration what we need
-        # The registration was built from template, so we can find the template
-        pass  # This will be implemented below
-
-
 def write_server_configs_direct(
     selected_templates: list[dict],
     *,
@@ -570,10 +664,13 @@ def write_server_configs_direct(
     interpreter: str | None,
     target: Path | str,
     scope: str = "project",
+    path_mapper=None,
 ) -> list[dict]:
     """Write server configs directly to opencode.jsonc using surgical editing.
 
-    Returns list of results for each server.
+    Returns list of results for each server. ``path_mapper`` (see
+    :func:`resolved_server_spec`) keeps the written spec identical to the one
+    :func:`record_lifecycle_state` hashes.
     """
     from .mcpconfig import add_server_text, config_path
 
@@ -587,6 +684,7 @@ def write_server_configs_direct(
             project=project,
             project_id=project_id,
             interpreter=interpreter,
+            path_mapper=path_mapper,
         )
         server_config = {
             "type": "local",
@@ -623,6 +721,8 @@ def record_lifecycle_state(
     templates: list[dict],
     registrations: list[dict],
     adapter: dict,
+    env_target: str | None = None,
+    path_mapper=None,
 ) -> dict:
     """Persist the SE-owned lifecycle state after real registrations.
 
@@ -630,6 +730,10 @@ def record_lifecycle_state(
     records every ``registered`` server with its declared spec hash, and refreshes
     ``se_version`` / ``os`` / ``target``. Returns the saved state. Reuses the
     lifecycle-state module so install, sync, update and uninstall share one format.
+
+    ``env_target`` records which runtime environment the declared specs were
+    resolved for (``windows`` | ``wsl`` | ...), so ``se sync`` can rebuild the same
+    spec — and its hash — with :func:`resolved_server_spec`'s ``path_mapper``.
     """
     import hashlib
 
@@ -647,6 +751,8 @@ def record_lifecycle_state(
     state["target"] = str(target)
     state["scope"] = scope
     state["runtime"] = "opencode"
+    if env_target:
+        state["env_target"] = env_target
 
     by_key = {t["key"]: t for t in templates}
     for registration in registrations:
@@ -661,6 +767,7 @@ def record_lifecycle_state(
             project=target,
             project_id=project_id,
             interpreter=interpreter,
+            path_mapper=path_mapper,
         )
         lc.record_server(
             state,
@@ -794,6 +901,9 @@ def render_plan(plan: dict) -> str:
     mode = " (dry-run)" if plan["dry_run"] else ""
     lines.append("se install plan" + mode)
     lines.append(f"OS: {plan['os']}")
+    env_target = plan.get("env_target")
+    if env_target and env_target != plan["os"]:
+        lines.append(f"Env target: {env_target} (host paths translated from {plan['os']})")
     lines.append(f"Scope: {plan['scope']}")
     lines.append(f"SE root: {plan['se_root']}")
     lines.append(f"Project: {plan['project']}")
@@ -839,16 +949,24 @@ def render_plan(plan: dict) -> str:
     return "\n".join(lines)
 
 
-def run(args, *, platform_name: str | None = None, runner=None, which=None) -> int:
+def run(args, *, platform_name: str | None = None, runner=None, which=None, probe=None) -> int:
     """Execute the ``se install`` pipeline.
 
-    ``platform_name``, ``runner`` and ``which`` are injectable test seams; production
-    callers pass nothing and get the current platform, the real subprocess runner and
-    the real executable lookup. Exit codes: 0 success, 1 failure/BLOCKED report.
+    ``platform_name``, ``runner``, ``which`` and ``probe`` are injectable test
+    seams; production callers pass nothing and get the current platform, the real
+    subprocess runner, the real executable lookup and the real ``--version``
+    probe. Exit codes: 0 success, 1 failure/BLOCKED report, 2 usage.
     """
     se_root = repo_root()
     project = Path(getattr(args, "project", None) or ".").resolve()
     os_name = detect_os(platform_name)
+    host_env = detect_env_target(platform_name)
+    requested_target = str(getattr(args, "env_target", "auto") or "auto")
+    if requested_target not in ENV_TARGETS:
+        print(f"FAIL: unknown --env-target {requested_target!r}; expected one of {', '.join(ENV_TARGETS)}")
+        return 2
+    env_target = host_env if requested_target == "auto" else requested_target
+    path_mapper = path_mapper_for(host_env, env_target)
     which = which or shutil.which
 
     # Handle --bootstrap: run se-installer first to install SE Core, Console, MCPs, runtimes
@@ -915,8 +1033,11 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None) -> i
     templates = load_mcp_templates(se_root)
     selected_keys = select_servers(templates, with_list=getattr(args, "with_", None))
     selected_templates = [t for t in templates if t["key"] in selected_keys]
-    preflight = preflight_dependencies(os_name, which=which, selected_servers=selected_keys)
-    interpreter = resolve_python_interpreter(which)
+    interpreter = resolve_python_interpreter(which, env_target=env_target)
+    preflight = preflight_dependencies(
+        os_name, which=which, interpreter=interpreter,
+        selected_servers=selected_keys, probe=probe,
+    )
     scope = "global" if getattr(args, "global", False) else "project"
     register = not getattr(args, "no_register", False)
     generate_adapter = bool(getattr(args, "generate_adapter", False))
@@ -948,6 +1069,7 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None) -> i
         registrations=registrations,
         adapter=adapter,
     )
+    plan["env_target"] = env_target
 
     if scope == "global" and register:
         probe_runner = runner or default_runner
@@ -974,43 +1096,49 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None) -> i
             plan["blockers"].append(f"adapter generation failed: {'; '.join(adapter['errors'])}")
 
     if plan["status"] == "PASS" and not dry_run and register:
-        opencode_item = next((i for i in preflight if i["name"] == "opencode"), None)
-        if opencode_item and opencode_item["status"] != "PASS":
-            plan["status"] = "BLOCKED"
-            plan["blockers"].append(
-                "the opencode CLI is required to register MCP servers; install it first"
-            )
-        else:
-            config_results = write_server_configs_direct(
-                selected_templates,
-                se_root=se_root,
-                project=project,
-                project_id=project_id,
-                interpreter=interpreter,
-                target=project,
-                scope=scope,
-            )
-            # Update registrations status based on config results
-            for i, reg in enumerate(registrations):
-                if reg["status"] == "planned" and i < len(config_results):
-                    reg["status"] = config_results[i]["status"]
-                    reg["reason"] = config_results[i]["reason"]
-            if any(r["status"] == "registered" for r in registrations):
-                try:
-                    record_lifecycle_state(
-                        target=project,
-                        se_root=se_root,
-                        os_name=os_name,
-                        scope=scope,
-                        project_id=project_id,
-                        interpreter=interpreter,
-                        templates=selected_templates,
-                        registrations=registrations,
-                        adapter=adapter,
-                    )
-                except Exception as exc:  # noqa: BLE001 - state write is part of a successful install
-                    plan["status"] = "FAIL"
-                    plan["blockers"].append(f"failed to record lifecycle state: {exc}")
+        # MCP servers are written straight into the runtime config (surgical,
+        # portable), so the opencode CLI is not required for registration. A
+        # broken or missing CLI was already reported by the preflight probe.
+        # Only servers whose dependency passed the preflight are written: the
+        # installer never registers a server it cannot launch.
+        planned_keys = {r["server"] for r in registrations if r["status"] == "planned"}
+        planned_templates = [t for t in selected_templates if t["key"] in planned_keys]
+        config_results = write_server_configs_direct(
+            planned_templates,
+            se_root=se_root,
+            project=project,
+            project_id=project_id,
+            interpreter=interpreter,
+            target=project,
+            scope=scope,
+            path_mapper=path_mapper,
+        )
+        results_by_key = {r["server"]: r for r in config_results}
+        for reg in registrations:
+            if reg["status"] != "planned":
+                continue
+            outcome = results_by_key.get(reg["server"])
+            if outcome is not None:
+                reg["status"] = outcome["status"]
+                reg["reason"] = outcome["reason"]
+        if any(r["status"] == "registered" for r in registrations):
+            try:
+                record_lifecycle_state(
+                    target=project,
+                    se_root=se_root,
+                    os_name=os_name,
+                    scope=scope,
+                    project_id=project_id,
+                    interpreter=interpreter,
+                    templates=selected_templates,
+                    registrations=registrations,
+                    adapter=adapter,
+                    env_target=env_target,
+                    path_mapper=path_mapper,
+                )
+            except Exception as exc:  # noqa: BLE001 - state write is part of a successful install
+                plan["status"] = "FAIL"
+                plan["blockers"].append(f"failed to record lifecycle state: {exc}")
 
     if getattr(args, "json", False):
         from .reporting import build_envelope, render_json

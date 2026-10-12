@@ -304,6 +304,10 @@ def build_parser() -> argparse.ArgumentParser:
                            help="Preflight and plan only; perform no registration")
     p_install.add_argument("--generate-adapter", dest="generate_adapter", action="store_true",
                            help="Optionally generate the OpenCode adapter for the target project")
+    p_install.add_argument("--env-target", dest="env_target", default="auto",
+                           choices=["auto", "windows", "wsl", "linux", "macos"],
+                           help="Runtime environment to target when resolving paths "
+                                "(default: auto = this host; wsl translates Windows paths to /mnt/<drive>)")
     p_install.add_argument("--bootstrap", action="store_true",
                            help="Run the unified SE installer (se-installer) to install SE Core, Console, MCPs, runtimes, and generate runtime configs before MCP registration")
     p_install.add_argument("--bootstrap-components", dest="bootstrap_components", default=None,

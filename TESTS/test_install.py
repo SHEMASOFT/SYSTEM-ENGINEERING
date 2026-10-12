@@ -623,3 +623,106 @@ class GlobalScopeRunTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EnvironmentTargetTests(unittest.TestCase):
+    """Fase 2: env target detection, path translation and real binary probes."""
+
+    def test_detect_env_target_windows(self):
+        self.assertEqual(install.detect_env_target("win32"), "windows")
+
+    def test_detect_env_target_wsl(self):
+        self.assertEqual(install.detect_env_target("linux", wsl_distro="Ubuntu"), "wsl")
+
+    def test_detect_env_target_plain_linux(self):
+        self.assertEqual(install.detect_env_target("linux", wsl_distro=""), "linux")
+
+    def test_translate_windows_to_wsl(self):
+        self.assertEqual(install.translate_host_path("D:\\a\\b", "windows", "wsl"), "/mnt/d/a/b")
+        self.assertEqual(install.translate_host_path("D:\\", "windows", "wsl"), "/mnt/d")
+
+    def test_translate_wsl_to_windows(self):
+        self.assertEqual(install.translate_host_path("/mnt/d/a/b", "wsl", "windows"), "D:\\a\\b")
+
+    def test_translate_same_env_is_noop(self):
+        self.assertEqual(install.translate_host_path("D:\\a", "windows", "windows"), "D:\\a")
+
+    def test_path_mapper_none_when_same(self):
+        self.assertIsNone(install.path_mapper_for("windows", "windows"))
+        self.assertIsNone(install.path_mapper_for("windows", "auto"))
+        self.assertIsNotNone(install.path_mapper_for("windows", "wsl"))
+
+    def test_python_interpreter_per_env(self):
+        which = lambda name: name in ("python", "python3")
+        self.assertEqual(install.resolve_python_interpreter(which, env_target="windows"), "python")
+        self.assertEqual(install.resolve_python_interpreter(which, env_target="wsl"), "python3")
+
+    def test_probe_reports_stub_failure_with_remedy(self):
+        class R:
+            returncode = 1
+            stdout = ""
+            stderr = "Error: @opencode/cli's postinstall script was not run.\n"
+
+        ok, version, detail = install.probe_command_version(
+            "opencode", runner=lambda cmd, timeout=20: R()
+        )
+        self.assertFalse(ok)
+        self.assertIn("postinstall", detail)
+        status, _note, remedy = install.classify_opencode(
+            ok=ok, version=version, detail=detail, os_name="windows"
+        )
+        self.assertEqual(status, "WARN")
+        self.assertIn("npm rebuild -g @opencode/cli", remedy)
+
+    def test_probe_reports_v1(self):
+        class R:
+            returncode = 0
+            stdout = "1.19.0\n"
+            stderr = ""
+
+        ok, version, _ = install.probe_command_version(
+            "opencode", runner=lambda cmd, timeout=20: R()
+        )
+        status, note, _remedy = install.classify_opencode(
+            ok=ok, version=version, detail=None, os_name="linux"
+        )
+        self.assertEqual(status, "WARN")
+        self.assertIn("v1", note.lower())
+
+    def test_probe_reports_v2_pass(self):
+        class R:
+            returncode = 0
+            stdout = "opencode v2.0.27\n"
+            stderr = ""
+
+        ok, version, _ = install.probe_command_version(
+            "opencode", runner=lambda cmd, timeout=20: R()
+        )
+        status, _note, _remedy = install.classify_opencode(
+            ok=ok, version=version, detail=None, os_name="windows"
+        )
+        self.assertEqual(status, "PASS")
+
+    def test_preflight_probe_marks_broken_opencode(self):
+        which = lambda name: name in ("opencode", "python")
+
+        def fake_probe(command):
+            if command == "opencode":
+                return False, None, "postinstall script was not run"
+            return True, "v1.0", None
+
+        items = install.preflight_dependencies(
+            "windows", which=which, selected_servers=[], probe=fake_probe
+        )
+        item = next(i for i in items if i["name"] == "opencode")
+        self.assertEqual(item["status"], "WARN")
+        self.assertIn("npm rebuild", item["guidance"])
+
+    def test_resolved_spec_uses_path_mapper(self):
+        template = {"name": "x", "command": "python3", "args": ["${SE_ROOT}/s.py"], "env": {}}
+        mapper = install.path_mapper_for("windows", "wsl")
+        spec = install.resolved_server_spec(
+            template, se_root="D:\\se", project="D:\\se",
+            project_id="p", interpreter="python3", path_mapper=mapper,
+        )
+        self.assertEqual(spec["command"], ["python3", "/mnt/d/se/s.py"])

@@ -39,11 +39,13 @@ from .reporting import build_envelope, render_json, wants_json
 SCOPE = "project"
 
 
-def declared_view(templates, *, se_root, project, project_id, interpreter) -> dict:
+def declared_view(templates, *, se_root, project, project_id, interpreter, path_mapper=None) -> dict:
     """Map registered server name -> declared info.
 
     Each entry is ``{"template", "spec" (resolved config entry), "hash"}``;
     the hash is the canonical declared spec hash lifecycle state records.
+    ``path_mapper`` must be the one the recorded state used, or the hashes
+    diverge on a translate-target install (see ``install.resolved_server_spec``).
     """
     view = {}
     for template in templates:
@@ -53,6 +55,7 @@ def declared_view(templates, *, se_root, project, project_id, interpreter) -> di
             project=project,
             project_id=project_id,
             interpreter=interpreter,
+            path_mapper=path_mapper,
         )
         view[spec["name"]] = {
             "template": template,
@@ -217,13 +220,17 @@ def cmd_sync(args, *, platform_name=None, runner=None, which=None) -> int:
         )
 
     templates = install.load_mcp_templates(se_root)
-    interpreter = install.resolve_python_interpreter(which)
+    host_env = install.detect_env_target(platform_name)
+    recorded_target = str((state or {}).get("env_target") or host_env)
+    path_mapper = install.path_mapper_for(host_env, recorded_target)
+    interpreter = install.resolve_python_interpreter(which, env_target=recorded_target)
     project_id = install.read_project_id(project)
     config_path = mcpconfig.config_path(project)
     cfg = mcpconfig.read_config(config_path) if config_path.exists() else {}
 
     declared = declared_view(
-        templates, se_root=se_root, project=project, project_id=project_id, interpreter=interpreter
+        templates, se_root=se_root, project=project, project_id=project_id,
+        interpreter=interpreter, path_mapper=path_mapper,
     )
     actions = reconcile(declared=declared, state=state, cfg=cfg)
     register_names = {entry["name"] for entry in actions["register"]}

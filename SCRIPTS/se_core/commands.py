@@ -3218,7 +3218,10 @@ def cmd_gate(args) -> int:
 def cmd_install(args) -> int:
     from . import install
 
-    return install.run(args)
+    # Production path: probe real binaries (``--version``) so a broken npm
+    # install or a v1 CLI is reported instead of a false PASS. Tests call
+    # install.run directly with their own seams and leave probe=None.
+    return install.run(args, probe=install.probe_command_version)
 
 
 def cmd_sync(args) -> int:
