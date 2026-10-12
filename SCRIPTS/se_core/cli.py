@@ -272,6 +272,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_opencode.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
     p_opencode.set_defaults(func=commands.cmd_adapter_opencode)
 
+    p_claude = p_adapter_sub.add_parser(
+        "claude-code", help="Generate Claude Code assets (.claude/ + .mcp.json + CLAUDE.md)"
+    )
+    p_claude.add_argument("--output", default=None, help="Output directory (default: repo root)")
+    p_claude.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
+    p_claude.set_defaults(func=commands.cmd_adapter_claude_code)
+
+    p_codex = p_adapter_sub.add_parser(
+        "codex", help="Generate Codex assets (.codex/ + AGENTS.md)"
+    )
+    p_codex.add_argument("--output", default=None, help="Output directory (default: repo root)")
+    p_codex.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
+    p_codex.set_defaults(func=commands.cmd_adapter_codex)
+
+    p_adapter_all = p_adapter_sub.add_parser("all", help="Generate every runtime adapter")
+    p_adapter_all.add_argument("--output", default=None, help="Output directory (default: repo root)")
+    p_adapter_all.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
+    p_adapter_all.set_defaults(func=commands.cmd_adapter_all)
+
     # coverage
     p_coverage = sub.add_parser("coverage", help="Document coverage baseline (governed)")
     p_coverage_sub = p_coverage.add_subparsers(dest="coverage_command", required=True)

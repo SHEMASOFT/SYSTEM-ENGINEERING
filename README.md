@@ -95,6 +95,45 @@ and lifecycle commands (`se install`, `se sync`, `se update`, `se uninstall`).
 
 ---
 
+## Projects
+
+Bootstrap a managed project from scratch:
+
+```bash
+python SCRIPTS/se.py init --dir PROJECTS/MyApp --name "MyApp" --owner "me" --domains software
+```
+
+`se init` also takes `--agents`, `--skills` and `--criticality`
+(`low|medium|high|critical|unknown`; it defaults to `unknown`, never a silent
+guess). A project can declare an **optional profile** in `PROJECT.json`
+([reference](DOCS/reference/project-profile.md)):
+
+```jsonc
+"profiles": {
+  "work": { "type": "greenfield|brownfield", "scale": "small|medium|large",
+            "risk": "low|medium|high", "cadence": "..." }
+}
+```
+
+The profile is **descriptive today**: it does not change the lifecycle, gates or
+evidence rules. It is the input the agents read to pick the work mode (below).
+
+> Adopting an **existing / advanced project** is refused by `se init` by design —
+> it requires a dedicated integration path that is not implemented yet (Roadmap).
+
+## Work modes
+
+The agent picks the mode **from the project**, not from habit:
+
+| Mode | What it is |
+|---|---|
+| **organic** | Daily flow: explore → clarify → execute the authorized change → proportional checks. |
+| **spec** | Formal flow for contract changes and large/high-risk work: objective, requirements, design (`se new sdd`), tasks, gates. |
+| **receipt** | Evidence-review layer: binds a verdict to the exact change candidate (`se new rdd` = candidate + evidence + verdict). |
+
+See [`DOCS/reference/work-modes.md`](DOCS/reference/work-modes.md) for the
+selection rule (profile → mode).
+
 ## Create and drive a project
 
 ```bash
@@ -139,14 +178,20 @@ own repository and history.
 
 ---
 
-## Multi-runtime
+## Runtimes
 
-OpenCode is the fully supported runtime today. The architecture keeps runtime
-specifics out of `CORE/` and `SCHEMAS/`:
+Adapters render the same contracts for different runtimes:
 
-- adapters live in `INTEGRATIONS/` and are generated from contracts;
-- MCP templates use portable placeholders, never absolute host paths;
-- Codex and Claude Code support is in progress (see `SE-INSTALLER/`).
+```bash
+python SCRIPTS/se.py adapter opencode      # .opencode/ (audited by se doctor)
+python SCRIPTS/se.py adapter claude-code   # .claude/ + .mcp.json + CLAUDE.md
+python SCRIPTS/se.py adapter codex         # .codex/ + AGENTS.md (config fragment)
+python SCRIPTS/se.py adapter all           # every runtime at one output root
+```
+
+Every adapter is deterministic, idempotent and **portable** (no absolute host
+paths). Runtime specifics stay in `INTEGRATIONS/`; see
+[`DOCS/reference/adapters.md`](DOCS/reference/adapters.md).
 
 ---
 
@@ -170,6 +215,19 @@ Key references:
 - [`workflows.md`](DOCS/reference/workflows.md) — multi-agent DAG execution
 - [`lifecycle.md`](DOCS/reference/lifecycle.md) — install/sync/update/uninstall lifecycle
 - [`opencode-adapter.md`](DOCS/reference/opencode-adapter.md) — how the agent layer is generated
+
+---
+
+## Roadmap
+
+- **Adopt existing / advanced projects** — a dedicated integration path; today
+  `se init` refuses them by design.
+- **Per-size flows** — make `profiles.work.scale` drive gate depth and ceremony,
+  not just describe the project.
+- **Work-mode skill** — ship the selection rule as a canonical skill plus a
+  coordinator capability, so the runtime agent loads it automatically.
+- **Receipts by default** — agents emit an RDD review receipt for medium and
+  large changes.
 
 ---
 

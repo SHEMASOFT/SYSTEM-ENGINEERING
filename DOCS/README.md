@@ -29,6 +29,8 @@ Start here to understand, install and operate SYSTEM ENGINEERING.
 |---|---|
 | [`reference/commands.md`](reference/commands.md) | The command surface (`init`, `plan`, `gate`, `orchestrate`, ...) |
 | [`reference/workflows.md`](reference/workflows.md) | Multi-agent workflows: DAGs, gates, context passing |
+| [`reference/work-modes.md`](reference/work-modes.md) | organic / spec / receipt: when the agent must apply each one |
+| [`reference/adapters.md`](reference/adapters.md) | Runtime adapters: OpenCode, Claude Code, Codex |
 | [`reference/opencode-adapter.md`](reference/opencode-adapter.md) | How the OpenCode agent layer is generated |
 | [`reference/development-workflow.md`](reference/development-workflow.md) | Day-to-day development flow inside SE |
 | [`reference/execute-integrity.md`](reference/execute-integrity.md) | Execution, integrity and evidence rules |

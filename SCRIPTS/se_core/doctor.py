@@ -72,6 +72,8 @@ ALLOWED_ROOT_FILES = {
 ALLOWED_ROOT_DIRS = set(REQUIRED_DIRS) | {
     ".opencode",                # deployed adapter, audited by check_adapter
     ".github",                  # issue/PR templates and CI workflows
+    ".claude",                  # generated Claude Code adapter output
+    ".codex",                   # generated Codex adapter output
 }
 
 # Runtime noise: transient by definition, already covered by .gitignore, and not a

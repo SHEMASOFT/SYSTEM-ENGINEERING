@@ -57,6 +57,10 @@ PROJECTS/*
 # Generated OpenCode assets (regenerate via `se adapter opencode`)
 .opencode/node_modules/
 
+# Generated runtime adapters for other runtimes (regenerate via `se adapter ...`)
+.claude/
+.codex/
+
 # Any environment file (belt-and-suspenders on top of .env / .env.*)
 *.env
 

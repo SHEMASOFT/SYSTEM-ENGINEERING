@@ -3307,6 +3307,41 @@ def cmd_adapter_opencode(args) -> int:
     return 0
 
 
+def _report_adapter(title: str, result: dict, dry_run: bool) -> int:
+    changed = [f for f in result["files"] if f["action"] != "unchanged"]
+    print(title)
+    print(f"{'Would write' if dry_run else 'Wrote'} {len(changed)} file(s) to {result['output']}")
+    print(f"Status: {result['status']}")
+    return 0
+
+
+def cmd_adapter_claude_code(args) -> int:
+    from . import runtimes
+
+    root = repo_root()
+    output = Path(args.output) if getattr(args, "output", None) else root
+    dry_run = bool(getattr(args, "dry_run", False))
+    return _report_adapter("Claude Code Adapter", runtimes.generate_claude_code(root, output, dry_run), dry_run)
+
+
+def cmd_adapter_codex(args) -> int:
+    from . import runtimes
+
+    root = repo_root()
+    output = Path(args.output) if getattr(args, "output", None) else root
+    dry_run = bool(getattr(args, "dry_run", False))
+    return _report_adapter("Codex Adapter", runtimes.generate_codex(root, output, dry_run), dry_run)
+
+
+def cmd_adapter_all(args) -> int:
+    from . import runtimes
+
+    root = repo_root()
+    output = Path(args.output) if getattr(args, "output", None) else root
+    dry_run = bool(getattr(args, "dry_run", False))
+    return _report_adapter("Runtime Adapters", runtimes.generate_all(root, output, dry_run), dry_run)
+
+
 def cmd_coverage_rebase(args) -> int:
     """Rebase the coverage baseline through the governed, journalled path.
 
