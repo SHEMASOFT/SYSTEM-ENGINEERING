@@ -475,9 +475,14 @@ class CliRegistrationTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         details = json.loads(out)["details"]
         commands = {r["server"]: r["command"] for r in details["registrations"]}
-        self.assertIn("engram", commands)
+        self.assertIn("skill-server", commands)
+        # Planned registrations carry the opencode argv. Servers whose external
+        # dependency is missing in this environment (the CLI probes real binaries)
+        # are skipped and carry no command, which is environment-dependent by
+        # design; skill-server only needs python, so it is planned everywhere.
         self.assertTrue(all((not command) or command[0] == "opencode" for command in commands.values()))
-        self.assertIn("opencode", commands["engram"][:3])
+        self.assertNotEqual(commands["skill-server"], [])
+        self.assertIn("opencode", commands["skill-server"][:3])
 
     def test_generate_adapter_refused_in_se_repo(self):
         code, out = support.run_cli(
