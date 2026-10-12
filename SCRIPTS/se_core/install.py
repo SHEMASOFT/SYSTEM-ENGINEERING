@@ -317,9 +317,10 @@ def classify_opencode(*, ok: bool, version: str | None, detail: str | None, os_n
             )
         elif postinstall_missed:
             remedy = (
-                "The npm package's postinstall did not run. Fix it with: "
-                "npm rebuild -g @opencode/cli. With pnpm, approve build scripts first: "
-                "pnpm approve-builds, then reinstall."
+                "npm blocks install scripts by default (npm 12 allow-scripts), so the "
+                "package's postinstall never ran. Allow it and rebuild: "
+                "npm config set allow-scripts=@opencode/cli --location=user; "
+                "npm rebuild -g @opencode/cli. With pnpm: pnpm approve-builds, then reinstall."
             )
         else:
             remedy = (
