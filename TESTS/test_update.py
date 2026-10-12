@@ -258,6 +258,11 @@ def make_lifecycle_args(project, dry_run=False, json=False):
 
 
 def declared_view_for(project, interpreter="python"):
+    # Mirror production: ``cmd_update`` resolves the project path, and the
+    # ``${SE_PROJECT_ROOT}`` substitution is part of the declared hash. On Windows
+    # a temp directory can carry a short (8.3) name that ``resolve()`` expands, so
+    # an unresolved path here would compute a different spec than production.
+    project = Path(project).resolve()
     templates = install.load_mcp_templates(support.REPO_ROOT)
     view = update_lifecycle.declared_view(
         templates,
@@ -273,7 +278,7 @@ def seed_state(project, view, *, se_version=None, only=None):
     state = lc.new_state(
         se_version=se_version or lc.read_se_version(support.REPO_ROOT),
         os_name="windows",
-        target=str(project),
+        target=str(Path(project).resolve()),
     )
     for name, entry in view.items():
         if only is not None and name not in only:
