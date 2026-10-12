@@ -1,0 +1,7 @@
+# Normalize every text file to LF both in the repository and in working trees on
+# all platforms. Content hashes are part of the system's contract: the coverage
+# baseline (DOCS/coverage-baseline.json) and the adapter manifest
+# (.opencode/adapter-manifest.json) hash file bytes, so mixed line endings would
+# make `se doctor` / `se validate` fail on a fresh clone. Binaries are detected
+# automatically by `text=auto` and never converted.
+* text=auto eol=lf

@@ -58,6 +58,7 @@ REQUIRED_FILES = [
 
 ALLOWED_ROOT_FILES = {
     ".gitignore",
+    ".gitattributes",           # LF normalization: content hashes must be stable on every platform
     "README.md",
     "SYSTEM.json",
     "VERSION",

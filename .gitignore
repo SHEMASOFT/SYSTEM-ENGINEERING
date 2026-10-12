@@ -48,8 +48,11 @@ tmp/
 # Local project workspaces created by `se init` (keep master system repo clean)
 .workspaces/
 
-# Isolated project repos (never absorb project workspaces into the master system)
-PROJECTS/
+# Isolated project repos (never absorb project workspaces into the master system).
+# The directory itself is part of the layout, so a .gitkeep keeps it on a fresh
+# clone while every project workspace stays untracked.
+PROJECTS/*
+!PROJECTS/.gitkeep
 
 # Generated OpenCode assets (regenerate via `se adapter opencode`)
 .opencode/node_modules/

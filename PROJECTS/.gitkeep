@@ -1,0 +1,2 @@
+# Keeps PROJECTS/ present on a fresh clone. Project workspaces themselves are
+# never tracked (see .gitignore): each project keeps its own history.
