@@ -1076,7 +1076,7 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None, prob
             success = summary.get("success", 0)
             failed = summary.get("failed", 0)
             skipped = summary.get("skipped", 0)
-            print(f"\n[BOOTSTRAP] Total: {total} | [OK] {success} | [FAIL] {failed} | [SKIP] {skipped}")
+            print(f"\n[BOOTSTRAP] Seleccionados: {total} | [OK] {success} | [FAIL] {failed} | [SKIP] {skipped} (no seleccionados)")
 
     templates = load_mcp_templates(se_root)
     selected_keys = select_servers(templates, with_list=getattr(args, "with_", None))

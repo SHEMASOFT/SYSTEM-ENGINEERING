@@ -300,7 +300,7 @@ class MCPRegistry:
             description="Web scraping, crawling y búsqueda web. Requiere FIRECRAWL_API_KEY",
             transport=MCPTransport.STDIO,
             command="npx",
-            args=["-y", "@firecrawl/mcp"],
+            args=["-y", "firecrawl-mcp"],
             env={"FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"},
             env_required=["FIRECRAWL_API_KEY"],
             capabilities=[
@@ -329,7 +329,7 @@ class MCPRegistry:
                 ),
             ],
             install_method="npx",
-            verification_command="npx -y @firecrawl/mcp --help",
+            verification_command="npx -y firecrawl-mcp --help",
             homepage="https://firecrawl.dev",
             category="Web Scraping",
             tags=["scraping", "crawling", "search"],

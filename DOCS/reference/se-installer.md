@@ -131,7 +131,7 @@ Each MCP declares:
 | Context7 | stdio | `npx -y @upstash/context7-mcp` | `resolve-library-id`, `query-docs` | Node, `CONTEXT7_API_KEY` |
 | Filesystem | stdio | `npx -y @modelcontextprotocol/server-filesystem <root>` | `read_file`, `write_file`, `list_directory`, `search_files` | Node |
 | Playwright | stdio | `npx -y @playwright/mcp` | `navigate`, `click`, `screenshot`, `fill_form`, `evaluate` | Node, Chromium |
-| Firecrawl | stdio | `npx -y @firecrawl/mcp` | `scrape`, `crawl`, `search` | Node, `FIRECRAWL_API_KEY` |
+| Firecrawl | stdio | `npx -y firecrawl-mcp` | `scrape`, `crawl`, `search` | Node, `FIRECRAWL_API_KEY` |
 | Engram | stdio | `engram mcp --tools=agent` | `mem_save`, `mem_search`, `mem_get` | binary |
 | CodeGraph | stdio | `codegraph-mcp` | `blast_radius`, `go_to_definition`, `find_references`, `impact_analysis` | Rust/cargo |
 

@@ -22,6 +22,35 @@ class InstallResult:
     error: Optional[str] = None
 
 
+def run_tool(
+    name: str,
+    args: Optional[list[str]] = None,
+    timeout: int = 30,
+    **kwargs: Any,
+) -> Optional[subprocess.CompletedProcess]:
+    """Run a PATH tool, resolving Windows ``.cmd``/``.bat`` shims.
+
+    Console tools on Windows (``opencode``, ``npx``, ``npm``, ``scoop`` ...) are
+    ``.cmd``/``.bat`` shims. ``subprocess`` uses ``CreateProcess``, which only
+    appends ``.exe``, so launching them by bare name fails with ``WinError 2``.
+    ``shutil.which`` honours ``PATHEXT``, so we resolve the executable first and
+    hand the absolute path to ``subprocess``.
+
+    Returns the ``CompletedProcess``, or ``None`` when the tool is not on PATH
+    (callers must handle ``None`` instead of assuming a result).
+    """
+    exe = shutil.which(name)
+    if not exe:
+        return None
+    return subprocess.run(
+        [exe, *(args or [])],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        **kwargs,
+    )
+
+
 class BaseInstaller(ABC):
     """Abstract base class for component installers."""
     
@@ -49,6 +78,19 @@ class BaseInstaller(ABC):
     def install(self) -> 'InstallResult':
         """Install the component."""
         pass
+    
+    def _npx_ready(self) -> tuple[bool, Optional[str]]:
+        """Readiness probe for npx-based MCP servers.
+
+        These servers are fetched on demand by ``npx``; they have no local
+        install artifact, and their CLI probes are inconsistent (some servers
+        return non-zero for ``--version``/``--help``, e.g. the filesystem
+        server). The meaningful check is therefore that ``npx`` is available.
+        """
+        result = run_tool("npx", ["--version"], timeout=10)
+        if result and result.returncode == 0:
+            return True, f"npx {result.stdout.strip()}"
+        return False, None
     
     def verify(self) -> tuple[bool, Optional[str]]:
         """Verify installation. Returns (success, version)."""

@@ -154,7 +154,7 @@ def get_all_components() -> list:
         requires=["se_core", "node"],
         supported_os=[OSType.WINDOWS, OSType.MACOS, OSType.LINUX],
         install_method="npx",
-        verification_command="npx -y @firecrawl/mcp --help",
+        verification_command="npx -y firecrawl-mcp --help",
         homepage="https://firecrawl.dev",
         docs_url="https://docs.firecrawl.dev",
         recommended=False,
