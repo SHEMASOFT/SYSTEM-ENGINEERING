@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/odd.schema.json",
+  "title": "ODD",
+  "description": "Open Design Document / Open Decision Document — collaborative, iterative design artifact capturing alternatives, rationale, and evaluation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "odd_id", "project_id", "title", "version", "status", "kind", "summary", "problem", "context", "assumptions", "constraints", "alternatives", "proposed_design", "evaluation"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "odd_id": { "type": "string", "pattern": "^ODD-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "status": { "enum": ["DRAFT", "REVIEW", "APPROVED", "IMPLEMENTED", "SUPERSEDED", "ARCHIVED"] },
+    "kind": { "enum": ["design", "decision", "investigation", "rfc"] },
+    "summary": { "type": "string", "minLength": 1 },
+    "problem": { "type": "string", "minLength": 1 },
+    "context": { "type": "string", "minLength": 1 },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "constraints": { "type": "array", "items": { "type": "string" } },
+    "alternatives": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "description", "pros", "cons", "estimated_effort", "decision"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^ALT-\\d+$" },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "pros": { "type": "array", "items": { "type": "string" } },
+          "cons": { "type": "array", "items": { "type": "string" } },
+          "estimated_effort": { "enum": ["small", "medium", "large"] },
+          "decision": { "enum": ["chosen", "rejected", "deferred"] }
+        }
+      }
+    },
+    "proposed_design": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["overview", "key_decisions", "components", "data_considerations", "operational_considerations"],
+      "properties": {
+        "overview": { "type": "string", "minLength": 1 },
+        "key_decisions": { "type": "array", "items": { "type": "string" } },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "role", "interfaces"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "role": { "type": "string", "minLength": 1 },
+              "interfaces": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "data_considerations": { "type": "string", "minLength": 1 },
+        "operational_considerations": { "type": "string", "minLength": 1 }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criteria", "scores", "winner", "rationale"],
+      "properties": {
+        "criteria": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "weight"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "weight": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        "scores": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "number", "minimum": 1, "maximum": 10 }
+          }
+        },
+        "winner": { "type": "string", "pattern": "^ALT-\\d+$" },
+        "rationale": { "type": "string", "minLength": 1 }
+      }
+    },
+    "open_questions": { "type": "array", "items": { "type": "string" } },
+    "next_steps": { "type": "array", "items": { "type": "string" } },
+    "related_requirements": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^REQ-\\d{4}$" }
+    },
+    "related_decisions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^ADR-\\d{4}$" }
+    },
+    "related_sdds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^SDD-\\d{4}$" }
+    },
+    "author": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "metadata": { "type": "object" }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "logical_name": "reference",
+      "patterns": [
+        "DOCS/reference/**/*.md"
+      ],
+      "legacy_patterns": [
+        "DOCS/*.md"
+      ]
+    }
+  ],
+  "transition_mode": "union",
+  "deduplication": "by_path"
+}

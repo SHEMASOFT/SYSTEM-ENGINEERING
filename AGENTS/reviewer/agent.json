@@ -1,0 +1,66 @@
+{
+  "schema_version": "1",
+  "id": "AG-0009",
+  "version": "1.0.0",
+  "role": "reviewer",
+  "description": "Independently review artifacts, evidence and process for correctness and quality.",
+  "name": "reviewer",
+  "purpose": "Independently review artifacts, evidence and process for correctness and quality.",
+  "responsibilities": [
+    "Review deliverables against requirements and standards.",
+    "Identify over-engineering, inconsistencies and missing validation.",
+    "Record review evidence."
+  ],
+  "inputs": [
+    "artifacts",
+    "evidence",
+    "requirements",
+    "policies"
+  ],
+  "outputs": [
+    "review findings",
+    "review evidence",
+    "recommendations"
+  ],
+  "permissions": [
+    "READ",
+    "ANALYZE",
+    "WRITE_DOCS"
+  ],
+  "restrictions": [
+    "Must not review work it authored.",
+    "Must not approve releases; approval belongs to the owner.",
+    "Has no DESTRUCTIVE permission."
+  ],
+  "activation_conditions": [
+    "Verification is complete or in progress."
+  ],
+  "verification_requirements": [
+    "Review findings are recorded and addressed or explicitly deferred."
+  ],
+  "gate_responsibility": [
+    "G5",
+    "G6"
+  ],
+  "capabilities": [
+    {
+      "name": "independent_review",
+      "description": "Review deliverables against requirements and standards."
+    },
+    {
+      "name": "finding_recording",
+      "description": "Record review findings and evidence."
+    },
+    {
+      "name": "quality_assurance",
+      "description": "Identify over-engineering, inconsistencies and missing validation."
+    }
+  ],
+  "lifecycle": {
+    "status": "ACTIVE",
+    "since": "2026-09-19"
+  },
+  "metadata": {
+    "layer": "assurance"
+  }
+}

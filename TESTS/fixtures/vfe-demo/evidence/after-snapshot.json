@@ -1,0 +1,40 @@
+[
+  {
+    "viewport": "1280x800",
+    "snapshot": {
+      "title": "VFE Demo — AFTER",
+      "lang": "es",
+      "h1": "Bienvenido a Mi Producto",
+      "navLinks": [
+        "Características",
+        "Precios",
+        "FAQ"
+      ],
+      "landmarks": [
+        "header",
+        "nav",
+        "main",
+        "footer"
+      ]
+    }
+  },
+  {
+    "viewport": "375x812",
+    "snapshot": {
+      "title": "VFE Demo — AFTER",
+      "lang": "es",
+      "h1": "Bienvenido a Mi Producto",
+      "navLinks": [
+        "Características",
+        "Precios",
+        "FAQ"
+      ],
+      "landmarks": [
+        "header",
+        "nav",
+        "main",
+        "footer"
+      ]
+    }
+  }
+]

@@ -1,0 +1,25 @@
+{
+  "schema_version": "1",
+  "model_version": "0.1.0",
+  "description": "Conceptual permission model used by agents and tasks.",
+  "permissions": [
+    { "id": "READ", "description": "Read files, repositories and artifacts." },
+    { "id": "ANALYZE", "description": "Perform analysis and produce findings without modifying state." },
+    { "id": "WRITE_DOCS", "description": "Create or modify documentation and non-code artifacts." },
+    { "id": "IMPLEMENT", "description": "Create or modify code and configuration within an authorized scope." },
+    { "id": "TEST", "description": "Execute tests and collect evidence." },
+    { "id": "DEPLOY", "description": "Deploy to a non-production or explicitly authorized environment." },
+    { "id": "DESTRUCTIVE", "description": "Delete data, drop resources or perform irreversible operations." }
+  ],
+  "defaults": {
+    "granted": ["READ", "ANALYZE"],
+    "not_granted": ["WRITE_DOCS", "IMPLEMENT", "TEST", "DEPLOY", "DESTRUCTIVE"]
+  },
+  "rules": [
+    "DESTRUCTIVE is never granted by default and requires explicit human authorization.",
+    "DEPLOY requires explicit authorization and a defined rollback procedure.",
+    "No agent may bypass a gate or self-approve a manual gate condition.",
+    "IMPLEMENT, TEST and DEPLOY are additionally scoped by a task's authorized_actions.",
+    "An agent may never grant itself more permissions than its definition declares."
+  ]
+}

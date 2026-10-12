@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/evidence.schema.json",
+  "title": "EVIDENCE",
+  "description": "First-class proof linked to requirements, tasks and releases.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "project_id", "type", "title", "result", "collected_at", "collected_by"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "id": { "type": "string", "pattern": "^EVD-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "type": { "enum": ["test", "screenshot", "video", "log", "security", "performance", "deployment", "uat", "review"] },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "description": { "type": "string" },
+    "location": { "type": "string", "description": "Path or URI where the evidence can be found." },
+    "checksum": { "type": "string" },
+    "command": { "type": "string", "description": "Command or procedure that produced this evidence." },
+    "result": { "enum": ["PASS", "FAIL", "WARN", "INFO"] },
+    "related_requirements": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^REQ-\\d{4}$" } },
+    "related_tasks": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^TASK-\\d{4}$" } },
+    "related_artifacts": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^ART-\\d{4}$" } },
+    "related_releases": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^REL-\\d{4}$" } },
+    "collected_at": { "type": "string", "format": "date-time" },
+    "collected_by": { "type": "string", "minLength": 1 },
+    "metadata": { "type": "object" }
+  }
+}

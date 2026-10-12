@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/skill-discovery/result.schema.json",
+  "title": "Skill Discovery Result",
+  "description": "Result of skill discovery with matched candidates and explanations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "project_id", "candidates"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "request_id": { "type": "string", "pattern": "^SDR-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "discovered_at": { "type": "string", "format": "date-time" },
+    "capabilities_requested": { "type": "array", "items": { "type": "string" } },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["skill_id", "skill_name", "match_score", "matched_capabilities", "reason"],
+        "properties": {
+          "skill_id": { "type": "string", "pattern": "^SK-\\d{4}$" },
+          "skill_name": { "type": "string" },
+          "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+          "match_score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "matched_capabilities": { "type": "array", "items": { "type": "string" } },
+          "reason": { "type": "string", "description": "Why this skill was matched" },
+          "source": { "enum": ["canonical", "project", "external"], "description": "Where the skill comes from" },
+          "status": { "enum": ["available", "installed", "deprecated", "experimental"] },
+          "requires_approval": { "type": "boolean", "default": true }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total_candidates": { "type": "integer" },
+        "by_status": { "type": "object" },
+        "approval_required": { "type": "integer" }
+      }
+    }
+  }
+}

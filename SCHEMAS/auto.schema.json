@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://system-engineering.local/schemas/auto.schema.json",
+  "title": "AUTO Decision Envelope (se.auto/1)",
+  "type": "object",
+  "description": "Deterministic decision envelope produced by AUTO-02 from health aggregation. READ-ONLY. No mutations.",
+  "required": [
+    "contract",
+    "operation",
+    "state",
+    "next_action",
+    "reason",
+    "requires_human",
+    "source",
+    "observation"
+  ],
+  "properties": {
+    "contract": {
+      "type": "string",
+      "const": "se.auto/1",
+      "description": "Contract identifier for this envelope format"
+    },
+    "operation": {
+      "type": "string",
+      "const": "decision",
+      "description": "Operation type - always 'decision' for AUTO-02"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["HEALTHY", "WARNING", "FAILED", "BLOCKED", "NEEDS_HUMAN"],
+      "description": "Classified state derived from health aggregation"
+    },
+    "next_action": {
+      "type": "string",
+      "enum": ["CONTINUE", "DIAGNOSE", "CORRECT", "ESCALATE", "STOP"],
+      "description": "Deterministic next action per decision policy"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Human-readable explanation of the decision"
+    },
+    "requires_human": {
+      "type": "boolean",
+      "description": "True if human intervention is required before proceeding"
+    },
+    "source": {
+      "type": "object",
+      "description": "Traceability to the health aggregation that drove this decision",
+      "required": ["health_operation", "health_status", "health_summary"],
+      "properties": {
+        "health_operation": {
+          "type": "string",
+          "const": "health"
+        },
+        "health_status": {
+          "type": "string",
+          "enum": ["PASS", "WARN", "FAIL", "BLOCKED", "UNKNOWN"]
+        },
+        "health_summary": {
+          "type": "object",
+          "properties": {
+            "PASS": { "type": "integer", "minimum": 0 },
+            "WARN": { "type": "integer", "minimum": 0 },
+            "FAIL": { "type": "integer", "minimum": 0 }
+          },
+          "required": ["PASS", "WARN", "FAIL"]
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "required": ["observed_at", "tool", "source_root"],
+      "properties": {
+        "observed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of decision"
+        },
+        "tool": {
+          "type": "string",
+          "const": "se"
+        },
+        "source_root": {
+          "type": "string",
+          "description": "Path to the SYSTEM-ENGINEERING root"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

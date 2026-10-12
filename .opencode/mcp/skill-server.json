@@ -1,0 +1,10 @@
+{
+  "name": "se-skill-server",
+  "type": "mcp",
+  "command": "python3",
+  "args": ["-m", "se_core.mcp.skill_server"],
+  "env": {
+    "SE_ROOT": "${SE_ROOT}",
+    "ENGRAM_PROJECT": "SYSTEM-ENGINEERING"
+  }
+}

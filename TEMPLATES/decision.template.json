@@ -1,0 +1,26 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "category": "architecture",
+  "date": "1970-01-01",
+  "context": "Situation that required a decision.",
+  "problem": "The problem to solve.",
+  "options_considered": [
+    { "option": "Option A", "pros": ["pro"], "cons": ["con"] },
+    { "option": "Option B", "pros": ["pro"], "cons": ["con"] }
+  ],
+  "decision": "The option chosen.",
+  "reason": "Why it was chosen.",
+  "consequences": "Resulting trade-offs and follow-ups.",
+  "affected_components": ["component-name"],
+  "status": "PROPOSED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "author-name",
+  "created_at": "1970-01-01T00:00:00Z",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

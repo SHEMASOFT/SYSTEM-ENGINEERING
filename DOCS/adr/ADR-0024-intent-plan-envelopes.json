@@ -1,0 +1,31 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0024",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-28",
+  "context": "AUTO-03 (INTENT->PLAN, SE-AUTOMATION-001F) requires converting an explicit, structured intent into a structured, auditable, deterministic, machine-readable, reproducible plan — without an LLM, without execution and without new continuity mechanisms. ADR-0021 established that 'the plan' is the implicit TASK set plus gates G2/G3, that no PLAN record type or PLAN schema exists, and that a plan-identity runtime (EPI-1) is explicitly deferred. AUTO-03 needs a machine-readable PLAN shaped from the same derivation, and an INTENT envelope to feed it.",
+  "problem": "How to expose an explicit structure of the plan (and of the intent that drives it) through the CLI as READ-ONLY machine output, without introducing the PLAN record type, PLAN schema-persistence, or the EPI-1 identity runtime that ADR-0021 forbids?",
+  "options_considered": [
+    { "option": "Persist materialized PLAN and INTENT records as a new artifact type", "pros": ["First-class queryable state"], "cons": ["Introduces a record lifecycle (artifact-types, templates, coverage, commands) in contradiction with ADR-0021", "Duplicates the task-set it projects", "State drift between the plan and its sources"] },
+    { "option": "Persist only an enveloping schema (se.intent/1 and se.plan/1) without runtime derivation", "pros": ["Schema contracts exist and are validated"], "cons": ["No machine-readable derivation; AUTO-03 requires emitting the derived plan"] },
+    { "option": "Define se.intent/1 and se.plan/1 as ephemeral READ-ONLY envelope contracts, derived on demand by the CLI and never persisted (AUTO-03)", "pros": ["Machine-readable, deterministic, auditable output", "Matches the ADR-0021 implicit-plan model (envelope is a view over TASK records + gates G2/G3, never a record)", "No new record lifecycle, no runtime, no migration", "PLAN_ID/EPI-1 remains the deferred, documented identity convention of ADR-0021"], "cons": ["Envelope is recomputed each invocation (by design)", "Must not be used as a persisted state container"] }
+  ],
+  "decision": "AUTO-03 introduces se.intent/1 and se.plan/1 as ephemeral, READ-ONLY envelope contracts emitted by the reference CLI and never persisted. `se intent` (CMD-0018) normalizes an explicit structured intent (from --file or --objective) into a se.intent/1 envelope (READ-ONLY, no mutation). `se plan --intent <file> --json` derives a se.plan/1 envelope from the canonical TASK set and gates G2/G3 (the implicit plan of ADR-0021): steps in deterministic topological order by dependencies, dependency edges, entry criteria from gate G2 (REQUIREMENTS READY), exit criteria from gate G3 (PLAN READY), risks/uncertainties from discovery.json, completion criterion derived deterministically, and validation against the intents/plans schemas. The PLAN is never created, updated, stored, or versioned as a record: ADR-0021 remains ACCEPTED and unchanged, and PLAN_ID/EPI-1 remains the deferred identity convention, not a runtime.", 
+  "reason": "The derived envelope expresses exactly the state model introduced by ADR-0021 (plan = TASK set + gates): a machine-readable projection works as a validation/decision artifact without new persistence, respects READ-ONLY/AUTO semantics, and keeps the CLI deterministic. The schema pairs (SCHEMAS/intent.schema.json, SCHEMAS/plan.schema.json) follow the existing se.auto/1 envelope pattern and are registered in SCHEMAS/index.json.",
+  "consequences": "The plan envelope is recomputed on demand and is not a system-of-record (reproducibility by derivation, not storage). PLAN_ID/EPI-1 remains deferred (ADR-0021). No new artifact type, no new collection, no templates, no coverage table, no runtime identity. Any future need to persist a materialized plan requires a separate ADR (extend-before-create). Commands se intent (CMD-0018) and se plan (CMD-0006 extended with --intent/--json) become part of the 18 canonical commands and 38 adapter artifacts.",
+  "affected_components": ["COMMANDS/commands.json", "SCHEMAS/intent.schema.json", "SCHEMAS/plan.schema.json", "SCRIPTS/se_core/commands.py", "SCRIPTS/se_core/cli.py", "TESTS/test_intent_plan.py"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-09-28T00:00:00Z",
+  "updated_at": "2026-09-28T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "SE-AUTOMATION-001F-AUTO-03",
+    "depends_on_adr": ["ADR-0021", "ADR-0014"],
+    "references": ["SCHEMAS/auto.schema.json", "CORE/gates/gates.json", "DOMAINS/discovery.json"]
+  }
+}

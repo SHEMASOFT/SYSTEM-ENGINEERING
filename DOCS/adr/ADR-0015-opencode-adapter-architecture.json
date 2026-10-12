@@ -1,0 +1,30 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0015",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-19",
+  "context": "SYSTEM-ENGINEERING defines a tool-independent Project Operating System (CORE, SCHEMAS, COMMANDS, AGENTS). OpenCode is the initial execution environment. The INTEGRATIONS/opencode adapter is currently documented but not implemented. Surfaces adopted in MASTER-SYSTEM-DESIGN-01 and MASTER-SYSTEM-ROADMAP-ARCHITECT-01: se.py = adapter/orchestrator; OpenCode = consumer runtime; generated OpenCode assets must never be the source of truth.",
+  "problem": "How does OpenCode consume the Master System without coupling CORE/SCHEMAS to a specific tool, and without OpenCode needing to read arbitrary folders?",
+  "options_considered": [
+    { "option": "Adapter-only bridge (generation + execution)", "pros": ["Keeps CORE/SCHEMAS tool-independent (ADR-0004)", "Single source of truth remains the contracts", "Commands and agents are thin wrappers over se.py", "Generated assets live in standard OpenCode locations (.opencode/, ~/.config/opencode/)"], "cons": ["Requires implementing and maintaining the adapter", "Generated assets must be regenerated on contract changes"] },
+    { "option": "Inline re-implementation of contracts inside OpenCode config", "pros": ["No generation step"], "cons": ["Duplicates logic", "Two sources of truth that drift", "Violates ADR-0004"] },
+    { "option": "Make OpenCode read contracts directly from arbitrary paths", "pros": ["No generated artifacts"], "cons": ["OpenCode does not load agents/commands/skills from arbitrary paths", "Breaks restriction: no dependence on OpenCode reading arbitrary folders"] }
+  ],
+  "decision": "Use an adapter-only bridge. INTEGRATIONS/opencode defines two responsibilities: (1) generation of OpenCode assets (.opencode/agent|command|skill, opencode.json, AGENTS.md) from the contracts, and (2) execution where OpenCode commands/agents invoke the reference CLI (se.py). CORE and SCHEMAS remain free of tool-specific concepts.",
+  "reason": "It satisfies the closed architectural decisions: se.py = adapter/orchestrator, OpenCode = consumer runtime, generated assets derived from contracts, and no reliance on OpenCode reading arbitrary folders. It is the only option that keeps a single source of truth and preserves tool independence.",
+  "consequences": "The OpenCode adapter must be implemented in SCRIPTS/se_core as commands (se adapter opencode) and reused by se init. Generated artifacts must be versioned and drift-checked by se validate. Permission enforcement maps the Master System permission model onto OpenCode tool permissions.",
+  "affected_components": ["INTEGRATIONS/opencode", "SCRIPTS", "COMMANDS/commands.json", "DOCS"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-09-19T00:00:00Z",
+  "updated_at": "2026-09-19T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "MASTER-SYSTEM-CHECKPOINT-001",
+    "extends_adr": ["ADR-0004"]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": "1",
+  "model_version": "0.1.0",
+  "description": "Project lifecycle states and transitions. BLOCKED is a condition, not a state.",
+  "states": [
+    { "id": "DRAFT", "order": 0, "description": "Project registered but not yet explored." },
+    { "id": "DISCOVERY", "order": 1, "description": "Context, constraints and unknowns are being identified." },
+    { "id": "PLANNING", "order": 2, "description": "Requirements and plan are being defined." },
+    { "id": "ACTIVE", "order": 3, "description": "Implementation work is in progress." },
+    { "id": "VERIFICATION", "order": 4, "description": "Implementation is being verified against requirements." },
+    { "id": "ACCEPTANCE", "order": 5, "description": "Owner reviews and formally accepts the result." },
+    { "id": "RELEASED", "order": 6, "description": "A release has been produced." },
+    { "id": "OPERATING", "order": 7, "description": "The released system is in operation." },
+    { "id": "ARCHIVED", "order": 8, "description": "Project is closed and preserved." }
+  ],
+  "initial_state": "DRAFT",
+  "terminal_state": "ARCHIVED",
+  "conditions": {
+    "BLOCKED": {
+      "is_lifecycle_state": false,
+      "applies_to": ["PROJECT", "TASK"],
+      "reason_required": true,
+      "resolution_required": true,
+      "description": "A blocking condition that prevents progress. Must be recorded with a reason and a resolution path."
+    }
+  },
+  "transitions": [
+    { "from": "DRAFT", "to": "DISCOVERY", "gates": ["G0"] },
+    { "from": "DISCOVERY", "to": "PLANNING", "gates": ["G1"] },
+    { "from": "PLANNING", "to": "ACTIVE", "gates": ["G2", "G3"] },
+    { "from": "ACTIVE", "to": "VERIFICATION", "gates": ["G4"] },
+    { "from": "VERIFICATION", "to": "ACCEPTANCE", "gates": ["G5"] },
+    { "from": "ACCEPTANCE", "to": "RELEASED", "gates": ["G6", "G7"] },
+    { "from": "RELEASED", "to": "OPERATING", "gates": ["G8"] },
+    { "from": "OPERATING", "to": "ARCHIVED", "gates": [] }
+  ]
+}

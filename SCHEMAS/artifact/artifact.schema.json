@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/artifact.schema.json",
+  "title": "ARTIFACT",
+  "description": "A concrete deliverable produced by executing tasks. Distinct from REQUIREMENT (a need), TASK (work) and EVIDENCE (proof).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_id", "project_id", "title", "kind", "status", "produced_by", "created_at", "updated_at"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "artifact_id": { "type": "string", "pattern": "^ART-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "description": { "type": "string" },
+    "kind": { "enum": ["code", "document", "configuration", "data", "media", "infrastructure", "model", "other"] },
+    "kind_detail": { "type": "string" },
+    "status": { "enum": ["PLANNED", "IN_PROGRESS", "COMPLETE", "SUPERSEDED", "DISCARDED"] },
+    "location": { "type": "string" },
+    "checksum": { "type": "string" },
+    "produced_by": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^TASK-\\d{4}$" } },
+    "related_requirements": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^REQ-\\d{4}$" } },
+    "related_evidence": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^EVD-\\d{4}$" } },
+    "owner": { "type": "string" },
+    "author": { "type": "string" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "metadata": { "type": "object" }
+  }
+}

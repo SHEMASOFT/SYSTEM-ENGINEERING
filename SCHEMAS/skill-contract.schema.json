@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/skill-contract.schema.json",
+  "title": "Skill Contract",
+  "description": "Contract schema for skills. JSON Schema cannot validate the Markdown body of SKILLS/<skill>/SKILL.md, so this schema validates the co-located sidecar SKILLS/<skill>/SKILL.json describing the skill contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "skill_id", "name", "version", "description"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "skill_id": { "type": "string", "pattern": "^SK-\\d{4}$" },
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "description": { "type": "string", "minLength": 1 },
+    "skill_kind": {
+      "enum": ["knowledge", "behavioral", "workflow"],
+      "description": "Optional skill classification: knowledge (knowledge/procedure), behavioral (expected behavior/tone), workflow (process orchestration)."
+    },
+    "scope": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "target": { "enum": ["project", "global"] },
+            "description": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9-/]+$" }
+    },
+    "restrictions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "usage_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule"],
+        "properties": {
+          "rule": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "capabilities": {
+      "description": "Optional capability contract (CP-020). Capability ids refer to the canonical capability registry; names of concrete providers must never appear here.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" }
+        },
+        "optional": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" }
+        }
+      }
+    },
+    "constraints": {
+      "description": "Optional execution constraints. A skill forbidding writes must be treated as READ_ONLY.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "write": {
+          "enum": ["allowed", "forbidden"],
+          "description": "Whether the skill is allowed to modify the workspace."
+        }
+      }
+    },
+    "metadata": { "type": "object" }
+  }
+}

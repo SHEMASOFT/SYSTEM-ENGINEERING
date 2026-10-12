@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "summary": "One-paragraph scope and context summary.",
+  "findings": [
+    { "area": "topic", "detail": "What was found.", "confidence": "HIGH" }
+  ],
+  "unknowns": [
+    { "id": "UNK-0001", "question": "What is not yet known.", "impact": "Why it matters." }
+  ],
+  "assumptions": [
+    { "id": "ASM-0001", "statement": "Assumed fact.", "basis": "Why assumed." }
+  ],
+  "constraints": [],
+  "risks": [],
+  "reviewed_by": "",
+  "reviewed_at": null
+}

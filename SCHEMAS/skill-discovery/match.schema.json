@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/skill-discovery/match.schema.json",
+  "title": "Skill Match",
+  "description": "Individual skill match with scoring details",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["skill_id", "matched_capabilities", "score"],
+  "properties": {
+    "skill_id": { "type": "string", "pattern": "^SK-\\d{4}$" },
+    "matched_capabilities": { "type": "array", "items": { "type": "string" } },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "evidence": { "type": "array", "items": { "type": "string" }, "description": "Evidence supporting the match" }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": "1",
+  "id": "security",
+  "name": "Cybersecurity",
+  "description": "Threat modeling, vulnerability assessment, secure configuration and incident readiness.",
+  "status": "MINIMAL",
+  "artifact_extensions": [
+    { "type": "THREAT_MODEL", "schema": null, "purpose": "Structured threats and mitigations." },
+    { "type": "SECURITY_ASSESSMENT", "schema": null, "purpose": "Findings with severity and status." }
+  ],
+  "gate_additions": [
+    { "gate": "G5", "condition": "Security assessment completed with no unresolved critical findings.", "automated": false }
+  ],
+  "agent_additions": [
+    { "name": "pentester", "purpose": "Authorized offensive testing within a defined scope." }
+  ],
+  "checklists": [
+    "Threat model exists and covers the architecture.",
+    "Secrets are managed outside the repository.",
+    "Access control is least-privilege.",
+    "Critical findings are resolved or explicitly accepted by the owner."
+  ],
+  "tooling": [],
+  "metadata": { "interface_only": true }
+}

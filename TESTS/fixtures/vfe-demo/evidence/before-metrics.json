@@ -1,0 +1,90 @@
+{
+  "job": "before",
+  "target": "TESTS\\fixtures\\vfe-demo\\index.before.html",
+  "url": "file:///PROJECTS/vfe-demo/index.before.html",
+  "viewport": {
+    "1280x800": {
+      "metrics": {
+        "headings": [
+          "H1",
+          "H2"
+        ],
+        "h1count": 1,
+        "missingAlt": 1,
+        "imgCount": 1,
+        "landmarks": [],
+        "overflow": false,
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "title": "VFE Demo — BEFORE"
+      },
+      "contrast": [
+        {
+          "selector": "p.muted",
+          "fg": "#aaaaaa",
+          "bg": "#ffffff",
+          "ratio": 2.32,
+          "pass": false
+        },
+        {
+          "selector": ".btn",
+          "fg": "#333333",
+          "bg": "#eeeeee",
+          "ratio": 10.89,
+          "pass": true
+        }
+      ],
+      "screenshot_viewport": "before-viewport-1280x800.png",
+      "screenshot_fullpage": "before-fullpage-1280x800.png",
+      "fail": [
+        "missing-alt",
+        "contrast:p.muted",
+        "no-landmarks"
+      ]
+    },
+    "375x812": {
+      "metrics": {
+        "headings": [
+          "H1",
+          "H2"
+        ],
+        "h1count": 1,
+        "missingAlt": 1,
+        "imgCount": 1,
+        "landmarks": [],
+        "overflow": false,
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "title": "VFE Demo — BEFORE"
+      },
+      "contrast": [
+        {
+          "selector": "p.muted",
+          "fg": "#aaaaaa",
+          "bg": "#ffffff",
+          "ratio": 2.32,
+          "pass": false
+        },
+        {
+          "selector": ".btn",
+          "fg": "#333333",
+          "bg": "#eeeeee",
+          "ratio": 10.89,
+          "pass": true
+        }
+      ],
+      "screenshot_viewport": "before-viewport-375x812.png",
+      "screenshot_fullpage": "before-fullpage-375x812.png",
+      "fail": [
+        "missing-alt",
+        "contrast:p.muted",
+        "no-landmarks"
+      ]
+    }
+  },
+  "metrics": [],
+  "summary": {
+    "FAIL": 2,
+    "CHECK": 2
+  }
+}

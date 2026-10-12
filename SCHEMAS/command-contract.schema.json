@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/command-contract.schema.json",
+  "title": "Command Contract",
+  "description": "Contract schema for the master command interface (COMMANDS/commands.json). Superset-compatible with the current command vocabulary so the existing file validates without changes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "interface_version", "description", "commands"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "interface_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "description": { "type": "string", "minLength": 1 },
+    "conventions": { "type": "object", "additionalProperties": true },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "purpose"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^CMD-\\d{4}$" },
+          "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "description": { "type": "string", "minLength": 1 },
+          "purpose": { "type": "string", "minLength": 1 },
+          "agent": {
+            "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+          },
+          "assigned_agent": {
+            "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+          },
+          "execution_intent": {
+            "enum": ["CREATE", "READ", "MUTATE", "CONTROL", "ANALYZE", "DEPLOY", "REPORT", "IMPLEMENT"]
+          },
+          "risk_level": { "enum": ["low", "medium", "high", "critical"] },
+          "inputs": { "type": "array", "items": { "type": "string" } },
+          "outputs": { "type": "array", "items": { "type": "string" } },
+          "gate": { "type": ["string", "null"], "pattern": "^(G[0-8]|varies)$" },
+          "primary_agent": {
+            "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+          },
+          "mutates": { "type": "boolean" },
+          "implemented": { "type": "boolean" },
+          "permissions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "enum": ["READ", "ANALYZE", "WRITE_DOCS", "IMPLEMENT", "TEST", "DEPLOY", "DESTRUCTIVE"] }
+          },
+          "arguments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "type", "required", "description"],
+              "properties": {
+                "name": { "type": "string", "pattern": "^[-]{0,2}[a-z][a-z0-9_-]*$" },
+                "type": { "enum": ["string", "integer", "boolean", "array", "path"] },
+                "required": { "type": "boolean" },
+                "default": { "type": ["string", "integer", "boolean", "null"] },
+                "description": { "type": "string" }
+              }
+            }
+          },
+          "metadata": { "type": "object" }
+        }
+      }
+    }
+  }
+}

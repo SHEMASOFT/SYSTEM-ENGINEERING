@@ -1,0 +1,34 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "engram": {
+        "type": "local",
+        "command": ["engram", "mcp", "--tools=agent"],
+        "environment": {
+          "ENGRAM_PROJECT": "SYSTEM-ENGINEERING"
+        }
+      },
+      "filesystem": {
+        "type": "local",
+        "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
+        "cwd": "."
+      },
+      "se-skill-server": {
+        "type": "local",
+        "command": ["python3", "SCRIPTS/se_core/mcp/skill_server.py"],
+        "cwd": ".",
+        "environment": {
+          "ENGRAM_PROJECT": "SYSTEM-ENGINEERING"
+        }
+      }
+    },
+    "timeout": {
+      "startup": 60000
+    }
+  }
+  // The SE orchestrator "coordinator" is generated as mode: primary in
+  // .opencode/agents/coordinator.md, so it appears in the agent selector.
+  // To make new sessions start with it, add:
+  //   "default_agent": "coordinator",
+}

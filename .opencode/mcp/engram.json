@@ -1,0 +1,9 @@
+{
+  "name": "engram",
+  "type": "mcp",
+  "command": "engram",
+  "args": ["mcp", "--tools=agent"],
+  "env": {
+    "ENGRAM_PROJECT": "SYSTEM-ENGINEERING"
+  }
+}

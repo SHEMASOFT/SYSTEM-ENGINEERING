@@ -1,0 +1,22 @@
+{
+  "schema_version": "1",
+  "model_version": "0.1.0",
+  "description": "Evidence types. Evidence is a first-class object; the system prefers CLAIM -> EVIDENCE over CLAIM -> TRUST THE AGENT.",
+  "types": [
+    { "id": "test", "description": "Automated test output or test report." },
+    { "id": "screenshot", "description": "Visual capture of a UI or result." },
+    { "id": "video", "description": "Recorded demonstration of behavior." },
+    { "id": "log", "description": "Runtime or build logs." },
+    { "id": "security", "description": "Security scan, audit or assessment output." },
+    { "id": "performance", "description": "Benchmark or performance measurement." },
+    { "id": "deployment", "description": "Deployment record or environment output." },
+    { "id": "uat", "description": "User acceptance test record." },
+    { "id": "review", "description": "Review record (code, design, document)." }
+  ],
+  "result_values": ["PASS", "FAIL", "WARN", "INFO"],
+  "rules": [
+    "Evidence must reference the requirement(s) or task(s) it supports.",
+    "Evidence must state how it was produced (command, procedure or source).",
+    "A claim without evidence is UNVERIFIED and must not be treated as complete."
+  ]
+}

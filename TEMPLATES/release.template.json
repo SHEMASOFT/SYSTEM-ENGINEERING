@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "id": "REL-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "version": "0.1.0",
+  "scope": "What this release includes.",
+  "changes": [
+    { "type": "feature", "description": "Description of change.", "related_tasks": ["TASK-0001"], "related_requirements": ["REQ-0001"] }
+  ],
+  "verification": ["How the release was verified."],
+  "known_issues": [],
+  "deployment_method": "How it is deployed.",
+  "rollback": "How to roll back.",
+  "approval": { "approved_by": "owner-name", "approved_at": "1970-01-01T00:00:00Z", "status": "PENDING" },
+  "evidence": ["EVD-0001"],
+  "status": "PLANNED",
+  "released_at": null,
+  "created_at": "1970-01-01T00:00:00Z",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "owner": "owner-name",
+  "author": "author-name",
+  "metadata": {}
+}

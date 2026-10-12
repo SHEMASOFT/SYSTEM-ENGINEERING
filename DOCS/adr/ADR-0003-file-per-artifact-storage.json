@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0003",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "data",
+  "date": "2026-09-17",
+  "context": "Artifacts must be stored in a way that is traceable, diff-friendly and easy to validate per item.",
+  "problem": "How should artifacts be stored in a managed project workspace?",
+  "options_considered": [
+    { "option": "One JSON file per artifact under typed directories", "pros": ["Simple", "Diff-friendly", "Independent validation", "Easy to reference by id"], "cons": ["Many small files", "Cross-file references need checking"] },
+    { "option": "A single registry file per type", "pros": ["Fewer files"], "cons": ["Merge conflicts", "Whole-file rewrites", "Harder review"] },
+    { "option": "Database storage", "pros": ["Queryable"], "cons": ["Heavy", "Opaque", "Tool coupling", "Over-engineering for v0.1"] }
+  ],
+  "decision": "Store each artifact as an individual JSON file under requirements/, tasks/, decisions/, evidence/ and releases/, named by its id.",
+  "reason": "It is the simplest traceable and reviewable representation and keeps validation per artifact.",
+  "consequences": "Reference integrity is checked by the review/validate tooling rather than by a database. Storage layout is documented in CORE/artifacts/artifact-types.json.",
+  "affected_components": ["CORE/artifacts", "SCRIPTS/se_core/artifacts.py", "DOCS/core-model.md"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T00:00:00Z",
+  "updated_at": "2026-09-17T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": "1",
+  "skill_id": "<SK-000x>",
+  "name": "<skill-name same as folder>",
+  "version": "0.1.0",
+  "description": "<Misma regla que frontmatter: one-sentence, when to use.>",
+  "skill_kind": "<knowledge|behavioral|workflow>",
+  "scope": {
+    "target": "<project|global>",
+    "description": "<Alcance de la skill>"
+  },
+  "restrictions": [
+    "<Restricción 1 alineada con constraints.write>"
+  ],
+  "usage_rules": [
+    {
+      "rule": "<Regla de uso 1>"
+    }
+  ],
+  "capabilities": {
+    "required": ["<capability id del registry, p.ej. filesystem.read>"],
+    "optional": ["<capability id opcional del registry>"]
+  },
+  "constraints": {
+    "write": "<allowed|forbidden>"
+  },
+  "metadata": {
+    "checkpoint": "<CHECKPOINT-###>",
+    "adapter": "opencode"
+  }
+}

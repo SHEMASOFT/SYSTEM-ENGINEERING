@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "id": "ai-data",
+  "name": "AI and Data",
+  "description": "Data pipelines, models, evaluation and responsible-AI controls.",
+  "status": "MINIMAL",
+  "artifact_extensions": [
+    { "type": "DATASET", "schema": null, "purpose": "Dataset definition, provenance and licensing." },
+    { "type": "MODEL", "schema": null, "purpose": "Model artifact, version and metrics." },
+    { "type": "EVALUATION", "schema": null, "purpose": "Evaluation dataset, metrics and results." }
+  ],
+  "gate_additions": [
+    { "gate": "G5", "condition": "Model/system evaluation results recorded with defined metrics.", "automated": false }
+  ],
+  "agent_additions": [
+    { "name": "data-engineer", "purpose": "Data acquisition, quality and pipeline design." },
+    { "name": "ml-engineer", "purpose": "Model training, evaluation and serving." }
+  ],
+  "checklists": [
+    "Data provenance and licensing recorded.",
+    "Evaluation methodology defined before training.",
+    "Bias and privacy risks assessed.",
+    "Reproducibility of results documented."
+  ],
+  "tooling": [],
+  "metadata": { "interface_only": true }
+}

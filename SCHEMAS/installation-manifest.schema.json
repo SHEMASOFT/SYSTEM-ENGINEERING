@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/installation-manifest.schema.json",
+  "title": "Installation Manifest",
+  "description": "Records a project's Master System installation produced by `se init <project>`: the pinned distribution version, the installed agent/command/skill selections and content hashes of every generated file, enabling drift detection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project_id",
+    "distributor",
+    "master_system_version",
+    "installed",
+    "files",
+    "validation"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "distributor": { "type": "string", "const": "se init" },
+    "master_system_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "adapter_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "project_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+        "master_system_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "domains": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+        },
+        "required_agents": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+        },
+        "inherited_skills": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-zA-Z0-9/_.-]+$" }
+        }
+      }
+    },
+    "installed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agents", "commands", "skills"],
+      "properties": {
+        "agents": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+        },
+        "commands": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+        },
+        "skills": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-zA-Z0-9/_.-]+$" }
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "strategy", "schema_version"],
+      "properties": {
+        "enabled": { "type": "boolean", "const": true },
+        "strategy": { "enum": ["content-hash"] },
+        "schema_version": { "type": "string", "const": "1" }
+      }
+    },
+    "metadata": { "type": "object" }
+  }
+}

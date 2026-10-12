@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0012",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "process",
+  "date": "2026-09-17",
+  "context": "MASTER-005 deferred a REQUIREMENT (REQ-0006, status DEFERRED, supported by the requirement schema enum). Re-evaluating gate G2 then failed at G2.3 ('every REQUIREMENT is APPROVED'), and G5.1 required evidence for every REQUIREMENT regardless of status. The model did not state whether DEFERRED requirements should be exempt.",
+  "problem": "Should DEFERRED requirements be tolerated by G2.3 and G5.1, or should deferral require a different artifact type?",
+  "options_considered": [
+    { "option": "Treat DEFERRED and REJECTED as out-of-scope and exempt them from G2.3/G5.1, requiring a rationale", "pros": ["Matches deferral intent", "No fake evidence", "Internally consistent"], "cons": ["Gate is narrower", "Needs a clear out-of-scope set"] },
+    { "option": "Keep gates as-is and require evidence even for deferred requirements", "pros": ["Strict"], "cons": ["Forces evidence for work intentionally not done"] },
+    { "option": "Require deferral to use a different artifact type", "pros": ["Keeps REQUIREMENT meaning clean"], "cons": ["Schema already allows DEFERRED", "More change"] }
+  ],
+  "decision": "DEFERRED and REJECTED are out-of-scope requirement statuses. G2.3 and G5.1 ignore them; they must carry a non-empty rationale (schema conditional); they remain in the graph for traceability but are excluded from objective/task coverage gaps; they do not block lifecycle progression. DEFERRED means 'intentionally postponed (scope exclusion)'; REJECTED means 'considered and not accepted'.",
+  "reason": "Deferral and rejection are decisions to keep work out of scope; requiring approval or evidence for them would manufacture activity that was intentionally not performed, and would contradict the schema enum that already allows these states.",
+  "consequences": "G2.3 passes when only out-of-scope requirements remain unapproved; G5.1 does not require evidence for them. A deferred requirement without a rationale is rejected by the requirement schema. MASTER-005's finding F5/F7 is resolved.",
+  "affected_components": ["SCHEMAS/requirement/requirement.schema.json", "SCRIPTS/se_core/gates.py", "SCRIPTS/se_core/commands.py", "CORE/gates/README.md", "TESTS/test_deferred.py"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T13:30:00Z",
+  "updated_at": "2026-09-17T15:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": { "finding": "MASTER-005-F5/F7", "resolved_in": "MASTER-006" }
+}

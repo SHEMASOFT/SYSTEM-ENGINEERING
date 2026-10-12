@@ -1,0 +1,30 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0019",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "process",
+  "date": "2026-09-19",
+  "context": "Agents are defined as contracts (AGENTS/*/agent.json) and materialized into OpenCode assets (ADR-0017). The Master System versions itself (VERSION 0.4.0, DOCS/versioning.md). The lifecycle of agent contracts (new, change, deprecate) is not yet defined, so changes can happen silently and drift from generated assets.",
+  "problem": "How are agent contracts introduced, changed and deprecated across Master System releases while keeping generated OpenCode assets and project compatibility in sync?",
+  "options_considered": [
+    { "option": "Version agents with the OS; contract change requires ADR + bump + regeneration", "pros": ["Predictable lifecycle", "Breakage is explicit and documented", "Generated assets always match a declared version", "Gates never degrade"], "cons": ["Process overhead per change"] },
+    { "option": "Allow ad-hoc agent changes", "pros": ["Fast"], "cons": ["Silent drift and breakage of downstream projects"] },
+    { "option": "Freeze agents forever", "pros": ["Zero change"], "cons": ["Cannot evolve the OS"] }
+  ],
+  "decision": "Agent lifecycle is bound to Master System releases. Adding/renaming/deprecating an agent contract is a material change requiring an ADR, a VERSION bump (per DOCS/VERSIONING_STRATEGY.md), updated AGENTS/README.md, regeneration of OpenCode assets, and updated tests. Interactions that would weaken a gate are forbidden; new agent permissions are the intersection with task authorized_actions and never grant DESTRUCTIVE. Compatibility: PROJECT.json.master_system_version declares the floor version the project expects.",
+  "reason": "It makes agent evolution auditable, prevents silent drift, ties generated assets to versions, and preserves the gate and security invariants (restrictions 5, 6, 7).",
+  "consequences": "Regeneration and drift checks are part of release and CI. Deprecation keeps the asset but marks it; removal requires a major (or 0.x-minor) bump per the versioning strategy.",
+  "affected_components": ["AGENTS", "DOCS/VERSIONING_STRATEGY.md", "SCRIPTS", "TESTS", "MASTER SYSTEM"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-09-19T00:00:00Z",
+  "updated_at": "2026-09-19T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "MASTER-SYSTEM-CHECKPOINT-001",
+    "depends_on_adr": ["ADR-0016", "ADR-0017", "ADR-0018"]
+  }
+}

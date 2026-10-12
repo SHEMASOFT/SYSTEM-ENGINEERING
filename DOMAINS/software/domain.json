@@ -1,0 +1,32 @@
+{
+  "schema_version": "1",
+  "id": "software",
+  "name": "Software Engineering",
+  "description": "Design, build, test and release software systems with code review, testing and dependency controls.",
+  "status": "FULL",
+  "artifact_extensions": [
+    { "type": "SOURCE_CODE", "schema": null, "purpose": "Versioned source under the project's source tree." },
+    { "type": "BUILD", "schema": null, "purpose": "Reproducible build output or build configuration." },
+    { "type": "TEST_SUITE", "schema": null, "purpose": "Automated tests linked to requirements and evidence." },
+    { "type": "DEPENDENCY_MANIFEST", "schema": null, "purpose": "Declared dependencies and their versions/lock state." }
+  ],
+  "gate_additions": [
+    { "gate": "G4", "condition": "Build succeeds from a clean checkout.", "automated": false },
+    { "gate": "G5", "condition": "Automated tests pass and results are recorded as evidence.", "automated": false },
+    { "gate": "G5", "condition": "No unresolved critical or high severity security findings in dependencies.", "automated": false },
+    { "gate": "G7", "condition": "Deployment artifact is reproducible and versioned.", "automated": false }
+  ],
+  "agent_additions": [
+    { "name": "code-reviewer", "purpose": "Specialist review of code quality, readability and maintainability." }
+  ],
+  "checklists": [
+    "Code review completed by someone other than the author.",
+    "Tests cover acceptance criteria for every requirement.",
+    "Dependencies reviewed for license and security.",
+    "Error handling and input validation present.",
+    "No secrets committed to the repository.",
+    "Documentation updated for changed behavior."
+  ],
+  "tooling": ["git", "language test runner", "linter", "dependency scanner"],
+  "metadata": { "maturity": "initial useful pack" }
+}

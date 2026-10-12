@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/discovery.schema.json",
+  "title": "DISCOVERY",
+  "description": "Discovery report (discovery.json). Separates known findings from assumptions, unknowns, constraints and risks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "summary", "findings", "unknowns", "assumptions", "constraints", "risks"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "summary": { "type": "string", "minLength": 1 },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["area", "detail"],
+        "properties": {
+          "area": { "type": "string", "minLength": 1 },
+          "detail": { "type": "string", "minLength": 1 },
+          "confidence": { "enum": ["HIGH", "MEDIUM", "LOW"] }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "question"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^UNK-\\d{4}$" },
+          "question": { "type": "string", "minLength": 1 },
+          "impact": { "type": "string" }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "statement"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^ASM-\\d{4}$" },
+          "statement": { "type": "string", "minLength": 1 },
+          "basis": { "type": "string" }
+        }
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "statement"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^CON-\\d{4}$" },
+          "statement": { "type": "string", "minLength": 1 },
+          "basis": { "type": "string" }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "statement"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^RSK-\\d{4}$" },
+          "statement": { "type": "string", "minLength": 1 },
+          "basis": { "type": "string" }
+        }
+      }
+    },
+    "reviewed_by": { "type": "string" },
+    "reviewed_at": { "type": ["string", "null"], "format": "date-time" },
+    "metadata": { "type": "object" }
+  }
+}

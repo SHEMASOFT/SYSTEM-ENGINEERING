@@ -1,0 +1,13 @@
+{
+  "task": "TASK-0001",
+  "lead": "implementer",
+  "verification": {
+    "step": "python -m unittest TESTS.test_skills -v",
+    "evidence": "EVD-0001",
+    "by": "tester"
+  },
+  "review": {
+    "lens": "adversarial",
+    "by": "reviewer"
+  }
+}

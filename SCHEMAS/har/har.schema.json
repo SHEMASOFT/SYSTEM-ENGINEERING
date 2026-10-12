@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/har.schema.json",
+  "title": "Human Action Request (HAR)",
+  "description": "Durable human action request for MANUAL gate conditions and work handoffs. The wait IS the artifact.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "har_id",
+    "project_id",
+    "state",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "har_id": {
+      "type": "string",
+      "pattern": "^HAR-[0-9]{4,}$",
+      "description": "Unique identifier for this human action request"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^PRJ-[A-Z0-9-]+$",
+      "description": "Project this HAR belongs to"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["OPEN", "ANSWERED", "CANCELLED", "EXPIRED", "STALE"],
+      "description": "Current state of the human action request"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the HAR was created"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of last state change"
+    },
+    "expires_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Optional expiration timestamp. If reached and state is OPEN, becomes STALE."
+    },
+    "answered_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Timestamp when the HAR was answered"
+    },
+    "answered_by": {
+      "type": ["string", "null"],
+      "description": "Identity of who answered the HAR"
+    },
+    "owner": {
+      "type": "string",
+      "description": "Owner of the HAR (who created it or is responsible)"
+    },
+    "requested_action": {
+      "type": "string",
+      "description": "High-level description of what action is being requested"
+    },
+    "conditions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^G\\d+\\.\\d+$"
+      },
+      "description": "List of MANUAL condition IDs this HAR is waiting for"
+    },
+    "context_frozen": {
+      "type": "object",
+      "description": "Frozen snapshot of context at creation time. The exact context the human saw when deciding.",
+      "additionalProperties": true
+    },
+    "resume": {
+      "type": "object",
+      "description": "Instructions to resume work after human response. Contains everything needed to rehydrate the execution context.",
+      "additionalProperties": true,
+      "properties": {
+        "cwd": {
+          "type": "string",
+          "description": "Working directory to resume from"
+        },
+        "command": {
+          "type": "string",
+          "description": "Command to execute to resume work"
+        },
+        "adapter": {
+          "type": "string",
+          "description": "Execution adapter/harness identifier (e.g., 'opencode')"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model identifier used for the work (e.g., 'gpt-4', 'claude-3-opus')"
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables needed to resume (non-secret config only). Secrets handled separately.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["cwd", "command", "adapter", "model"]
+    },
+    "recovery": {
+      "type": "object",
+      "description": "Recovery and handoff information for handoff scenarios",
+      "additionalProperties": true,
+      "properties": {
+        "handoff": {
+          "type": "string",
+          "description": "Handoff notes for the next person/agent picking up this work"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-form recovery notes"
+        }
+      }
+    },
+    "answer": {
+      "type": ["string", "null"],
+      "description": "The human's answer/decision when the HAR is answered"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata for extensibility",
+      "additionalProperties": true
+    }
+  }
+}

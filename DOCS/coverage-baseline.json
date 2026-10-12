@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "created_at": "2026-10-12T06:13:41Z",
+  "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
+  "minimums": {
+    "reference": 30
+  },
+  "documents": {
+    "reference": [
+      {
+        "path": "DOCS/README.md",
+        "hash": "65ead6505a672092"
+      },
+      {
+        "path": "DOCS/reference/architecture.md",
+        "hash": "75e57097d49dae0f"
+      },
+      {
+        "path": "DOCS/reference/commands.md",
+        "hash": "37e51c290e9bf195"
+      },
+      {
+        "path": "DOCS/reference/conventions/CONVENTION_ARCH_IMPACT.md",
+        "hash": "e3a13d61d8c3eb54"
+      },
+      {
+        "path": "DOCS/reference/conventions/CONVENTION_CONV_CONVERGENCE.md",
+        "hash": "4f57b8b63c9cc6be"
+      },
+      {
+        "path": "DOCS/reference/conventions/CONVENTION_IMPL_SUBAGENT.md",
+        "hash": "e6b73ffc8e17d79f"
+      },
+      {
+        "path": "DOCS/reference/conventions/CONVENTION_PLAN.md",
+        "hash": "f13bcb2a50da0825"
+      },
+      {
+        "path": "DOCS/reference/conventions/CONVENTION_PLAN_ROLES.md",
+        "hash": "af3142c08f5e7bc8"
+      },
+      {
+        "path": "DOCS/reference/conventions/CONVENTION_RESEARCH_DIRECTED.md",
+        "hash": "33326ce3edf30ea1"
+      },
+      {
+        "path": "DOCS/reference/conventions/CONVENTION_REV_CODE_REVIEW.md",
+        "hash": "34c5279b2c13610f"
+      },
+      {
+        "path": "DOCS/reference/conventions/CONVENTION_SPEC_DELTA.md",
+        "hash": "61f327acf701750f"
+      },
+      {
+        "path": "DOCS/reference/conventions/CONVENTION_SPEC_WRITE.md",
+        "hash": "6eb1eaa06326ea66"
+      },
+      {
+        "path": "DOCS/reference/conventions/NAMING_CONVENTIONS.md",
+        "hash": "1370a086440aa992"
+      },
+      {
+        "path": "DOCS/reference/conventions/PRECEDENCE_RULES.md",
+        "hash": "0f2e37081f6a2e48"
+      },
+      {
+        "path": "DOCS/reference/core-model.md",
+        "hash": "0cf42c071be6f4f5"
+      },
+      {
+        "path": "DOCS/reference/development-workflow.md",
+        "hash": "a3470514b1cc0689"
+      },
+      {
+        "path": "DOCS/reference/domains.md",
+        "hash": "125a40e09b0804d9"
+      },
+      {
+        "path": "DOCS/reference/execution-integrity.md",
+        "hash": "5b81f29731fe3ad4"
+      },
+      {
+        "path": "DOCS/reference/extension-model.md",
+        "hash": "e4a575b554f22ddc"
+      },
+      {
+        "path": "DOCS/reference/governance/CAPABILITY_GOVERNANCE.md",
+        "hash": "a9b99c4fa77409fa"
+      },
+      {
+        "path": "DOCS/reference/governance/agents-and-permissions.md",
+        "hash": "ed77065ebb48a47c"
+      },
+      {
+        "path": "DOCS/reference/installation.md",
+        "hash": "51a494c145e03710"
+      },
+      {
+        "path": "DOCS/reference/lifecycle.md",
+        "hash": "a7ea4a1390371b10"
+      },
+      {
+        "path": "DOCS/reference/opencode-adapter.md",
+        "hash": "2e9e0c1669d43971"
+      },
+      {
+        "path": "DOCS/reference/policies/MINIMUM_CONTEXT_POLICY.md",
+        "hash": "a999c297b89525ad"
+      },
+      {
+        "path": "DOCS/reference/policies/PROJECT_POLICY.md",
+        "hash": "d5ed9670b6ce3a37"
+      },
+      {
+        "path": "DOCS/reference/policies/STATE_POLICY.md",
+        "hash": "b445ba9b4dc5ba2f"
+      },
+      {
+        "path": "DOCS/reference/project-bootstrap.md",
+        "hash": "114d5528a1220ad1"
+      },
+      {
+        "path": "DOCS/reference/project-profile.md",
+        "hash": "75c329abc24895d5"
+      },
+      {
+        "path": "DOCS/reference/review-lenses.md",
+        "hash": "aff3cb58193ca9b3"
+      },
+      {
+        "path": "DOCS/reference/schemas.md",
+        "hash": "60144fbfab002016"
+      },
+      {
+        "path": "DOCS/reference/se-installer.md",
+        "hash": "c301d688aa17e43e"
+      },
+      {
+        "path": "DOCS/reference/skills/SKILL_AUTHORING.md",
+        "hash": "6c63e80553fcd99e"
+      },
+      {
+        "path": "DOCS/reference/test_loss_detection.md",
+        "hash": "acd64db0b8e194d8"
+      },
+      {
+        "path": "DOCS/reference/versioning-strategy.md",
+        "hash": "cf74b4be0487775c"
+      },
+      {
+        "path": "DOCS/reference/versioning.md",
+        "hash": "f02804198a4c1f8c"
+      },
+      {
+        "path": "DOCS/reference/visual-frontend-engineering.md",
+        "hash": "31b801a43ba02aa1"
+      },
+      {
+        "path": "DOCS/reference/workflows.md",
+        "hash": "fc6527f1251514a5"
+      }
+    ]
+  }
+}

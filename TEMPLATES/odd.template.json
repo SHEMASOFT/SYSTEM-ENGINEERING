@@ -1,0 +1,82 @@
+{
+  "schema_version": "1",
+  "odd_id": "ODD-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "title": "Open Design Document title",
+  "version": "0.1.0",
+  "status": "DRAFT",
+  "kind": "design",
+  "summary": "One-paragraph summary of this ODD.",
+  "problem": "The problem or opportunity being explored.",
+  "context": "Background information and relevant history.",
+  "assumptions": [
+    "Assumption 1 that frames the design space"
+  ],
+  "constraints": [
+    "Hard constraint that limits options"
+  ],
+  "alternatives": [
+    {
+      "id": "ALT-1",
+      "name": "Alternative name",
+      "description": "Description of this approach",
+      "pros": ["Benefit 1", "Benefit 2"],
+      "cons": ["Drawback 1", "Drawback 2"],
+      "estimated_effort": "medium",
+      "decision": "chosen"
+    },
+    {
+      "id": "ALT-2",
+      "name": "Alternative name 2",
+      "description": "Description of this approach",
+      "pros": ["Benefit 1"],
+      "cons": ["Drawback 1", "Drawback 2"],
+      "estimated_effort": "large",
+      "decision": "rejected"
+    }
+  ],
+  "proposed_design": {
+    "overview": "High-level description of the chosen/preferred approach",
+    "key_decisions": [
+      "Decision point 1 with rationale",
+      "Decision point 2 with rationale"
+    ],
+    "components": [
+      {
+        "name": "ComponentName",
+        "role": "What it does in this design",
+        "interfaces": ["InterfaceA"]
+      }
+    ],
+    "data_considerations": "Data model or storage notes",
+    "operational_considerations": "Observability, scaling, failure modes"
+  },
+  "evaluation": {
+    "criteria": [
+      { "name": "Performance", "weight": 0.3 },
+      { "name": "Maintainability", "weight": 0.25 },
+      { "name": "Time to deliver", "weight": 0.25 },
+      { "name": "Risk", "weight": 0.2 }
+    ],
+    "scores": {
+      "ALT-1": { "Performance": 8, "Maintainability": 7, "Time to deliver": 6, "Risk": 5 },
+      "ALT-2": { "Performance": 6, "Maintainability": 9, "Time to deliver": 8, "Risk": 7 }
+    },
+    "winner": "ALT-1",
+    "rationale": "Why the winner was chosen"
+  },
+  "open_questions": [
+    "Question that needs team input"
+  ],
+  "next_steps": [
+    "Concrete action item 1",
+    "Concrete action item 2"
+  ],
+  "related_requirements": ["REQ-0001"],
+  "related_decisions": ["ADR-0001"],
+  "related_sdds": ["SDD-0001"],
+  "author": "author-name",
+  "created_at": "1970-01-01T00:00:00Z",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "metadata": {}
+}

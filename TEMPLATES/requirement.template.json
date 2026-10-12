@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "id": "REQ-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "type": "REQUIREMENT",
+  "title": "Short requirement title",
+  "description": "What must be true.",
+  "rationale": "Why this matters.",
+  "priority": "medium",
+  "acceptance_criteria": ["Observable, testable criterion."],
+  "dependencies": [],
+  "status": "PROPOSED",
+  "source": "discovery",
+  "owner": "owner-name",
+  "author": "author-name",
+  "version": "0.1.0",
+  "created_at": "1970-01-01T00:00:00Z",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "related_decisions": [],
+  "metadata": {}
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": "1",
+  "skill_id": "SK-0001",
+  "name": "checkpoint-release",
+  "version": "0.1.0",
+  "description": "Procedimiento para preparar, revisar y validar un checkpoint/release técnico de SYSTEM-ENGINEERING (BASELINE, SCOPE, CHANGES, VALIDATION, TESTS, EVIDENCE, RISKS, GIT STATE, STATUS, NEXT STEP) con clasificación FACT/VERIFIED/INFERRED/UNKNOWN/CONFLICTING.",
+  "scope": {
+    "target": "project",
+    "description": "Checkpoints y releases de SYSTEM-ENGINEERING"
+  },
+  "restrictions": [
+    "NO COMMIT/NO PUSH/NO RESET sin autorización explícita",
+    "No crear ni modificar AUDIT/REPORT sin autorización",
+    "No transformar ausencia de evidencia en PASS"
+  ],
+  "usage_rules": [
+    {
+      "rule": "Preferir los commands se verify|validate|doctor|gate para ejecutar operaciones; la Skill provee procedimiento y contexto."
+    }
+  ],
+  "capabilities": {
+    "required": ["filesystem.read", "filesystem.search"],
+    "optional": ["structured.reasoning", "documentation.lookup"]
+  },
+  "constraints": {
+    "write": "allowed"
+  },
+  "metadata": {
+    "checkpoint": "CP-017",
+    "adapter": "opencode"
+  }
+}

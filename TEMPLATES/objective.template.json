@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "objective_id": "OBJ-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "title": "Short objective title",
+  "description": "What the project exists to achieve.",
+  "status": "PROPOSED",
+  "epistemic_status": "OBJECTIVE",
+  "priority": "medium",
+  "success_criteria": ["Observable success criterion."],
+  "rationale": "Basis for this objective.",
+  "related_requirements": ["REQ-0001"],
+  "related_decisions": [],
+  "evidence": [],
+  "owner": "owner-name",
+  "author": "author-name",
+  "version": "0.1.0",
+  "created_at": "1970-01-01T00:00:00Z",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "metadata": {}
+}

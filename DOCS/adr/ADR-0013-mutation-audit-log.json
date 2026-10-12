@@ -1,0 +1,28 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0013",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-17",
+  "context": "MASTER-006 introduces `se update`, which mutates existing records. A mutation needs accountability: who changed what, when. Projects may or may not be git repositories and may not be committed between mutations.",
+  "problem": "How should mutation history be recorded, without introducing event sourcing or a database?",
+  "options_considered": [
+    { "option": "Rely on git history only", "pros": ["No new mechanism"], "cons": ["Projects are not required to be git repos", "Uncommitted mutations are invisible"] },
+    { "option": "A lightweight project-level append-only log (mutation-log.jsonl)", "pros": ["Independent of git", "Cheap", "Auditable"], "cons": ["Extra file", "No schema"] },
+    { "option": "A dedicated audit record per mutation", "pros": ["Schema-validated"], "cons": ["Heavier", "Pollutes the record graph"] },
+    { "option": "Full event sourcing", "pros": ["Complete"], "cons": ["Over-engineering", "Out of scope"] }
+  ],
+  "decision": "Each successful `se update` appends one JSON line to `<project>/mutation-log.jsonl` with {at, record_type, record_id, by, changes}. Failed updates write nothing. The log is project data, not a schema-validated core record, and is not part of the traceability graph.",
+  "reason": "It provides accountability independent of git at minimal cost, without event sourcing or a database.",
+  "consequences": "Mutations are auditable; the log grows unbounded and is not validated (documented). Git history remains an additional, independent safety net where projects are git repositories.",
+  "affected_components": ["SCRIPTS/se_core/commands.py", "DOCS/commands.md", "TESTS/test_update.py"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T15:00:00Z",
+  "updated_at": "2026-09-17T15:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

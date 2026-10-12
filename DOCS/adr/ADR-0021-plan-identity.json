@@ -1,0 +1,31 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0021",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-23",
+  "context": "The plan is not a first-class object: it is the implicit set of TASK records plus the gate conditions G2/G3 (CORE/gates/gates.json), and the PLAN READY gate closes on expertise-level manual_attestation (G3.5) that references 'the plan' without a shared identifier. DESIGN-01 (ARCH-CONVERGENCE-001) closes the execution-integrity chain TASK->PLAN->CONSENT->EXECUTION->ARTIFACTS->DIGESTS->RESULT->EVIDENCE->VERIFICATION->CHECKPOINT: consent (G3.5) and execution receipts (EEX-1, documented in DOCS/EXECUTION_INTEGRITY.md) need a stable identity for the approved plan. SHA-256 content digesting already exists as a capability of the generation pipeline (SCRIPTS/se_core/opencode/generator.py), used for drift detection of the generated adapter tree.",
+  "problem": "How to give the approved plan a deterministic, stable identity that consent and execution receipts can reference, without introducing a PLAN record type, a PLAN schema, or any runtime mechanism?",
+  "options_considered": [
+    { "option": "Introduce a PLAN record type and schema", "pros": ["First-class identity", "Schema-validated"], "cons": ["New record lifecycle (CORE artifact-types, SCHEMAS, RECORD_TYPES, templates, coverage, commands)", "Duplicates the task-set it would project", "Over-engineering for an identity role", "Contradicts extend-before-create"] },
+    { "option": "Hash a dedicated plan file", "pros": ["Simplest snapshot"], "cons": ["No single plan file exists today (plan = the task collection)", "File snapshots drift and need maintenance", "No canonical serialization defined"] },
+    { "option": "Deterministic digest function over the canonical task-set (pure function)", "pros": ["No new record or schema", "Reuses the existing SHA-256 idiom", "Stable under irrelevant metadata changes", "Restiles to consent and receipts"], "cons": ["Convention, not runtime-enforced", "Requires a precise canonical serialization spec", "Recomputable only with a matching generator function"] }
+  ],
+  "decision": "Adopt EPI-1 as a convention/pure function. PLAN_ID = sha256(canonical_json({project_id, tasks: [semantic_projection per TASK]})). The canonical task-set is the project's TASK records with status != CANCELLED; tasks are ordered by id; serialization is compact JSON with sorted keys and sorted set-arrays; the semantic projection includes id, type, title, objective, scope, parent_task, subtasks, dependencies, related_requirements, authorized_actions, acceptance_criteria, verification, capability_policy; excluded fields are status, evidence, metadata, timestamps, owner. An empty plan is not approvable (G3.1 tasks_present) and no receipt may reference it; if any task in the set fails schema validation, PLAN_ID is UNDEFINED (not computed). SHA-256 is the same content-digest capability previously introduced in generator.py; generator.py is not modified. No PLAN record, no PLAN schema, no runtime implementation, no migration.",
+  "reason": "The plan is already the task-set plus gates; an identity derived deterministically from that set closes the traceability link at near-zero cost and extends existing mechanics (SHA-256, ADR-0014 guidance semantics) instead of creating parallel architecture.",
+  "consequences": "Plan identity is a documented convention (DOCS/EXECUTION_INTEGRITY.md) referenced by consent attestations (G3.5) and execution receipts (EEX-1). Structural changes to the plan (add/remove a task, or change any included field) produce a different PLAN_ID and invalidate prior attestations. Irrelevant metadata changes (status, evidence, owner, timestamps, free metadata) preserve the identity. A future optional `se plan-digest` command would require this specification plus a separate change event (ADR + tests + doctor) and is explicitly not part of this decision.",
+  "affected_components": ["DOCS/adr/ADR-0021-plan-identity.json", "DOCS/EXECUTION_INTEGRITY.md", "POLICIES/evidence.md"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-09-23T00:00:00Z",
+  "updated_at": "2026-09-23T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "ARCH-CONVERGENCE-001-DESIGN-01",
+    "depends_on_adr": ["ADR-0014"],
+    "references": ["DOCS/EXECUTION_INTEGRITY.md", "SCRIPTS/se_core/opencode/generator.py"]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": "1",
+  "model_version": "0.1.0",
+  "description": "Decision categories and required fields.",
+  "categories": [
+    { "id": "architecture", "description": "Structural or system-wide technical decisions." },
+    { "id": "technology", "description": "Choice of language, framework, library or platform." },
+    { "id": "process", "description": "Ways of working, workflow or governance." },
+    { "id": "security", "description": "Security-relevant decisions." },
+    { "id": "data", "description": "Data model, storage or retention decisions." },
+    { "id": "ux", "description": "User experience or interface decisions." },
+    { "id": "business", "description": "Scope, priority or commercial decisions." }
+  ],
+  "status_values": ["PROPOSED", "ACCEPTED", "SUPERSEDED", "DEPRECATED", "REJECTED"],
+  "required_fields": [
+    "decision_id",
+    "date",
+    "context",
+    "problem",
+    "options_considered",
+    "decision",
+    "reason",
+    "consequences",
+    "affected_components"
+  ]
+}

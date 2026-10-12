@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "id": "media",
+  "name": "Media Production",
+  "description": "Audio, video, image and streaming production pipelines.",
+  "status": "MINIMAL",
+  "artifact_extensions": [
+    { "type": "MEDIA_ASSET", "schema": null, "purpose": "Source or rendered media with provenance." },
+    { "type": "EDIT_DECISION_LIST", "schema": null, "purpose": "Editorial decisions and versions." }
+  ],
+  "gate_additions": [
+    { "gate": "G5", "condition": "Final renders reviewed against the brief.", "automated": false }
+  ],
+  "agent_additions": [
+    { "name": "media-editor", "purpose": "Editing, mastering and delivery." }
+  ],
+  "checklists": [
+    "Asset provenance and licensing recorded.",
+    "Technical specs (format, loudness, resolution) met.",
+    "Final render reviewed against the brief."
+  ],
+  "tooling": [],
+  "metadata": { "interface_only": true }
+}

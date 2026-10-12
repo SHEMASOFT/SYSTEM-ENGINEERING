@@ -1,0 +1,6 @@
+{
+  "name": "filesystem",
+  "type": "mcp",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "${SE_PROJECT_ROOT}"]
+}

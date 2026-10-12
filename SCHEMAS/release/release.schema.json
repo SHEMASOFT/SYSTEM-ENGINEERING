@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/release.schema.json",
+  "title": "RELEASE",
+  "description": "Versioned, reversible release with approval and evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "project_id", "version", "scope", "status", "created_at", "updated_at"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "id": { "type": "string", "pattern": "^REL-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "scope": { "type": "string", "minLength": 1 },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "description"],
+        "properties": {
+          "type": { "enum": ["feature", "fix", "security", "performance", "refactor", "docs", "breaking", "other"] },
+          "description": { "type": "string", "minLength": 1 },
+          "related_tasks": { "type": "array", "items": { "type": "string", "pattern": "^TASK-\\d{4}$" } },
+          "related_requirements": { "type": "array", "items": { "type": "string", "pattern": "^REQ-\\d{4}$" } }
+        }
+      }
+    },
+    "verification": { "type": "array", "items": { "type": "string" } },
+    "known_issues": { "type": "array", "items": { "type": "string" } },
+    "deployment_method": { "type": "string" },
+    "rollback": { "type": "string" },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approved_by", "approved_at", "status"],
+      "properties": {
+        "approved_by": { "type": "string", "minLength": 1 },
+        "approved_at": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["PENDING", "APPROVED", "REJECTED"] }
+      }
+    },
+    "evidence": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^EVD-\\d{4}$" } },
+    "acceptances": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^ACC-\\d{4}$" } },
+    "status": { "enum": ["PLANNED", "CANDIDATE", "APPROVED", "RELEASED", "ROLLED_BACK"] },
+    "released_at": { "type": ["string", "null"], "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "owner": { "type": "string" },
+    "author": { "type": "string" },
+    "metadata": { "type": "object" }
+  }
+}

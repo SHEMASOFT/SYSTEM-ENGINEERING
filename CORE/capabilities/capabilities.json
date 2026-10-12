@@ -1,0 +1,107 @@
+{
+  "schema_version": "1",
+  "description": "Canonical capability registry. Declares the providers (tools/MCP servers) currently available to the toolchain and the capabilities they enable. SYSTEM-ENGINEERING governs the USE of these capabilities; it does not own the providers. This file is the single source of truth for the MCP -> capability mapping and must never be duplicated as hard-coded strings across the codebase.",
+  "operation_classes": ["read", "search", "write"],
+  "providers": [
+    { "id": "filesystem", "type": "mcp", "endpoint": "workspace-root", "availability": "available" },
+    { "id": "context7", "type": "mcp", "endpoint": "https://mcp.context7.com/mcp", "availability": "available" },
+    { "id": "sequential-thinking", "type": "mcp", "endpoint": "local", "availability": "available" },
+    { "id": "playwright", "type": "tool", "endpoint": "local", "availability": "available" },
+    { "id": "deepseek-vision", "type": "tool", "endpoint": "https://api.deepseek.com", "availability": "unknown" },
+    { "id": "firecrawl", "type": "mcp", "endpoint": "https://mcp.firecrawl.dev/v2/mcp", "availability": "available" },
+    { "id": "perplexity", "type": "mcp", "endpoint": "https://api.perplexity.ai/mcp", "availability": "available" }
+  ],
+  "capabilities": [
+    {
+      "id": "filesystem.read",
+      "description": "Read files and directories in the workspace.",
+      "operation": "read",
+      "provider": "filesystem",
+      "availability": "available"
+    },
+    {
+      "id": "filesystem.search",
+      "description": "Search the workspace by name, pattern and content (glob/grep).",
+      "operation": "search",
+      "provider": "filesystem",
+      "availability": "available"
+    },
+    {
+      "id": "filesystem.write",
+      "description": "Create, edit and move files in the workspace.",
+      "operation": "write",
+      "provider": "filesystem",
+      "availability": "available"
+    },
+    {
+      "id": "documentation.lookup",
+      "description": "Query current documentation for libraries, frameworks and runtimes.",
+      "operation": "read",
+      "provider": "context7",
+      "availability": "available"
+    },
+    {
+      "id": "structured.reasoning",
+      "description": "Deliberate, structured and revisable reasoning over complex problems.",
+      "operation": "read",
+      "provider": "sequential-thinking",
+      "availability": "available"
+    },
+    {
+      "id": "browser.preview",
+      "description": "Open and inspect a page in a real browser (headless Chrome/Edge via Playwright).",
+      "operation": "read",
+      "provider": "playwright",
+      "availability": "available"
+    },
+    {
+      "id": "browser.snapshot",
+      "description": "Capture structural/accessibility snapshot (landmarks, headings, images, alt).",
+      "operation": "read",
+      "provider": "playwright",
+      "availability": "available"
+    },
+    {
+      "id": "browser.screenshot",
+      "description": "Capture viewport and full-page screenshots of a rendered page.",
+      "operation": "read",
+      "provider": "playwright",
+      "availability": "available"
+    },
+    {
+      "id": "visual.review",
+      "description": "Pixel-level review of screenshots against DESIGN.md by a vision-capable model (DeepSeek flash accepts JPEG/PNG/GIF/WebP). Requires a provider key; not observable in this environment.",
+      "operation": "read",
+      "provider": "deepseek-vision",
+      "availability": "unknown"
+    },
+    {
+      "id": "web.search",
+      "description": "Search the web for relevant URLs, snippets, and metadata.",
+      "operation": "search",
+      "provider": "perplexity",
+      "availability": "available"
+    },
+    {
+      "id": "web.scrape",
+      "description": "Fetch and extract clean markdown content from a web page.",
+      "operation": "read",
+      "provider": "firecrawl",
+      "availability": "available"
+    },
+    {
+      "id": "web.extract",
+      "description": "Extract structured data from web pages (parse, map, crawl).",
+      "operation": "read",
+      "provider": "firecrawl",
+      "availability": "available"
+    },
+    {
+      "id": "research.synthesis",
+      "description": "Synthesize grounded answers from multiple web sources with citations.",
+      "operation": "read",
+      "provider": "perplexity",
+      "availability": "available"
+    }
+  ]
+}

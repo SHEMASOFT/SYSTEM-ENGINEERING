@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/adapter-manifest.schema.json",
+  "title": "Adapter Manifest",
+  "description": "Contract schema for distribution adapters. Declares the input sources (contracts) an adapter consumes and the artifacts it produces, including validation metadata for drift detection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "adapter_id", "adapter_version", "target", "input", "output"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "adapter_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "adapter_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "target": { "enum": ["opencode", "cli", "generic"] },
+    "engine_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agents", "commands", "skills", "policies", "mcp"],
+      "properties": {
+        "agents": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
+        "commands": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
+        "skills": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
+        "policies": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
+        "mcp": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifacts", "generated_files", "validation"],
+      "properties": {
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "path"],
+            "properties": {
+              "type": { "enum": ["agent", "command", "skill", "config", "docs", "mcp"] },
+              "path": { "type": "string", "minLength": 1 },
+              "format": { "type": "string", "minLength": 1 },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "generated_files": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "validation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "strategy": { "enum": ["hash", "content-hash"] },
+            "report_path": { "type": "string", "minLength": 1 },
+            "schema_version": { "type": "string", "const": "1" }
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "description": "Explicit support declaration per capability (SUPPORTED | PARTIAL | UNSUPPORTED). Harnesses must not fake equivalence; absent capabilities are simply not declared.",
+      "additionalProperties": { "enum": ["SUPPORTED", "PARTIAL", "UNSUPPORTED"] }
+    },
+    "capability_plan": {
+      "type": "object",
+      "description": "Optional capability governance contract (CP-020) exposed to the runtime: the registry the plan comes from, the capabilities currently available, and the declarative provider -> capabilities mapping. Never drives the harness; it is an auditable contract.",
+      "additionalProperties": false,
+      "required": ["registry", "available", "mapping"],
+      "properties": {
+        "registry": { "type": "string", "minLength": 1 },
+        "available": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" }
+        },
+        "mapping": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["provider", "capabilities", "availability"],
+            "properties": {
+              "provider": { "type": "string", "minLength": 1 },
+              "capabilities": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" }
+              },
+              "availability": { "enum": ["available", "unavailable", "unknown"] }
+            }
+          }
+        }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "metadata": { "type": "object" }
+  }
+}

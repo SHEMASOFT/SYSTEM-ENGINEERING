@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0001",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "technology",
+  "date": "2026-09-17",
+  "context": "The Master System needs a reference implementation. The environment has Python 3.14.6 and jsonschema 4.26.0 installed, but no Node.js, npm or PyYAML.",
+  "problem": "Which implementation language should the reference tooling use, without installing global software?",
+  "options_considered": [
+    { "option": "Python 3 standard library", "pros": ["Already installed", "jsonschema already available", "Portable and readable"], "cons": ["Weaker static typing than alternatives"] },
+    { "option": "Node.js / TypeScript", "pros": ["Good tooling ecosystem"], "cons": ["Not installed", "Would require global installation"] },
+    { "option": "Shell scripts only", "pros": ["No dependencies"], "cons": ["Poor JSON/schema handling", "Not portable to Windows"] }
+  ],
+  "decision": "Use Python 3 (standard library) with jsonschema for validation.",
+  "reason": "It is the only robust option already available, avoids installing software (policy), and is well suited to schema validation and CLI tooling.",
+  "consequences": "The reference implementation depends on Python and jsonschema. CORE and SCHEMAS remain language-neutral, so other implementations remain possible.",
+  "affected_components": ["SCRIPTS", "TESTS", "DOCS/development-workflow.md"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T00:00:00Z",
+  "updated_at": "2026-09-17T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

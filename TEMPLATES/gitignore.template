@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment and secrets
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+credentials*
+secrets*
+tokens*
+
+# Node
+node_modules/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local caches and temp
+*.log
+tmp/
+.cache/
+*.tmp
+
+# Generated binaries and archives
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.exe
+*.dll
+*.so
+*.dylib

@@ -1,0 +1,37 @@
+{
+  "schema_version": "1",
+  "skill_id": "SK-0003",
+  "name": "visual-frontend-engineering",
+  "version": "0.1.0",
+  "description": "Construir, renderizar, capturar y revisar visualmente un frontend de bajo costo y agnóstico de proveedor (builder + screenshot loop + diseño direccional). La revisión visual vision-capable (visual.review) es opcional y desacoplada del modelo implementador.",
+  "scope": {
+    "target": "global",
+    "description": "Frontend engineering con evidencia visual verificable en SYSTEM-ENGINEERING"
+  },
+  "restrictions": [
+    "No usar API keys ni tokens en logs/artefactos/prompts",
+    "No fabricar screenshots ni claims visuales; cada claim visual cita su captura",
+    "No instalar navegadores ni descargar runtimes sin necesidad (reusar Chrome/Edge del sistema)",
+    "No tocar SHEMA/SHEMASEG ni sus capas .opencode"
+  ],
+  "usage_rules": [
+    {
+      "rule": "Iterar máximo 3 rondas con criterio de parada explícito; cada ronda deja screenshots nombrados rN-*."
+    },
+    {
+      "rule": "Confirmar disponibilidad del provider vision (visual.review) antes de anunciar revisión visual por modelo."
+    }
+  ],
+  "capabilities": {
+    "required": ["filesystem.read", "filesystem.search"],
+    "optional": ["filesystem.write", "browser.preview", "browser.snapshot", "browser.screenshot", "visual.review"]
+  },
+  "constraints": {
+    "write": "allowed"
+  },
+  "metadata": {
+    "checkpoint": "CP-022",
+    "adapter": "opencode",
+    "license": "See refs: Anthropic frontend-design (Apache-2.0), Vercel web-interface-guidelines (MIT), Google DESIGN.md (Apache-2.0), Playwright (MIT)"
+  }
+}

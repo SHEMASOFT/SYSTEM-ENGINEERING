@@ -1,0 +1,625 @@
+"""Tests for ``se install`` (operator setup for a runtime).
+
+Hermetic: every external boundary (platform, executable lookup, subprocess runner)
+is injected, so these tests never spawn the real ``opencode`` CLI and never mutate a
+real OpenCode configuration.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import io
+import json
+import sys
+import tempfile
+import types
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import support  # noqa: E402
+
+from se_core import install  # noqa: E402
+from se_core import lifecycle_state as lc  # noqa: E402
+
+
+class DetectOsTests(unittest.TestCase):
+    def test_windows(self):
+        self.assertEqual(install.detect_os("win32"), "windows")
+
+    def test_linux(self):
+        for value in ("linux", "linux2"):
+            self.assertEqual(install.detect_os(value), "linux")
+
+    def test_macos(self):
+        self.assertEqual(install.detect_os("darwin"), "macos")
+
+    def test_current_platform_is_supported(self):
+        self.assertIn(install.detect_os(), install.SUPPORTED_OS)
+
+    def test_unknown_platform_raises(self):
+        with self.assertRaises(ValueError):
+            install.detect_os("plan9")
+
+
+class LoadMcpTemplatesTests(unittest.TestCase):
+    def test_loads_all_four_servers(self):
+        templates = install.load_mcp_templates(support.REPO_ROOT)
+        keys = [t["key"] for t in templates]
+        self.assertEqual(
+            keys, ["context7", "engram", "filesystem", "skill-server"]
+        )
+
+    def test_template_records_expose_command_and_args(self):
+        by_key = {t["key"]: t for t in install.load_mcp_templates(support.REPO_ROOT)}
+        self.assertTrue(by_key["engram"]["command"])
+        self.assertIsInstance(by_key["engram"]["args"], list)
+        self.assertIsInstance(by_key["filesystem"]["env"], dict)
+
+    def test_registered_name_can_differ_from_key(self):
+        by_key = {t["key"]: t for t in install.load_mcp_templates(support.REPO_ROOT)}
+        self.assertEqual(by_key["skill-server"]["key"], "skill-server")
+        self.assertEqual(by_key["skill-server"]["name"], "se-skill-server")
+
+    def test_template_path_is_relative(self):
+        for template in install.load_mcp_templates(support.REPO_ROOT):
+            self.assertFalse(Path(template["template"]).is_absolute())
+            self.assertTrue(template["template"].startswith("TEMPLATES/"))
+
+
+class SelectServersTests(unittest.TestCase):
+    def setUp(self):
+        self.templates = install.load_mcp_templates(support.REPO_ROOT)
+
+    def test_all_by_default(self):
+        self.assertEqual(
+            install.select_servers(self.templates),
+            ["context7", "engram", "filesystem", "skill-server"],
+        )
+
+    def test_with_selects_subset(self):
+        self.assertEqual(
+            install.select_servers(self.templates, with_list="engram,context7"),
+            ["context7", "engram"],
+        )
+
+    def test_with_accepts_spaces(self):
+        self.assertEqual(
+            install.select_servers(self.templates, with_list=" engram , filesystem "),
+            ["engram", "filesystem"],
+        )
+
+    def test_unknown_server_raises(self):
+        with self.assertRaises(ValueError):
+            install.select_servers(self.templates, with_list="engram,nope")
+
+
+class BuildPlanTests(unittest.TestCase):
+    def _plan(self, **over):
+        kwargs = dict(
+            os_name="windows",
+            se_root=support.REPO_ROOT,
+            project=support.REPO_ROOT,
+            dry_run=True,
+        )
+        kwargs.update(over)
+        return install.build_plan(**kwargs)
+
+    def test_plan_core_fields(self):
+        plan = self._plan()
+        self.assertEqual(plan["os"], "windows")
+        self.assertEqual(plan["scope"], "project")
+        self.assertTrue(plan["dry_run"])
+        self.assertEqual(plan["status"], "PASS")
+        self.assertIn("se_root", plan)
+        self.assertIn("project", plan)
+
+    def test_plan_lists_servers(self):
+        plan = self._plan()
+        self.assertEqual(
+            plan["servers"],
+            ["context7", "engram", "filesystem", "skill-server"],
+        )
+
+    def test_global_scope_recorded(self):
+        plan = self._plan(scope="global")
+        self.assertEqual(plan["scope"], "global")
+
+    def test_env_vars_from_templates(self):
+        plan = self._plan()
+        self.assertIn("CONTEXT7_API_KEY", plan["env_vars"])
+        self.assertIn("SE_ROOT", plan["env_vars"])
+        self.assertIn("SE_PROJECT_ROOT", plan["env_vars"])
+
+    def test_no_register_recorded(self):
+        plan = self._plan(register=False)
+        self.assertFalse(plan["register"])
+
+
+class RenderPlanTests(unittest.TestCase):
+    def _plan(self, **over):
+        kwargs = dict(
+            os_name="linux",
+            se_root=support.REPO_ROOT,
+            project=support.REPO_ROOT,
+            dry_run=True,
+        )
+        kwargs.update(over)
+        return install.build_plan(**kwargs)
+
+    def test_render_mentions_os_and_dry_run(self):
+        text = install.render_plan(self._plan())
+        self.assertIn("OS: linux", text)
+        self.assertIn("dry-run", text)
+
+    def test_render_lists_servers(self):
+        text = install.render_plan(self._plan())
+        self.assertIn("engram", text)
+        self.assertIn("skill-server", text)
+
+    def test_render_is_deterministic(self):
+        plan = self._plan()
+        self.assertEqual(install.render_plan(plan), install.render_plan(plan))
+
+    def test_render_no_register_note(self):
+        text = install.render_plan(self._plan(register=False))
+        self.assertIn("--no-register", text)
+
+
+class CliInstallDryRunTests(unittest.TestCase):
+    def test_dry_run_exit_zero_and_mentions_os(self):
+        code, out = support.run_cli("install", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("OS:", out)
+        self.assertIn("dry-run", out)
+
+    def test_dry_run_in_temp_project_writes_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out = support.run_cli("install", "--project", tmp, "--dry-run")
+            self.assertEqual(code, 0, out)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_dry_run_json_envelope(self):
+        import json
+
+        code, out = support.run_cli("install", "--dry-run", "--json")
+        self.assertEqual(code, 0, out)
+        envelope = json.loads(out)
+        self.assertEqual(envelope["report"], "se.report/1")
+        self.assertEqual(envelope["operation"], "install")
+        self.assertIn("details", envelope)
+        self.assertEqual(envelope["details"]["os"], install.detect_os())
+
+    def test_all_and_with_are_mutually_exclusive(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code, _ = support.run_cli("install", "--dry-run", "--all", "--with", "engram")
+        self.assertEqual(code, 2)
+
+
+class ResolvePythonInterpreterTests(unittest.TestCase):
+    def test_prefers_python3(self):
+        which = lambda name: "/usr/bin/" + name
+        self.assertEqual(install.resolve_python_interpreter(which), "python3")
+
+    def test_falls_back_to_python(self):
+        self.assertEqual(
+            install.resolve_python_interpreter(lambda name: name == "python"), "python"
+        )
+
+    def test_none_when_missing(self):
+        self.assertIsNone(install.resolve_python_interpreter(lambda name: None))
+
+
+class PreflightTests(unittest.TestCase):
+    def test_all_present_in_declared_order(self):
+        which = lambda name: "/usr/bin/" + name
+        # With context7 and filesystem selected, node should be included
+        items = install.preflight_dependencies("linux", which=which, selected_servers=["context7", "filesystem"])
+        self.assertEqual(
+            [i["name"] for i in items],
+            ["python", "node", "opencode", "engram"],
+        )
+        for item in items:
+            self.assertEqual(item["status"], "PASS", item)
+            self.assertTrue(item["guidance"])
+
+    def test_node_skipped_when_not_needed(self):
+        which = lambda name: "/usr/bin/" + name
+        # Without context7/filesystem, node should be skipped
+        items = install.preflight_dependencies("linux", which=which, selected_servers=["engram", "se-skill-server"])
+        self.assertEqual(
+            [i["name"] for i in items],
+            ["python", "opencode", "engram"],
+        )
+
+    def test_missing_reports_warn_with_detail_and_guidance(self):
+        items = {i["name"]: i for i in install.preflight_dependencies("windows", which=lambda name: None)}
+        self.assertEqual(items["opencode"]["status"], "WARN")
+        self.assertIn("not found", items["opencode"]["detail"])
+        self.assertIn("opencode", items["opencode"]["guidance"].lower())
+
+    def test_guidance_is_os_specific(self):
+        which = lambda name: None
+        win = {i["name"]: i for i in install.preflight_dependencies("windows", which=which, selected_servers=["context7"])}
+        mac = {i["name"]: i for i in install.preflight_dependencies("macos", which=which, selected_servers=["context7"])}
+        self.assertNotEqual(win["node"]["guidance"], mac["node"]["guidance"])
+
+    def test_python_uses_resolved_interpreter(self):
+        which = lambda name: name == "python"
+        items = {i["name"]: i for i in install.preflight_dependencies("linux", which=which)}
+        self.assertEqual(items["python"]["status"], "PASS")
+        self.assertIn("python", items["python"]["detail"])
+
+
+class BuildPlanPreflightTests(unittest.TestCase):
+    def test_plan_carries_preflight_and_missing_dependencies(self):
+        preflight = [
+            {"name": "python", "status": "PASS", "detail": "python3", "guidance": "g", "purpose": "p"},
+            {"name": "codegraph", "status": "WARN", "detail": "not found", "guidance": "g", "purpose": "p"},
+        ]
+        plan = install.build_plan(
+            os_name="windows", se_root=support.REPO_ROOT, project=support.REPO_ROOT,
+            dry_run=True, preflight=preflight,
+        )
+        self.assertEqual(plan["preflight"], preflight)
+        self.assertEqual(plan["missing_dependencies"], ["codegraph"])
+
+
+class RenderPreflightTests(unittest.TestCase):
+    def test_render_shows_warn_detail_and_guidance(self):
+        preflight = [
+            {"name": "codegraph", "status": "WARN", "detail": "not found",
+             "guidance": "Install CodeGraph.", "purpose": "p"},
+        ]
+        plan = install.build_plan(
+            os_name="windows", se_root=support.REPO_ROOT, project=support.REPO_ROOT,
+            dry_run=True, preflight=preflight,
+        )
+        text = install.render_plan(plan)
+        self.assertIn("[WARN] codegraph: not found", text)
+        self.assertIn("Install CodeGraph.", text)
+
+
+class CliPreflightTests(unittest.TestCase):
+    def test_dry_run_shows_preflight_section(self):
+        code, out = support.run_cli("install", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Preflight:", out)
+
+
+class ResolvePlaceholdersTests(unittest.TestCase):
+    def setUp(self):
+        self.context = {"se_root": "/se", "se_project_root": "/proj", "project_id": "PRJ-X"}
+
+    def test_resolves_paths_and_project_id_in_args_mode(self):
+        self.assertEqual(install.resolve_placeholders("${SE_ROOT}", self.context, env_mode=False), "/se")
+        self.assertEqual(install.resolve_placeholders("${SE_PROJECT_ROOT}", self.context, env_mode=False), "/proj")
+        self.assertEqual(install.resolve_placeholders("{{project_id}}", self.context, env_mode=False), "PRJ-X")
+
+    def test_unknown_env_ref_is_left_literal_in_args_mode(self):
+        self.assertEqual(install.resolve_placeholders("${OTHER}", self.context, env_mode=False), "${OTHER}")
+
+    def test_unknown_env_ref_becomes_runtime_reference_in_env_mode(self):
+        self.assertEqual(
+            install.resolve_placeholders("${CONTEXT7_API_KEY}", self.context, env_mode=True),
+            "{env:CONTEXT7_API_KEY}",
+        )
+
+
+class BuildRegistrationsTests(unittest.TestCase):
+    def setUp(self):
+        self.templates = {t["key"]: t for t in install.load_mcp_templates(support.REPO_ROOT)}
+
+    def _preflight(self, missing=()):
+        return [
+            {"name": name, "status": "WARN" if name in missing else "PASS",
+             "detail": "x", "guidance": "g", "purpose": "p"}
+            for name in ("python", "node", "opencode", "engram", "codegraph")
+        ]
+
+    def _build(self, keys, **over):
+        kwargs = dict(
+            se_root="/se", project="/proj", project_id="PRJ-X",
+            interpreter="python3", scope="project", register=True,
+            preflight=self._preflight(),
+        )
+        kwargs.update(over)
+        return install.build_registrations([self.templates[k] for k in keys], **kwargs)
+
+    def test_plain_local_command(self):
+        reg = self._build(["engram"])[0]
+        self.assertEqual(
+            reg["command"],
+            ["opencode", "mcp", "add", "--env", "ENGRAM_PROJECT=PRJ-X",
+             "engram", "--", "engram", "mcp", "--tools=agent"],
+        )
+        self.assertEqual(reg["status"], "planned")
+
+    def test_args_placeholder_resolved(self):
+        by_key = {r["server"]: r for r in self._build(["filesystem"])}
+        self.assertEqual(
+            by_key["filesystem"]["command"],
+            ["opencode", "mcp", "add", "filesystem", "--",
+             "npx", "-y", "@modelcontextprotocol/server-filesystem", "/proj"],
+        )
+
+    def test_env_flag_uses_runtime_reference_and_sorts_keys(self):
+        reg = self._build(["skill-server"])[0]
+        self.assertEqual(
+            reg["command"],
+            ["opencode", "mcp", "add", "--env", "ENGRAM_PROJECT=PRJ-X", "--env", "SE_ROOT=/se",
+             "se-skill-server", "--", "python3", "-m", "se_core.mcp.skill_server"],
+        )
+
+    def test_secret_env_ref_becomes_env_substitution(self):
+        reg = self._build(["context7"])[0]
+        self.assertIn("--env", reg["command"])
+        self.assertIn("CONTEXT7_API_KEY={env:CONTEXT7_API_KEY}", reg["command"])
+
+    def test_interpreter_python_fallback(self):
+        reg = self._build(["skill-server"], interpreter="python")[0]
+        self.assertEqual(reg["command"][reg["command"].index("--") + 1], "python")
+
+    def test_global_scope_inserts_flag(self):
+        reg = self._build(["engram"], scope="global")[0]
+        self.assertEqual(reg["command"][:4], ["opencode", "mcp", "add", "--global"])
+
+    def test_missing_dependency_skips_server(self):
+        # context7 depends on node; if node is missing, context7 should be skipped
+        reg = self._build(["context7"], preflight=self._preflight(missing=("node",)))[0]
+        self.assertEqual(reg["status"], "skipped")
+        self.assertIn("missing dependency: node", reg["reason"])
+
+    def test_no_register_skips_everything(self):
+        regs = self._build(["engram", "context7"], register=False)
+        self.assertTrue(all(r["status"] == "skipped" for r in regs))
+        self.assertTrue(all("--no-register" in r["reason"] for r in regs))
+
+
+class FakeResult:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class FakeRunner:
+    def __init__(self, result=None):
+        self.calls = []
+        self.result = result or FakeResult(0)
+
+    def __call__(self, command):
+        self.calls.append(list(command))
+        return self.result
+
+
+class ExecuteRegistrationsTests(unittest.TestCase):
+    def test_planned_servers_are_executed_and_status_updates(self):
+        regs = [
+            {"server": "a", "name": "a", "status": "planned", "reason": None,
+             "command": ["opencode", "mcp", "add", "a", "--", "x"]},
+            {"server": "b", "name": "b", "status": "planned", "reason": None,
+             "command": ["opencode", "mcp", "add", "b", "--", "y"]},
+        ]
+        codes = iter([0, 2])
+        calls = []
+
+        def runner(command):
+            calls.append(command)
+            return FakeResult(next(codes), stderr="boom")
+
+        install.execute_registrations(regs, runner)
+        self.assertEqual([r["status"] for r in regs], ["registered", "skipped"])
+        self.assertIn("boom", regs[1]["reason"])
+        self.assertTrue(all(command[0] == "opencode" for command in calls))
+
+    def test_skipped_servers_are_not_executed(self):
+        regs = [{"server": "c", "name": "c", "status": "skipped", "reason": "x",
+                 "command": ["opencode", "mcp", "add", "c"]}]
+        calls = []
+
+        def runner(command):
+            calls.append(command)
+            return FakeResult(0)
+
+        install.execute_registrations(regs, runner)
+        self.assertEqual(calls, [])
+
+
+class ProjectIdTests(unittest.TestCase):
+    def test_reads_project_id_from_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            support.write_json(root / "PROJECT.json", {"project_id": "PRJ-9"})
+            self.assertEqual(install.read_project_id(root), "PRJ-9")
+
+    def test_falls_back_to_directory_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(install.read_project_id(Path(tmp)), Path(tmp).name)
+
+
+class AdapterSelectionTests(unittest.TestCase):
+    def test_skipped_without_flag(self):
+        entry = install.plan_adapter_selection(support.REPO_ROOT, support.REPO_ROOT, generate=False)
+        self.assertEqual(entry["status"], "skipped")
+
+    def test_planned_for_consumer_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = install.plan_adapter_selection(support.REPO_ROOT, Path(tmp), generate=True)
+            self.assertEqual(entry["status"], "planned")
+
+    def test_refuses_the_se_repository_itself(self):
+        entry = install.plan_adapter_selection(support.REPO_ROOT, support.REPO_ROOT, generate=True)
+        self.assertEqual(entry["status"], "BLOCKED")
+        self.assertIn(".opencode", entry["reason"])
+
+
+class CliRegistrationTests(unittest.TestCase):
+    def test_with_selects_subset_in_plan(self):
+        code, out = support.run_cli("install", "--with", "engram", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Servers to register (1): engram", out)
+
+    def test_no_register_writes_nothing_and_skips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out = support.run_cli("install", "--no-register", "--project", tmp)
+            self.assertEqual(code, 0, out)
+            self.assertIn("--no-register", out)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_dry_run_json_lists_registration_commands(self):
+        import json
+
+        code, out = support.run_cli("install", "--dry-run", "--json")
+        self.assertEqual(code, 0, out)
+        details = json.loads(out)["details"]
+        commands = {r["server"]: r["command"] for r in details["registrations"]}
+        self.assertIn("engram", commands)
+        self.assertTrue(all((not command) or command[0] == "opencode" for command in commands.values()))
+        self.assertIn("opencode", commands["engram"][:3])
+
+    def test_generate_adapter_refused_in_se_repo(self):
+        code, out = support.run_cli(
+            "install", "--dry-run", "--generate-adapter", "--project", str(support.REPO_ROOT)
+        )
+        self.assertEqual(code, 1, out)
+        self.assertIn("BLOCKED", out)
+
+
+# --------------------------------------------------------------------------- #
+# T5: resolved spec + lifecycle-state recording + `--global` runtime probe
+# --------------------------------------------------------------------------- #
+
+
+class ResolvedServerSpecTests(unittest.TestCase):
+    def _template(self, **over):
+        data = {
+            "key": "demo",
+            "name": "demo",
+            "command": "python",
+            "args": ["-m", "demo", "${SE_ROOT}/x"],
+            "env": {"KEY": "${CONTEXT7_API_KEY}", "PATH_REF": "${SE_PROJECT_ROOT}/data"},
+            "template": "TEMPLATES/mcp/demo.json.tmpl",
+        }
+        data.update(over)
+        return data
+
+    def _spec(self, **over):
+        kwargs = dict(se_root="/se", project="/proj", project_id="PRJ-X", interpreter="python3")
+        kwargs.update(over)
+        return install.resolved_server_spec(self._template(), **kwargs)
+
+    def test_spec_shape_is_plain_dict(self):
+        spec = self._spec()
+        self.assertEqual(spec["name"], "demo")
+        self.assertEqual(spec["command"], ["python3", "-m", "demo", "/se/x"])
+        self.assertEqual(
+            spec["environment"],
+            {"KEY": "{env:CONTEXT7_API_KEY}", "PATH_REF": "/proj/data"},
+        )
+
+    def test_python_interpreter_substituted(self):
+        spec = self._spec(interpreter="python")
+        self.assertEqual(spec["command"][0], "python")
+
+    def test_placeholder_resolution_matches_registrations(self):
+        spec = self._spec()
+        template = self._template()
+        registration = install.build_registrations(
+            [template],
+            se_root="/se", project="/proj", project_id="PRJ-X",
+            interpreter="python3", scope="project", register=True,
+            preflight=[{"name": "python", "status": "PASS", "detail": "x", "guidance": "g", "purpose": "p"}],
+        )[0]
+        self.assertIn("demo", registration["command"])
+        self.assertEqual(spec["command"], registration["command"][registration["command"].index("--") + 1:])
+
+
+class RecordLifecycleStateTests(unittest.TestCase):
+    def test_state_written_after_registration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            runner = FakeRunner()
+            args = types.SimpleNamespace(**{
+                "project": str(project), "global": False, "no_register": False,
+                "generate_adapter": False, "dry_run": False, "json": False, "with_": None,
+            })
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = install.run(args, platform_name="windows", runner=runner,
+                                   which=lambda name: name in ("python", "opencode"))
+            self.assertEqual(code, 0, buffer.getvalue())
+            self.assertTrue(lc.state_path(project).exists())
+            state = lc.load_state(project)
+            self.assertIsNotNone(state)
+            self.assertIn("se-skill-server", state["servers"])
+            self.assertEqual(len(state["servers"]["se-skill-server"]["declared"]), 64)
+            self.assertTrue(state["se_version"])
+            self.assertEqual(state["os"], "windows")
+
+    def test_dry_run_writes_no_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            args = types.SimpleNamespace(**{
+                "project": str(project), "global": False, "no_register": False,
+                "generate_adapter": False, "dry_run": True, "json": False, "with_": None,
+            })
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = install.run(args, platform_name="windows", runner=FakeRunner(),
+                                   which=lambda name: name in ("python", "opencode"))
+            self.assertEqual(code, 0, buffer.getvalue())
+            self.assertFalse(lc.state_path(project).exists())
+
+
+class ProbeGlobalSupportTests(unittest.TestCase):
+    def test_probe_detects_global_from_help(self):
+        runner = FakeRunner(FakeResult(0, stdout="--global  Register into the user config"))
+        self.assertTrue(install.probe_global_support(runner))
+
+    def test_probe_misses_global(self):
+        runner = FakeRunner(FakeResult(0, stdout="--url   Register a remote server"))
+        self.assertFalse(install.probe_global_support(runner))
+
+    def test_probe_scans_stderr_too(self):
+        runner = FakeRunner(FakeResult(0, stdout="", stderr="supports --global"))
+        self.assertTrue(install.probe_global_support(runner))
+
+
+class GlobalScopeRunTests(unittest.TestCase):
+    def _args(self, project, global_scope):
+        return types.SimpleNamespace(**{
+            "project": str(project), "global": global_scope, "no_register": False,
+            "generate_adapter": False, "dry_run": False, "json": False, "with_": None,
+        })
+
+    def test_global_supported_proceeds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            runner = FakeRunner(FakeResult(0, stdout="--global"))
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = install.run(self._args(project, True), platform_name="windows",
+                                   runner=runner, which=lambda name: name in ("python", "opencode"))
+            self.assertEqual(code, 0, buffer.getvalue())
+            self.assertTrue(lc.state_path(project).exists())
+            state = lc.load_state(project)
+            self.assertEqual(state["servers"]["se-skill-server"]["scope"], "global")
+
+    def test_global_unsupported_blocks_without_registering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            runner = FakeRunner(FakeResult(0, stdout="--url only"))
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = install.run(self._args(project, True), platform_name="windows",
+                                   runner=runner, which=lambda name: name in ("python", "opencode"))
+            self.assertEqual(code, 1, buffer.getvalue())
+            self.assertIn("does not support --global", buffer.getvalue())
+            self.assertEqual(len(runner.calls), 1)
+            self.assertFalse(lc.state_path(project).exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

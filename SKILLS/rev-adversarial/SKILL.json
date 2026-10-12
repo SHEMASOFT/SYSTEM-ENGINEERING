@@ -1,0 +1,37 @@
+{
+  "schema_version": "1",
+  "skill_id": "SK-0005",
+  "name": "rev-adversarial",
+  "version": "0.1.0",
+  "description": "Revisión adversarial (skill behavioral): revisar buscando activamente la no-conformidad y el riesgo del evaluador, no confirmar el resultado. Declara la lente en metadata.review_lens de la EVD type=review y no acepta una entrega sin haber respondido a las objeciones.",
+  "skill_kind": "behavioral",
+  "scope": {
+    "target": "project",
+    "description": "Revisiones de calidad en SYSTEM-ENGINEERING"
+  },
+  "restrictions": [
+    "NO aprueba; el cierre del release pertenece al owner",
+    "NO revisa trabajo propio",
+    "NO acepta una entrega con objeciones sin respuesta"
+  ],
+  "usage_rules": [
+    {
+      "rule": "Registrar la lente en metadata.review_lens de la EVIDENCE type=review; vocabulario semilla: adversarial, quality_assurance, security, traceability, compliance, usability, performance."
+    },
+    {
+      "rule": "Buscar la no-conformidad primero (fallar la revisión); PASS solo si las objeciones se resolvieron."
+    }
+  ],
+  "capabilities": {
+    "required": ["filesystem.read", "filesystem.search"],
+    "optional": ["structured.reasoning", "documentation.lookup"]
+  },
+  "constraints": {
+    "write": "allowed"
+  },
+  "metadata": {
+    "checkpoint": "CP-023",
+    "adapter": "opencode",
+    "ecosystem": "ECH-002-SEED-1"
+  }
+}

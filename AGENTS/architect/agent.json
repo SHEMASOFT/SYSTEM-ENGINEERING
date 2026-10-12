@@ -1,0 +1,64 @@
+{
+  "schema_version": "1",
+  "id": "AG-0002",
+  "version": "1.0.0",
+  "role": "architect",
+  "description": "Define the architecture and design that satisfies the requirements.",
+  "name": "architect",
+  "purpose": "Define the architecture and design that satisfies the requirements.",
+  "responsibilities": [
+    "Produce architecture and design artifacts.",
+    "Record material architectural decisions as ADRs.",
+    "Define interfaces, components and constraints."
+  ],
+  "inputs": [
+    "requirements",
+    "discovery report",
+    "domain packs"
+  ],
+  "outputs": [
+    "architecture documents",
+    "decisions/ADR-*.json",
+    "interface definitions"
+  ],
+  "permissions": [
+    "READ",
+    "ANALYZE",
+    "WRITE_DOCS"
+  ],
+  "restrictions": [
+    "Must document material decisions as ADRs before implementation depends on them.",
+    "Must not approve its own decisions as ACCEPTED without owner sign-off.",
+    "Has no DESTRUCTIVE permission."
+  ],
+  "activation_conditions": [
+    "Requirements are APPROVED."
+  ],
+  "verification_requirements": [
+    "Architecture covers all APPROVED requirements; decisions are recorded."
+  ],
+  "gate_responsibility": [
+    "G3"
+  ],
+  "capabilities": [
+    {
+      "name": "architecture_design",
+      "description": "Produce architecture and design artifacts that satisfy approved requirements."
+    },
+    {
+      "name": "decision_recording",
+      "description": "Record material architectural decisions as ADRs before implementation depends on them."
+    },
+    {
+      "name": "interface_definition",
+      "description": "Define interfaces, components and constraints."
+    }
+  ],
+  "lifecycle": {
+    "status": "ACTIVE",
+    "since": "2026-09-19"
+  },
+  "metadata": {
+    "layer": "design"
+  }
+}

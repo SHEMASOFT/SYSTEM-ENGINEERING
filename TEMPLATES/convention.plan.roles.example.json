@@ -1,0 +1,11 @@
+{
+  "task": "TASK-0001",
+  "lead": "implementer",
+  "reviewers": ["reviewer"],
+  "contributors": ["architect"],
+  "verification": {
+    "step": "test_local",
+    "evidence": "EVD-0001",
+    "by": "tester"
+  }
+}

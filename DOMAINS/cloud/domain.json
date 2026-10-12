@@ -1,0 +1,25 @@
+{
+  "schema_version": "1",
+  "id": "cloud",
+  "name": "Cloud Infrastructure",
+  "description": "Infrastructure as code, environments, networking, cost and reliability controls.",
+  "status": "MINIMAL",
+  "artifact_extensions": [
+    { "type": "INFRASTRUCTURE", "schema": null, "purpose": "Infrastructure definitions (IaC)." },
+    { "type": "ENVIRONMENT", "schema": null, "purpose": "Environment definition and configuration." }
+  ],
+  "gate_additions": [
+    { "gate": "G7", "condition": "Infrastructure changes are reproducible from code and reversible.", "automated": false }
+  ],
+  "agent_additions": [
+    { "name": "cloud-architect", "purpose": "Cloud topology, reliability and cost design." }
+  ],
+  "checklists": [
+    "Infrastructure defined as code.",
+    "Least-privilege IAM.",
+    "Backup and recovery defined.",
+    "Cost impact assessed."
+  ],
+  "tooling": [],
+  "metadata": { "interface_only": true }
+}

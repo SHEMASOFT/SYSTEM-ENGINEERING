@@ -1,0 +1,18 @@
+{
+  "type": "review",
+  "result": "PASS",
+  "summary": "El cambio F1 (dbg-systematic) cumple su contrato; 1 WARN de duda no bloqueante.",
+  "metadata": {
+    "review_lens": "adversarial",
+    "gate": "G6"
+  },
+  "findings": [
+    {
+      "severity": "WARN",
+      "where": "SKILLS/dbg-systematic/SKILL.md (evidence section)",
+      "criterion": "MIN_EVIDENCE: toda skill emite EVD comprobable",
+      "observation": "La sección evidence no cita un tipo de EVD concreto.",
+      "resolved": true
+    }
+  ]
+}

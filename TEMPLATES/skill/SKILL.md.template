@@ -1,0 +1,61 @@
+---
+name: <skill-name (must equal folder name)>
+description: <one-sentence description of when to use this skill; required by OpenCode; skills without description are filtered out>
+metadata:
+  system: system-engineering
+  schema_version: "1"
+  adapter: opencode
+  checkpoint: <CHECKPOINT-###>
+---
+
+# <skill-name>
+
+## purpose
+
+<Por qué existe esta skill; qué disciplina/resultado habilita; enmarcado en el
+sistema (EVD, gates, capability contract, procesos SE).>
+
+## when_to_use
+
+- <Situación A donde aplicar.>
+- <Situación B donde aplicar.>
+
+## when_not_to_use
+
+- <Situación que NO corresponde (y qué usar en su lugar).>
+
+## inputs
+
+- <Entradas requeridas: artefactos, evidencia, repos, contexto.>
+
+## preconditions
+
+- <Condiciones que deben cumplirse antes de aplicar la skill.>
+
+## procedure
+
+1. <Paso 1 con criterio de salida.>
+2. <Paso 2...>
+
+## evidence
+
+<Qué evidencia mínima emite la skill y cómo es comprobable (EVD, salidas,
+referencias). "No se encontró evidencia" ≠ "se verificó que no existe".>
+
+## validation
+
+- <Criterio para considerar que la skill se aplicó correctamente.>
+
+## failure_modes
+
+- <Modo de fallo 1.>
+- <Modo de fallo 2.>
+
+## outputs
+
+- <Salidas concretas: artefactos, reportes, EVD, diffs.>
+
+## restrictions
+
+- <Restricciones: NO COMMIT/PUSH, READ_ONLY, no inventar evidencia, etc.
+  Alinear con `constraints.write` del sidecar SKILL.json.>

@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "artifact_id": "ART-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "title": "Short deliverable title",
+  "description": "What this deliverable is.",
+  "kind": "code",
+  "kind_detail": "",
+  "status": "PLANNED",
+  "location": "path/or/uri",
+  "checksum": "",
+  "produced_by": ["TASK-0001"],
+  "related_requirements": ["REQ-0001"],
+  "related_evidence": ["EVD-0001"],
+  "owner": "owner-name",
+  "author": "author-name",
+  "version": "0.1.0",
+  "created_at": "1970-01-01T00:00:00Z",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "metadata": {}
+}

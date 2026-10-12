@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/agent-contract.schema.json",
+  "title": "Agent Contract",
+  "description": "Contract schema for agent definitions (AGENTS/<role>/agent.json). Superset-compatible with the legacy agent.schema.json vocabulary so existing contracts validate without migration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "purpose",
+    "responsibilities",
+    "inputs",
+    "outputs",
+    "permissions",
+    "restrictions",
+    "activation_conditions",
+    "verification_requirements"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "id": { "type": "string", "pattern": "^AG-\\d{4}$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "name": {
+      "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+    },
+    "role": {
+      "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+    },
+    "description": { "type": "string", "minLength": 1 },
+    "purpose": { "type": "string", "minLength": 1 },
+    "responsibilities": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "description"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "capability_requires": {
+      "description": "Optional capability governance (CP-020): capability ids this agent requires. Refer to the canonical capability registry; concrete provider names must never appear here.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" }
+    },
+    "inputs": { "type": "array", "items": { "type": "string" } },
+    "outputs": { "type": "array", "items": { "type": "string" } },
+    "permissions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["READ", "ANALYZE", "WRITE_DOCS", "IMPLEMENT", "TEST", "DEPLOY", "DESTRUCTIVE"] }
+    },
+    "restrictions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "activation_conditions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "verification_requirements": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "gate_responsibility": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^G[0-8]$" }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["ACTIVE", "BETA", "DEPRECATED", "SUPERSEDED"] },
+        "since": { "type": "string", "format": "date" },
+        "deprecated_on": { "type": "string", "format": "date" },
+        "superseded_by": { "type": "string", "pattern": "^AG-\\d{4}$" }
+      }
+    },
+    "metadata": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "role": { "const": "coordinator" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "coordinator" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "explorer" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "explorer" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "analyst" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "analyst" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "architect" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "architect" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "planner" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "planner" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "implementer" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "implementer" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "tester" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "tester" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "reviewer" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "reviewer" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "security" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "security" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "documentation" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "documentation" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "devops" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "devops" } } }
+    },
+    {
+      "if": { "properties": { "role": { "const": "visual" } }, "required": ["role"] },
+      "then": { "properties": { "name": { "const": "visual" } } }
+    }
+  ]
+}

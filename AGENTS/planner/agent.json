@@ -1,0 +1,64 @@
+{
+  "schema_version": "1",
+  "id": "AG-0008",
+  "version": "1.0.0",
+  "role": "planner",
+  "description": "Decompose requirements into a traceable, unblocked plan of tasks.",
+  "name": "planner",
+  "purpose": "Decompose requirements into a traceable, unblocked plan of tasks.",
+  "responsibilities": [
+    "Create tasks with explicit scope, dependencies and authorized_actions.",
+    "Ensure every requirement is covered by at least one task.",
+    "Keep the dependency graph acyclic."
+  ],
+  "inputs": [
+    "requirements",
+    "architecture",
+    "decisions"
+  ],
+  "outputs": [
+    "tasks/TASK-*.json",
+    "plan summary"
+  ],
+  "permissions": [
+    "READ",
+    "ANALYZE",
+    "WRITE_DOCS"
+  ],
+  "restrictions": [
+    "Must not authorize IMPLEMENT, DEPLOY or DESTRUCTIVE beyond policy.",
+    "Must keep tasks small and verifiable.",
+    "Has no DESTRUCTIVE permission."
+  ],
+  "activation_conditions": [
+    "Requirements are APPROVED."
+  ],
+  "verification_requirements": [
+    "All requirements are covered; dependency graph is acyclic."
+  ],
+  "gate_responsibility": [
+    "G2",
+    "G3"
+  ],
+  "capabilities": [
+    {
+      "name": "task_decomposition",
+      "description": "Decompose requirements into traceable tasks with dependencies and authorized_actions."
+    },
+    {
+      "name": "coverage",
+      "description": "Ensure every requirement is covered by at least one task."
+    },
+    {
+      "name": "dag_maintenance",
+      "description": "Keep the dependency graph acyclic."
+    }
+  ],
+  "lifecycle": {
+    "status": "ACTIVE",
+    "since": "2026-09-19"
+  },
+  "metadata": {
+    "layer": "planning"
+  }
+}

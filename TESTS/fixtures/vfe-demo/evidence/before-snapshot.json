@@ -1,0 +1,22 @@
+[
+  {
+    "viewport": "1280x800",
+    "snapshot": {
+      "title": "VFE Demo — BEFORE",
+      "lang": "es",
+      "h1": "Bienvenido a Mi Producto",
+      "navLinks": [],
+      "landmarks": []
+    }
+  },
+  {
+    "viewport": "375x812",
+    "snapshot": {
+      "title": "VFE Demo — BEFORE",
+      "lang": "es",
+      "h1": "Bienvenido a Mi Producto",
+      "navLinks": [],
+      "landmarks": []
+    }
+  }
+]

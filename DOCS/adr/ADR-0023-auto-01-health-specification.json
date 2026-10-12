@@ -1,0 +1,77 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0023",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-27",
+  "context": "SE-AUTOMATION-001B identified reproducible read-only engineering operations (health, context reconstruction, task readiness, verification bundle, project consistency, traceability, skill/adapter conformance, checkpoint preparation). AUTO-01 'health' was identified as the first automation to implement: a read-only aggregation of existing health checks (doctor, validate, capabilities --check, review) into a unified health report. The B0 phase (ADR-0022) established the read-only aggregation surface and minimum-context/on-demand policy. AUTO-01 is the first concrete automation to implement on that surface.",
+  "problem": "Operators currently must manually run multiple commands (se doctor, se validate, se capabilities --check, se review) and mentally aggregate their results to assess system health. This is error-prone, time-consuming, and doesn't produce a machine-readable health summary for downstream consumers (SE-CONSOLE, CI/CD, alerting). A single command should aggregate all health signals into a deterministic, machine-readable health envelope.",
+  "options_considered": [
+    {
+      "option": "New 'se health' command aggregating existing read-only checks (doctor, validate, capabilities --check, review) into a unified se.report/1 envelope",
+      "pros": [
+        "Reuses existing read-only functions (run_doctor, cmd_validate, check_policies, cmd_review)",
+        "No new schema, no engine, no store; single source of truth preserved",
+        "Deterministic and idempotent; stdout only",
+        "Smallest sufficient context by default; respects MINIMUM CONTEXT / ON DEMAND policy",
+        "SE-CONSOLE can consume JSON without becoming authoritative"
+      ],
+      "cons": [
+        "Requires ADR + command-contract change (COMMANDS/commands.json + adapter regeneration)",
+        "Must define health status aggregation logic (PASS/WARN/FAIL/DEGRADED)",
+        "No empirical token measurement yet"
+      ]
+    },
+    {
+      "option": "New health engine / health microservice",
+      "pros": ["Central place for all health logic"],
+      "cons": ["Violates architecture-creep barrier (STATE_POLICY.md §13, EXECUTION_INTEGRITY.md §7)", "Second source of truth risk", "Over-engineering relative to composing existing functions"]
+    },
+    {
+      "option": "Persist health snapshot as source of truth",
+      "pros": ["Fast queries"],
+      "cons": ["Duplicates canonical files; drift; contradicts ADR-0003 file-per-artifact and STATE_POLICY one-canonical-source rule"]
+    },
+    {
+      "option": "Adopt external health monitoring framework",
+      "pros": ["Less code"],
+      "cons": ["Lock-in; no capability SE does not already have; rejected by ARCH-ECOSYSTEM-001-05"]
+    }
+  ],
+  "decision": "Adopt a READ-ONLY HEALTH AGGREGATION COMMAND (AUTO-01) as a small native extension of the reference implementation, governed by the MINIMUM CONTEXT / ON-DEMAND policy from ADR-0022. The command composes existing read-only functions (run_doctor, cmd_validate, check_policies, cmd_review) into a deterministic se.report/1 envelope with operation='health'. It never mutates, never creates records, never bypasses or auto-passes gates, and never grants authority. JSON output is opt-in via --json; default is human-readable summary. No new schema; health status vocabulary is PASS/WARN/FAIL/DEGRADED/UNKNOWN. DEFAULT = smallest sufficient context (aggregated status + summary); broader context requires explicit --scope flag (future). No new engine, no new schema, no new authority.",
+  "reason": "All health signals are already computable from canonical files by existing read-only functions; composing them behind a stable envelope yields deterministic, auditable, portable output while preserving AUTOMATE OPERATIONS, NOT AUTHORITY and the single-source-of-truth rule. A default-minimum, on-demand scope model directly reduces the context sent to the model without promising any unmeasured savings.",
+  "consequences": "Implementation in a future authorized phase (after SE-MCP-INTEGRATION-001 completes). Adding the command requires: (1) COMMANDS/commands.json entry for 'health' (CMD-0015), (2) CLI parser update (cli.py), (3) command implementation in commands.py (cmd_health), (4) ADR for the command contract, (5) tests, (6) adapter regeneration. The envelope uses the existing se.report/1 contract (ADR-0022). No new schema; health status vocabulary extends the existing PASS/WARN/FAIL with DEGRADED. B3 (AUTO-07/08) can proceed independently.",
+  "reason": "Every health signal is already computable from canonical files by existing read-only functions; composing them behind a stable envelope yields deterministic, auditable, portable output while preserving AUTOMATE OPERATIONS, NOT AUTHORITY and the single-source-of-truth rule. A default-minimum, on-demand scope model directly reduces the context sent to the model without promising any unmeasured savings.",
+  "consequences": "Implementation deferred to authorized phase. Adding command requires: COMMANDS/commands.json entry for 'health' (CMD-0016), CLI parser update, command implementation, ADR, tests, adapter regeneration. Envelope uses existing se.report/1 contract. No new schema; health status extends PASS/WARN/FAIL with DEGRADED. B3 (AUTO-07/08) proceeds independently.",
+  "affected_components": [
+    "DOCS/adr/ADR-0023-auto-01-health-specification.json",
+    "DOCS/SE-AUTOMATION-001C-AUTO-01-SPEC-REPORT.md",
+    "(future) COMMANDS/commands.json",
+    "(future) SCRIPTS/se_core/cli.py",
+    "(future) SCRIPTS/se_core/commands.py",
+    "(future) TESTS/test_health_automation.py",
+    "(future) SE-AUTOMATION-001D-AUTO-01-REPORT.md"
+  ],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-09-27T00:00:00Z",
+  "updated_at": "2026-09-27T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "SE-AUTOMATION-001C-AUTO-01-SPEC",
+    "depends_on_adr": ["ADR-0022", "ADR-0003", "ADR-0004", "ADR-0015"],
+    "references": [
+      "DOCS/STATE_POLICY.md",
+      "DOCS/EXECUTION_INTEGRITY.md",
+      "DOCS/CAPABILITY_GOVERNANCE.md",
+      "CORE/policies/permissions.json",
+      "SCRIPTS/se_core/doctor.py",
+      "SCRIPTS/se_core/commands.py",
+      "SCRIPTS/se_core/capabilities.py",
+      "DOCS/adr/ADR-0022-readonly-aggregation-minimum-context.json"
+    ]
+  }
+}

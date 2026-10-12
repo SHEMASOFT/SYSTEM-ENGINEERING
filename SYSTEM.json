@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "name": "SYSTEM ENGINEERING",
+  "master_system_version": "0.10.0",
+  "status": "FOUNDATION/DEVELOPMENT",
+  "description": "Reusable, domain-agnostic project operating system.",
+  "lifecycle_model": "CORE/lifecycle/lifecycle.json",
+  "gate_model": "CORE/gates/gates.json",
+  "task_state_model": "CORE/tasks/task-states.json",
+  "permission_model": "CORE/policies/permissions.json",
+  "artifact_model": "CORE/artifacts/artifact-types.json",
+  "command_model": "COMMANDS/commands.json",
+  "schema_index": "SCHEMAS/index.json"
+}

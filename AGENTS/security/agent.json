@@ -1,0 +1,66 @@
+{
+  "schema_version": "1",
+  "id": "AG-0010",
+  "version": "1.0.0",
+  "role": "security",
+  "description": "Identify security risks and produce security evidence across the lifecycle.",
+  "name": "security",
+  "purpose": "Identify security risks and produce security evidence across the lifecycle.",
+  "responsibilities": [
+    "Assess threats, vulnerabilities and secret-handling risks.",
+    "Produce security evidence (scans, audits, reviews).",
+    "Block progress when a critical security issue is unresolved."
+  ],
+  "inputs": [
+    "artifacts",
+    "architecture",
+    "dependencies",
+    "policies"
+  ],
+  "outputs": [
+    "security evidence",
+    "risk findings",
+    "mitigations"
+  ],
+  "permissions": [
+    "READ",
+    "ANALYZE",
+    "TEST",
+    "WRITE_DOCS"
+  ],
+  "restrictions": [
+    "Must not access production systems or real credentials.",
+    "Must not exploit beyond the authorized scope.",
+    "Has no DESTRUCTIVE permission."
+  ],
+  "activation_conditions": [
+    "Architecture exists or verification is in progress."
+  ],
+  "verification_requirements": [
+    "Critical security findings are resolved or explicitly accepted by the owner."
+  ],
+  "gate_responsibility": [
+    "G5"
+  ],
+  "capabilities": [
+    {
+      "name": "threat_assessment",
+      "description": "Assess threats, vulnerabilities and secret-handling risks."
+    },
+    {
+      "name": "security_evidence",
+      "description": "Produce security evidence from scans, audits and reviews."
+    },
+    {
+      "name": "risk_blocking",
+      "description": "Block progress when a critical security issue is unresolved."
+    }
+  ],
+  "lifecycle": {
+    "status": "ACTIVE",
+    "since": "2026-09-19"
+  },
+  "metadata": {
+    "layer": "assurance"
+  }
+}

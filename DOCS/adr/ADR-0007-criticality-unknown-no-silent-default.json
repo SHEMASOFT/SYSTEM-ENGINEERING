@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0007",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "process",
+  "date": "2026-09-17",
+  "context": "In MASTER-002 a pilot project was created with criticality='medium' while its objective was UNKNOWN. Investigation showed the value came from a silent argparse default in `se init`, and the project schema did not allow an 'unknown' value.",
+  "problem": "How should criticality be handled so that missing knowledge is never presented as a fact?",
+  "options_considered": [
+    { "option": "Allow 'unknown' in the enum and make it the documented default (never a factual value)", "pros": ["Epistemically safe", "No forced guess", "Backward compatible"], "cons": ["Adds an enum value"] },
+    { "option": "Make criticality optional", "pros": ["Flexible"], "cons": ["Absence is ambiguous", "G0.4 would need to change", "Silent omission"] },
+    { "option": "Require an explicit human value with no default", "pros": ["Forces a decision"], "cons": ["Breaks `se init` ergonomics and existing tests", "A forced value at intake is often a guess"] }
+  ],
+  "decision": "Add 'unknown' to the criticality enum and make it the default for `se init`. Remove the silent 'medium' default. G0.4 accepts 'unknown' at intake and never treats it as a fact.",
+  "reason": "It preserves epistemic integrity: absence of knowledge is represented as UNKNOWN rather than as an invented fact, without adding a new classification.",
+  "consequences": "New projects default to criticality='unknown'. The pilot project is migrated from 'medium' to 'unknown' with the prior assumption record preserved and marked resolved.",
+  "affected_components": ["SCHEMAS/project/project.schema.json", "SCRIPTS/se_core/cli.py", "CORE/gates/gates.json", "TESTS/test_criticality.py"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T10:00:00Z",
+  "updated_at": "2026-09-17T10:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

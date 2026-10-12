@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/workflow/execution.schema.json",
+  "title": "Workflow Execution",
+  "description": "Runtime execution state of a workflow",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "execution_id", "workflow_id", "project_id", "status", "started_at", "node_states"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "execution_id": { "type": "string", "pattern": "^WEX-\\d{4}$" },
+    "workflow_id": { "type": "string", "pattern": "^WF-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "status": { "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED", "PAUSED"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": ["string", "null"], "format": "date-time" },
+    "current_node": { "type": ["string", "null"] },
+    "node_states": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "started_at", "completed_at", "outputs"],
+        "properties": {
+          "status": { "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED", "SKIPPED"] },
+          "started_at": { "type": ["string", "null"], "format": "date-time" },
+          "completed_at": { "type": ["string", "null"], "format": "date-time" },
+          "outputs": { "type": "object" },
+          "error": { "type": ["string", "null"] },
+          "retry_count": { "type": "integer", "minimum": 0, "default": 0 },
+          "gate_results": { "type": "object" }
+        }
+      }
+    },
+    "gate_results": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "evaluated_at"],
+        "properties": {
+          "status": { "enum": ["PASS", "FAIL", "MANUAL", "PENDING"] },
+          "evaluated_at": { "type": "string", "format": "date-time" },
+          "details": { "type": "object" }
+        }
+      }
+    },
+    "context": { "type": "object", "description": "Shared execution context passed between nodes" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}

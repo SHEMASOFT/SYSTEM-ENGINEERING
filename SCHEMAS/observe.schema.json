@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/observe.schema.json",
+  "title": "OBSERVE",
+  "description": "Observation envelope for AUTO-04.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "operation", "status", "project_id", "tasks", "evidence", "artifacts", "execution_receipts", "observation"],
+  "properties": {
+    "contract": { "type": "string", "const": "se.observe/1" },
+    "operation": { "type": "string", "const": "observe" },
+    "status": { "enum": ["PASS"] },
+    "project_id": { "type": "string" },
+    "tasks": {
+      "type": "object",
+      "required": ["in_progress", "done", "blocked", "pending"],
+      "properties": {
+        "in_progress": { "type": "array", "items": { "type": "object" } },
+        "done": { "type": "array", "items": { "type": "object" } },
+        "blocked": { "type": "array", "items": { "type": "object" } },
+        "pending": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "evidence": { "type": "array", "items": { "type": "object" } },
+    "artifacts": { "type": "array", "items": { "type": "object" } },
+    "execution_receipts": { "type": "array", "items": { "type": "object" } },
+    "observation": {
+      "type": "object",
+      "required": ["observed_at", "tool", "source_root"],
+      "properties": {
+        "observed_at": { "type": "string", "format": "date-time" },
+        "tool": { "type": "string" },
+        "source_root": { "type": "string" }
+      }
+    }
+  }
+}

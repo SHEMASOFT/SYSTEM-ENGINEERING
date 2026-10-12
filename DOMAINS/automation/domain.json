@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "id": "automation",
+  "name": "Automation",
+  "description": "Workflow and process automation, integrations and scheduled jobs.",
+  "status": "MINIMAL",
+  "artifact_extensions": [
+    { "type": "WORKFLOW", "schema": null, "purpose": "Automation definition and triggers." },
+    { "type": "RUN_LOG", "schema": null, "purpose": "Execution history and outcomes." }
+  ],
+  "gate_additions": [
+    { "gate": "G5", "condition": "Automation tested against success and failure paths.", "automated": false }
+  ],
+  "agent_additions": [
+    { "name": "automation-engineer", "purpose": "Workflow design and integration." }
+  ],
+  "checklists": [
+    "Failure and retry behavior defined.",
+    "Idempotency considered.",
+    "Credentials handled securely."
+  ],
+  "tooling": [],
+  "metadata": { "interface_only": true }
+}

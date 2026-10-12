@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/memory/record.schema.json",
+  "title": "Memory Record",
+  "description": "A structured memory record with relationships and provenance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "memory_id", "project_id", "type", "content", "created_at", "author"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "memory_id": { "type": "string", "pattern": "^MEM-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "type": { "enum": ["decision", "architecture", "discovery", "constraint", "capability", "verification", "checkpoint", "relationship"] },
+    "scope": { "enum": ["project", "global", "architecture"], "default": "project" },
+    "content": { "type": "object", "description": "Structured content of the memory" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1, "default": 1.0 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "author": { "type": "string" },
+    "source": { "type": "string", "description": "Origin of this memory (e.g., 'se skill discover', 'se execute', 'manual')" },
+    "related_memories": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^MEM-\\d{4}$" },
+      "description": "Related memory IDs"
+    },
+    "supersedes": { "type": ["string", "null"], "pattern": "^MEM-\\d{4}$" },
+    "superseded_by": { "type": ["string", "null"], "pattern": "^MEM-\\d{4}$" },
+    "metadata": { "type": "object" }
+  }
+}

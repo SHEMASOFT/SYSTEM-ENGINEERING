@@ -1,0 +1,64 @@
+{
+  "schema_version": "1",
+  "sdd_id": "SDD-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "title": "Software Design Document title",
+  "version": "0.1.0",
+  "status": "DRAFT",
+  "summary": "Brief description of what this design covers.",
+  "context": "Background and drivers for this design.",
+  "scope": {
+    "in_scope": ["component or capability A", "capability B"],
+    "out_of_scope": ["explicitly excluded items"]
+  },
+  "architecture": {
+    "overview": "High-level architecture description.",
+    "components": [
+      {
+        "name": "ComponentName",
+        "responsibility": "What it does",
+        "interfaces": ["InterfaceA", "InterfaceB"],
+        "dependencies": ["DepA", "DepB"]
+      }
+    ],
+    "data_flow": "Description of data flow between components",
+    "deployment": "Deployment topology notes"
+  },
+  "interfaces": [
+    {
+      "name": "InterfaceName",
+      "type": "sync",
+      "protocol": "HTTP",
+      "schema_ref": "path/to/schema.json",
+      "description": "What this interface does"
+    }
+  ],
+  "data_models": [
+    {
+      "name": "EntityName",
+      "description": "What this entity represents",
+      "fields": [
+        { "name": "field_name", "type": "string", "required": true, "description": "Field purpose" }
+      ],
+      "relationships": [
+        { "target": "OtherEntity", "type": "one-to-many", "description": "Relationship description" }
+      ]
+    }
+  ],
+  "requirements_coverage": [
+    "REQ-0001",
+    "REQ-0002"
+  ],
+  "open_questions": [
+    "Question that needs resolution before implementation"
+  ],
+  "risks": [
+    { "risk": "Description of risk", "likelihood": "medium", "impact": "medium", "mitigation": "How to mitigate" }
+  ],
+  "related_decisions": ["ADR-0001"],
+  "related_tasks": ["TASK-0001"],
+  "author": "author-name",
+  "created_at": "1970-01-01T00:00:00Z",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "metadata": {}
+}

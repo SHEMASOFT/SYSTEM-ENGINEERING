@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/archive-manifest.schema.json",
+  "title": "Archive Manifest",
+  "description": "Integrity manifest for project archive bundle. Generated during archive creation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "archive_id", "project_id", "project_version", "created_at", "created_by", "lifecycle_state", "files", "record_counts", "validation"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "archive_id": { "type": "string", "pattern": "^ARC-[A-Z0-9]{8,}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "project_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "created_by": { "type": "string", "minLength": 1 },
+    "lifecycle_state": { "enum": ["DRAFT", "DISCOVERY", "PLANNING", "ACTIVE", "VERIFICATION", "ACCEPTANCE", "RELEASED", "OPERATING", "ARCHIVED"] },
+    "source_path": { "type": "string" },
+    "files": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+      "description": "Relative path -> SHA256 hash of file content"
+    },
+    "record_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 },
+      "description": "Count of records per type"
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["se_validate_pass", "validated_at"],
+      "properties": {
+        "se_validate_pass": { "type": "boolean" },
+        "validated_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

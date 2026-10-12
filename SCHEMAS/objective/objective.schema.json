@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/objective.schema.json",
+  "title": "OBJECTIVE",
+  "description": "A goal or intent the project exists to achieve. Lifecycle status (status) is separate from epistemic status (epistemic_status).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "objective_id", "project_id", "title", "description", "status", "epistemic_status", "created_at", "updated_at"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "objective_id": { "type": "string", "pattern": "^OBJ-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "description": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["PROPOSED", "ACTIVE", "ACHIEVED", "ABANDONED"] },
+    "epistemic_status": { "enum": ["OBJECTIVE", "FACT", "ASSUMPTION", "UNKNOWN"] },
+    "priority": { "enum": ["critical", "high", "medium", "low"] },
+    "success_criteria": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "rationale": { "type": "string" },
+    "related_requirements": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^REQ-\\d{4}$" } },
+    "related_decisions": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^ADR-\\d{4}$" } },
+    "evidence": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^EVD-\\d{4}$" } },
+    "owner": { "type": "string" },
+    "author": { "type": "string" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "metadata": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "epistemic_status": { "enum": ["ASSUMPTION", "UNKNOWN"] } }, "required": ["epistemic_status"] },
+      "then": { "required": ["rationale"] }
+    },
+    {
+      "if": { "properties": { "epistemic_status": { "const": "FACT" } }, "required": ["epistemic_status"] },
+      "then": { "required": ["evidence"], "properties": { "evidence": { "minItems": 1 } } }
+    }
+  ]
+}

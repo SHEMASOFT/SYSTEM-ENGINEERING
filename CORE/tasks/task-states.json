@@ -1,0 +1,34 @@
+{
+  "schema_version": "1",
+  "model_version": "0.1.0",
+  "description": "Task states and allowed transitions.",
+  "enforcement": "guidance",
+  "enforcement_note": "This graph documents the intended task workflow. It is not enforced by `se update`; a task status may be set to any schema enum value (subject to schema rules, e.g. BLOCKED requires a reason). Gate integrity depends on outcomes (G4 requires evidence and artifacts for DONE deliverable tasks), not on intermediate states. See ADR-0014.",
+  "states": [
+    { "id": "PENDING", "description": "Created but not yet actionable (dependencies unmet)." },
+    { "id": "READY", "description": "All dependencies satisfied; can start." },
+    { "id": "IN_PROGRESS", "description": "Work is being performed." },
+    { "id": "BLOCKED", "description": "Cannot proceed; a blocking condition with reason and resolution path is recorded." },
+    { "id": "VERIFYING", "description": "Work is done; verification is in progress." },
+    { "id": "DONE", "description": "Verified complete." },
+    { "id": "CANCELLED", "description": "Intentionally not performed." }
+  ],
+  "initial_state": "PENDING",
+  "terminal_states": ["DONE", "CANCELLED"],
+  "transitions": [
+    { "from": "PENDING", "to": "READY" },
+    { "from": "PENDING", "to": "CANCELLED" },
+    { "from": "READY", "to": "IN_PROGRESS" },
+    { "from": "READY", "to": "CANCELLED" },
+    { "from": "IN_PROGRESS", "to": "BLOCKED" },
+    { "from": "IN_PROGRESS", "to": "VERIFYING" },
+    { "from": "BLOCKED", "to": "IN_PROGRESS" },
+    { "from": "BLOCKED", "to": "CANCELLED" },
+    { "from": "VERIFYING", "to": "DONE" },
+    { "from": "VERIFYING", "to": "IN_PROGRESS" }
+  ],
+  "blocked_condition": {
+    "reason_required": true,
+    "resolution_required": true
+  }
+}

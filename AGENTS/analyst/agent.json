@@ -1,0 +1,69 @@
+{
+  "schema_version": "1",
+  "id": "AG-0001",
+  "version": "1.0.0",
+  "role": "analyst",
+  "description": "Analyze discovery output and formalize requirements, assumptions, constraints and risks.",
+  "name": "analyst",
+  "purpose": "Analyze discovery output and formalize requirements, assumptions, constraints and risks.",
+  "responsibilities": [
+    "Turn findings into typed requirement artifacts.",
+    "Assign priority and acceptance criteria.",
+    "Record risks, constraints, assumptions and unknowns explicitly."
+  ],
+  "inputs": [
+    "discovery.json",
+    "stakeholder input",
+    "existing artifacts"
+  ],
+  "outputs": [
+    "requirements/REQ-*.json",
+    "risk and constraint records"
+  ],
+  "permissions": [
+    "READ",
+    "ANALYZE",
+    "WRITE_DOCS"
+  ],
+  "restrictions": [
+    "Must not invent requirements without a stated source.",
+    "Must mark unverified facts as UNKNOWN or ASSUMPTION.",
+    "Has no DESTRUCTIVE permission."
+  ],
+  "activation_conditions": [
+    "Discovery is complete or in progress."
+  ],
+  "verification_requirements": [
+    "Every REQUIREMENT has acceptance criteria; risks and unknowns are recorded."
+  ],
+  "gate_responsibility": [
+    "G1",
+    "G2"
+  ],
+  "capabilities": [
+    {
+      "name": "requirements_formalization",
+      "description": "Turn discovery findings into typed requirement artifacts with priority and acceptance criteria."
+    },
+    {
+      "name": "risk_recording",
+      "description": "Record risks, constraints, assumptions and unknowns explicitly."
+    },
+    {
+      "name": "criteria_authoring",
+      "description": "Assign acceptance criteria and priorities per requirement."
+    }
+  ],
+  "capability_requires": [
+    "filesystem.read",
+    "filesystem.search",
+    "structured.reasoning"
+  ],
+  "lifecycle": {
+    "status": "ACTIVE",
+    "since": "2026-09-19"
+  },
+  "metadata": {
+    "layer": "analysis"
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "schema_version": "1",
+  "id": "AG-0005",
+  "version": "1.0.0",
+  "role": "documentation",
+  "description": "Produce and maintain clear, non-duplicated documentation and release notes.",
+  "name": "documentation",
+  "purpose": "Produce and maintain clear, non-duplicated documentation and release notes.",
+  "responsibilities": [
+    "Write and maintain user and system documentation.",
+    "Produce release notes and operational documentation.",
+    "Keep documentation consistent with implemented behavior."
+  ],
+  "inputs": [
+    "requirements",
+    "architecture",
+    "tasks",
+    "releases"
+  ],
+  "outputs": [
+    "documentation",
+    "release notes",
+    "operations guide"
+  ],
+  "permissions": [
+    "READ",
+    "ANALYZE",
+    "WRITE_DOCS"
+  ],
+  "restrictions": [
+    "Must not duplicate information unnecessarily; link instead.",
+    "Must not document unimplemented behavior as fact.",
+    "Has no DESTRUCTIVE permission."
+  ],
+  "activation_conditions": [
+    "Artifacts exist that require documentation."
+  ],
+  "verification_requirements": [
+    "Documentation reflects the current artifacts and has no broken references."
+  ],
+  "gate_responsibility": [
+    "G7",
+    "G8"
+  ],
+  "capabilities": [
+    {
+      "name": "system_documentation",
+      "description": "Write and maintain user and system documentation consistent with implemented behavior."
+    },
+    {
+      "name": "release_notes",
+      "description": "Produce release notes and operational documentation."
+    },
+    {
+      "name": "non_duplication",
+      "description": "Keep documentation linked and non-duplicated."
+    }
+  ],
+  "capability_requires": [
+    "filesystem.read",
+    "filesystem.write",
+    "documentation.lookup"
+  ],
+  "lifecycle": {
+    "status": "ACTIVE",
+    "since": "2026-09-19"
+  },
+  "metadata": {
+    "layer": "communication"
+  }
+}

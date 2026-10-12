@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/decision.schema.json",
+  "title": "DECISION",
+  "description": "Recorded decision with context, options and consequences.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "decision_id", "project_id", "date", "context", "problem", "options_considered", "decision", "reason", "consequences", "affected_components", "status"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "decision_id": { "type": "string", "pattern": "^ADR-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "category": { "enum": ["architecture", "technology", "process", "security", "data", "ux", "business"] },
+    "date": { "type": "string", "format": "date" },
+    "context": { "type": "string", "minLength": 1 },
+    "problem": { "type": "string", "minLength": 1 },
+    "options_considered": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["option"],
+        "properties": {
+          "option": { "type": "string", "minLength": 1 },
+          "pros": { "type": "array", "items": { "type": "string" } },
+          "cons": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "decision": { "type": "string", "minLength": 1 },
+    "reason": { "type": "string", "minLength": 1 },
+    "consequences": { "type": "string", "minLength": 1 },
+    "affected_components": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "status": { "enum": ["PROPOSED", "ACCEPTED", "SUPERSEDED", "DEPRECATED", "REJECTED"] },
+    "supersedes": { "type": ["string", "null"], "pattern": "^ADR-\\d{4}$" },
+    "superseded_by": { "type": ["string", "null"], "pattern": "^ADR-\\d{4}$" },
+    "author": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "related_tasks": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^TASK-\\d{4}$" } },
+    "related_requirements": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^REQ-\\d{4}$" } },
+    "metadata": { "type": "object" }
+  }
+}

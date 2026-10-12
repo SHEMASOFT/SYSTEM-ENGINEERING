@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0010",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "process",
+  "date": "2026-09-17",
+  "context": "MASTER-002 required authoring requirement/task/decision/evidence/acceptance JSON by hand, and `init` produced neither a .gitignore nor a discovery base. This made the basic workflow impractical.",
+  "problem": "How should records be created and projects seeded without inventing data or overwriting user files?",
+  "options_considered": [
+    { "option": "`se new <record>` from templates + `init` seeding, never overwriting", "pros": ["No manual JSON", "Valid by construction", "Safe to re-run"], "cons": ["More code"] },
+    { "option": "Keep manual JSON authoring", "pros": ["No work"], "cons": ["Error-prone", "Does not satisfy the workflow goal"] },
+    { "option": "A full interactive generator for all record types", "pros": ["Guided"], "cons": ["Over-engineering for MASTER-004"] }
+  ],
+  "decision": "Add `se new objective|requirement|task|artifact|evidence|acceptance` that generates the next ID, applies the matching template, sets project_id, clears placeholder references, validates against the schema, refuses to overwrite, and requires model-mandated relations (artifact produced_by; acceptance scope/decided_by/evidence; REQUIREMENT acceptance criteria). Extend `init` to seed `.gitignore` and a minimal `discovery.json`, never overwriting existing files.",
+  "reason": "It removes manual JSON editing for basic operations while keeping records valid and never fabricating content.",
+  "consequences": "Placeholder references are cleared so generated records do not create dangling references. `init` becomes idempotent. Interactive prompting and richer field support are deferred.",
+  "affected_components": ["SCRIPTS/se_core/commands.py", "SCRIPTS/se_core/cli.py", "TEMPLATES/gitignore.template", "TESTS/test_new.py", "TESTS/test_init.py"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T12:00:00Z",
+  "updated_at": "2026-09-17T12:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

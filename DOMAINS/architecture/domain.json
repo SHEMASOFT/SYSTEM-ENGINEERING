@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "id": "architecture",
+  "name": "Architecture (Built Environment)",
+  "description": "Buildings and physical spaces: planning, codes, drawings and site constraints.",
+  "status": "MINIMAL",
+  "artifact_extensions": [
+    { "type": "DRAWING", "schema": null, "purpose": "Plans, sections and elevations with revisions." },
+    { "type": "SPECIFICATION", "schema": null, "purpose": "Materials, methods and standards." }
+  ],
+  "gate_additions": [
+    { "gate": "G5", "condition": "Drawings checked against applicable codes and constraints.", "automated": false }
+  ],
+  "agent_additions": [
+    { "name": "building-architect", "purpose": "Spatial design and code compliance." }
+  ],
+  "checklists": [
+    "Applicable codes identified.",
+    "Site constraints documented.",
+    "Drawing revisions controlled."
+  ],
+  "tooling": [],
+  "metadata": { "interface_only": true }
+}

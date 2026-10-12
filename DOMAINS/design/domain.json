@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "id": "design",
+  "name": "Design",
+  "description": "Product, visual and interaction design with accessibility and usability controls.",
+  "status": "MINIMAL",
+  "artifact_extensions": [
+    { "type": "DESIGN_SPEC", "schema": null, "purpose": "Design specification and rationale." },
+    { "type": "DESIGN_SYSTEM", "schema": null, "purpose": "Tokens, components and usage rules." }
+  ],
+  "gate_additions": [
+    { "gate": "G5", "condition": "Design reviewed for accessibility and consistency.", "automated": false }
+  ],
+  "agent_additions": [
+    { "name": "ux-designer", "purpose": "Interaction and usability design." }
+  ],
+  "checklists": [
+    "Accessibility criteria considered.",
+    "Design consistent with the design system.",
+    "Edge cases and error states designed."
+  ],
+  "tooling": [],
+  "metadata": { "interface_only": true }
+}

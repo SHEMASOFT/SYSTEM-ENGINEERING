@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/handoff.schema.json",
+  "title": "HANDOFF",
+  "description": "Explicit continuation context for project resume. Additive, optional, non-breaking.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_id", "created_at", "created_by", "lifecycle_state", "focus", "context_level", "context_snapshot"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "created_by": { "type": "string", "minLength": 1 },
+    "lifecycle_state": { "enum": ["DRAFT", "DISCOVERY", "PLANNING", "ACTIVE", "VERIFICATION", "ACCEPTANCE", "RELEASED", "OPERATING", "ARCHIVED"] },
+    "blocked": { "type": "boolean" },
+    "blocked_reason": { "type": "string", "minLength": 1 },
+    "focus": { "type": "string", "pattern": "^(OBJ|REQ|TASK|ART|EVD|ADR|ACC|REL|UNK|ASM|CON|RSK)-\\d{4}$|^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$|^project$|^discovery\\.json$" },
+    "context_level": { "enum": ["identity", "work", "authority", "trace", "deep"] },
+    "context_snapshot": {
+      "type": "object",
+      "description": "Output of `se context --scope <context_level> --focus <focus> --json`",
+      "additionalProperties": true
+    },
+    "blocked_tasks": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^TASK-\\d{4}$" }
+    },
+    "next_actions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "authority": { "type": "string", "minLength": 1 },
+    "runtime_hint": {
+      "type": "object",
+      "description": "Optional hint for runtime/harness/model. Not authoritative.",
+      "additionalProperties": false,
+      "properties": {
+        "adapter": { "type": "string" },
+        "capabilities_needed": { "type": "array", "items": { "type": "string" } },
+        "model_preference": { "type": "string" }
+      }
+    },
+    "metadata": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "blocked": { "const": true } },
+        "required": ["blocked"]
+      },
+      "then": { "required": ["blocked_reason"] }
+    }
+  ]
+}

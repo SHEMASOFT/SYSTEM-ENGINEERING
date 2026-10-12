@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/project.schema.json",
+  "title": "PROJECT Manifest",
+  "description": "Project identity and lifecycle manifest (PROJECT.json).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project_id",
+    "name",
+    "owner",
+    "domains",
+    "criticality",
+    "lifecycle_state",
+    "version",
+    "created_at",
+    "updated_at",
+    "master_system_version"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "description": { "type": "string", "maxLength": 2000 },
+    "owner": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "domains": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "criticality": { "enum": ["low", "medium", "high", "critical", "unknown"] },
+    "lifecycle_state": {
+      "enum": ["DRAFT", "DISCOVERY", "PLANNING", "ACTIVE", "VERIFICATION", "ACCEPTANCE", "RELEASED", "OPERATING", "ARCHIVED"]
+    },
+    "blocked": { "type": "boolean" },
+    "blocked_reason": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "master_system_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "source": { "type": "string" },
+    "author": { "type": "string" },
+    "required_agents": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "inherited_skills": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-zA-Z0-9/_.-]+$" }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "category": { "enum": ["MANAGED", "EXTERNAL"] }
+      },
+      "additionalProperties": true
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional project profiles. `toolchain` = what the project works WITH; `capability` = what capabilities the project NEEDS. They are distinct concepts and must not be conflated.",
+      "properties": {
+        "work": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": { "enum": ["greenfield", "brownfield"] },
+            "scale": { "enum": ["small", "medium", "large"] },
+            "risk": { "enum": ["low", "medium", "high"] },
+            "cadence": { "type": "string", "minLength": 1 }
+          }
+        },
+        "domain": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+        },
+        "toolchain": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "What the project works WITH. `providers` (CP-020) must reference provider ids declared in the canonical capability registry.",
+          "properties": {
+            "languages": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "frameworks": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "platforms": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "integrations": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "tools": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "providers": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+            }
+          }
+        },
+        "capability": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "blocked": { "const": true } },
+        "required": ["blocked"]
+      },
+      "then": { "required": ["blocked_reason"] }
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/agent.schema.json",
+  "$comment": "LEGACY agent contract. Superseded by SCHEMAS/agent-contract.schema.json (canonical) per ADR-0020. Kept for backward compatibility; canonical properties are accepted as optional so migrated agents validate against both.",
+  "title": "Agent Definition",
+  "description": "Contract for a Master System agent definition. Legacy schema; the canonical schema is SCHEMAS/agent-contract.schema.json (SCHEMAS/index.json -> agent).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "purpose",
+    "responsibilities",
+    "inputs",
+    "outputs",
+    "permissions",
+    "restrictions",
+    "activation_conditions",
+    "verification_requirements"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "id": { "type": "string", "pattern": "^AG-\\d{4}$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "role": {
+      "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+    },
+    "description": { "type": "string", "minLength": 1 },
+    "name": {
+      "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+    },
+    "purpose": { "type": "string", "minLength": 1 },
+    "responsibilities": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "inputs": { "type": "array", "items": { "type": "string" } },
+    "outputs": { "type": "array", "items": { "type": "string" } },
+    "permissions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["READ", "ANALYZE", "WRITE_DOCS", "IMPLEMENT", "TEST", "DEPLOY", "DESTRUCTIVE"] }
+    },
+    "restrictions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "activation_conditions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "verification_requirements": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "description"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "capability_requires": {
+      "description": "Optional capability governance (CP-020): capability ids this agent requires. Canonical property; accepted as optional so migrated agents validate against both schemas.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["ACTIVE", "RETIRED", "INACTIVE"] },
+        "since": { "type": "string", "format": "date" }
+      }
+    },
+    "gate_responsibility": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^G[0-8]$" }
+    },
+    "metadata": { "type": "object" }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/skill-discovery/request.schema.json",
+  "title": "Skill Discovery Request",
+  "description": "Request to discover skills matching a capability or project profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "project_id"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "request_id": { "type": "string", "pattern": "^SDR-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "capability": { "type": "string", "description": "Capability name to match skills for" },
+    "capabilities": { "type": "array", "items": { "type": "string" }, "description": "Multiple capabilities to match" },
+    "project_profile": {
+      "type": "object",
+      "description": "Project profile to infer capabilities from",
+      "properties": {
+        "domains": { "type": "array", "items": { "type": "string" } },
+        "criticality": { "type": "string", "enum": ["low", "medium", "high", "critical", "unknown"] },
+        "required_agents": { "type": "array", "items": { "type": "string" } },
+        "inherited_skills": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "description": "Discovery policy overrides",
+      "properties": {
+        "require_approval": { "type": "boolean", "default": true },
+        "include_experimental": { "type": "boolean", "default": false },
+        "max_candidates": { "type": "integer", "minimum": 1, "maximum": 50, "default": 10 }
+      }
+    },
+    "author": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

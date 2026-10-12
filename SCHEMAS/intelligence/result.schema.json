@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/intelligence/result.schema.json",
+  "title": "Intelligence Result",
+  "description": "Deterministic integration of skill discovery, memory retrieval, orchestration planning and gate verification for a project.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_id", "generated_at", "capabilities", "discovered_skills", "memory_context", "gates", "verification", "next_action"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "capabilities": { "type": "array", "items": { "type": "string" } },
+    "discovered_skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["skill_id", "skill_name", "match_score", "requires_approval"],
+        "properties": {
+          "skill_id": { "type": "string" },
+          "skill_name": { "type": "string" },
+          "match_score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "requires_approval": { "type": "boolean" }
+        }
+      }
+    },
+    "memory_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "by_type", "recent"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "by_type": { "type": "object" },
+        "recent": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["memory_id", "type"],
+            "properties": {
+              "memory_id": { "type": "string" },
+              "type": { "type": "string" },
+              "title": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "workflow": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "workflow_id": { "type": "string" },
+        "status": { "type": "string" },
+        "execution_order": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "checks"],
+      "properties": {
+        "status": { "enum": ["PASS", "WARN", "FAIL", "UNKNOWN"] },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "status"],
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "type": "string" },
+              "detail": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "next_action": { "type": "string", "minLength": 1 }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": "1",
+  "id": "social-media",
+  "name": "Social Media",
+  "description": "Content calendars, campaigns, publishing and engagement measurement.",
+  "status": "MINIMAL",
+  "artifact_extensions": [
+    { "type": "CONTENT_CALENDAR", "schema": null, "purpose": "Planned content and schedule." },
+    { "type": "CAMPAIGN", "schema": null, "purpose": "Campaign objective, audience and metrics." },
+    { "type": "POST", "schema": null, "purpose": "Individual content item with approval state." }
+  ],
+  "gate_additions": [
+    { "gate": "G6", "condition": "Content approved by the accountable owner before publication.", "automated": false }
+  ],
+  "agent_additions": [
+    { "name": "content-strategist", "purpose": "Audience, messaging and calendar strategy." }
+  ],
+  "checklists": [
+    "Content approved before publishing.",
+    "Rights and licensing for assets confirmed.",
+    "Metrics defined for the campaign."
+  ],
+  "tooling": [],
+  "metadata": { "interface_only": true }
+}

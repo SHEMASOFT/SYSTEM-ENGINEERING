@@ -1,0 +1,499 @@
+{
+  "adapter_id": "opencode",
+  "adapter_version": "0.10.0",
+  "capabilities": {
+    "agents": "SUPPORTED",
+    "commands": "SUPPORTED",
+    "policies": "PARTIAL",
+    "skills": "SUPPORTED",
+    "workflows": "UNSUPPORTED"
+  },
+  "capability_plan": {
+    "available": [
+      "browser.preview",
+      "browser.screenshot",
+      "browser.snapshot",
+      "documentation.lookup",
+      "filesystem.read",
+      "filesystem.search",
+      "filesystem.write",
+      "research.synthesis",
+      "structured.reasoning",
+      "web.extract",
+      "web.scrape",
+      "web.search"
+    ],
+    "mapping": [
+      {
+        "availability": "available",
+        "capabilities": [
+          "documentation.lookup"
+        ],
+        "provider": "context7"
+      },
+      {
+        "availability": "unknown",
+        "capabilities": [
+          "visual.review"
+        ],
+        "provider": "deepseek-vision"
+      },
+      {
+        "availability": "available",
+        "capabilities": [
+          "filesystem.read",
+          "filesystem.search",
+          "filesystem.write"
+        ],
+        "provider": "filesystem"
+      },
+      {
+        "availability": "available",
+        "capabilities": [
+          "web.extract",
+          "web.scrape"
+        ],
+        "provider": "firecrawl"
+      },
+      {
+        "availability": "available",
+        "capabilities": [
+          "research.synthesis",
+          "web.search"
+        ],
+        "provider": "perplexity"
+      },
+      {
+        "availability": "available",
+        "capabilities": [
+          "browser.preview",
+          "browser.screenshot",
+          "browser.snapshot"
+        ],
+        "provider": "playwright"
+      },
+      {
+        "availability": "available",
+        "capabilities": [
+          "structured.reasoning"
+        ],
+        "provider": "sequential-thinking"
+      }
+    ],
+    "registry": "CORE/capabilities/capabilities.json"
+  },
+  "engine_version": "0.10.0",
+  "input": {
+    "agents": "AGENTS/*/agent.json",
+    "commands": "COMMANDS/commands.json",
+    "mcp": "TEMPLATES/mcp/*.json.tmpl",
+    "policies": "POLICIES/*.md",
+    "skills": "SKILLS/*/SKILL.md"
+  },
+  "metadata": {
+    "content_hashes": {
+      "AGENTS.md": "df7bb4090cc7b82c60767e585312202de255df3be3e1e379b4dc99ac574bece8",
+      "agents/analyst.md": "bef47f23e8397e2582eda134ba0cac8ac62675773c898a4ebeb4ad90241d5f04",
+      "agents/architect.md": "a7b525b9c88dadb5b8ad555c236d107735ce983c9c7c4c67580202b5ebbc64ad",
+      "agents/coordinator.md": "031ca519cabb34e9d5a5f549586746f01ba4dcbfab6279a0cb68c2b988a177fe",
+      "agents/devops.md": "eb6dac29925e361207df3557c236226ef608889cf6209b79e5f64ede09268fde",
+      "agents/documentation.md": "dc4c1fc0c312cecad6a305069eed10da64fbb2d9d329cccfc4104fb0c282ca85",
+      "agents/explorer.md": "f8fa69c06ddc5a5e8e03f2813a44c3e8a54e96595cc65cdec5aeb7d1f8c0c995",
+      "agents/implementer.md": "c8f3d53281066cb074ee908dc2390f3d546a4e55e52350b3d8fe66fc427762cd",
+      "agents/planner.md": "e2452d563a091c900afc5ec2f841dea1169e14e2b60809bcb88b5677dae9af7a",
+      "agents/reviewer.md": "1077ef92e6c0b6356825ffbc6f71cc3abc93e96d53fbeedd38da28be90acbad9",
+      "agents/security.md": "14563b5d62df314c18b318a31faf884593282105513786a22768908897c665d4",
+      "agents/tester.md": "b48fefead915790dbcb63d59b1aa5da7039aea246e213e5e1a6a75daab9d32c4",
+      "agents/visual.md": "8773f3bd3b7426e7fe05bf8e9cd475d4c6ba370981fb2bd7f29bca98bb81d047",
+      "commands/archive.md": "418901e30fdebeb0309e9325ecd9347851f3350d74a40c5841060cce512106fa",
+      "commands/auto.md": "c21c4aaab11f113ec8134bc05e79db422095b256987cc4e4d8701954fa395516",
+      "commands/capabilities.md": "35b86be7ff74aebfbd17d658a2445dd50ba09150b2207fa8b8e89ff17c5a705e",
+      "commands/context.md": "1d01dc34fae27570ce15b7ec036b053767eb1c1d284558c32d355f967592da63",
+      "commands/doctor.md": "ae3c046cb658981d9a26210b11dbef6424f05f61ed5d2e602accb568946a0c11",
+      "commands/execute.md": "4a5d62eca54208d7c29201680a6bc3cd210f4581a40b403ee0e80cc2ca59babc",
+      "commands/explore.md": "0355931d37fae8171c2169753001eb7ca7aec25123f5839f5519ebc56ec87fe5",
+      "commands/gate.md": "a5796228be69cdfcce8381f6213adb5cacb07194e1882997e7673d99d2a921dc",
+      "commands/handoff.md": "4f304b29305a8da36dfd6717f7909299b9d04fe5d94ba2a0a001702cccb23fc8",
+      "commands/health.md": "d520632d257392392f53d627e1996f0ec08be3c93f213e689cf773ae25cd1a97",
+      "commands/implement.md": "c126ce83766c34d13fc18db14514f5518930e24e552580016361b1e1dc8cac2b",
+      "commands/init.md": "889843d8497f2324c92f2815cd98ffc4df6b99d5b10b56e117ba87f88775b6ff",
+      "commands/intent.md": "750e4cba6817a24254cd0a15434b8329d0251cf2796b34b3fca312918e814cb7",
+      "commands/new.md": "536ca8bbe501cc971f43510c21a9e6add995383b2a7eadcbf50bd270e3a99b3e",
+      "commands/observe.md": "94b50236bcd2725724dd3c9b4d2157ae862397cc1dcb019051ff828820d50a99",
+      "commands/orchestrate.md": "a0b880ce1fb1ef384d020b1cd7a2a267871adac0ab0146b41c14b9dbdec702d4",
+      "commands/plan.md": "5a3844ade49a1f4c59403a590ef4b9025be4277d5d31aeec09d88d69fce6a258",
+      "commands/release.md": "a486b9eb178b089868176b907783de790db6283195021497d4b67adac8580e10",
+      "commands/restore.md": "cdc5041aad1092ae7dfb50d6c9d8f33c0e97ba4e6f7ed06b5309ebeaad2fae44",
+      "commands/review.md": "821bd51078d1b082b044f34232c6d9a559d820e3b6a81c40f3ff5b8dc759993b",
+      "commands/transition.md": "91c0fb8fa1b4c1cf5e89d586a3c2748749a53c34142c3ae4dd9dfaa11a508e72",
+      "commands/update.md": "3deb94314fb2ba6229aaeae0975d48ee75226294bb854d999206f367a6f94df9",
+      "commands/validate.md": "9e0bbd639ae0f06ee99e44e49a6d65cbbfd41c748d3b5eb29f778063e324591a",
+      "commands/verify.md": "d09a5746d996c582ae4d3fe1fa962dc218c9b0469b13b47ed5b4518477d6b318",
+      "mcp/context7.json": "d9370f86d987473a8d88996731b525df570430837a5e44e57a40c3dfe3ade55b",
+      "mcp/engram.json": "5f227d47876daa0bf9dc7c422c61d3b1a9c16e59add16b31b483f1a2817690b0",
+      "mcp/filesystem.json": "e36993b6f3ddcfb59706ef82d3142a555551636b26c697549586962bfc9415e7",
+      "mcp/skill-server.json": "aedb6a5acfe16199ed36a524d22b794623a84b404405a226668dc9a1307b6899",
+      "skills/checkpoint-release/SKILL.md": "d9bc2407ad519a8f84b05a30a4fe5f77660a8856babd2aabe516ccca053ae2fa",
+      "skills/dbg-systematic/SKILL.md": "742e8ce2bf48e276efa7361f2491ed0e864763ae74b059f4afdebd771c4cdef5",
+      "skills/impl-tdd/SKILL.md": "a4d39e50c9f05a7dab081df0ccff9737b6b86d6d5aad424700b4cf2f3d25d8c8",
+      "skills/rev-adversarial/SKILL.md": "89472405ec3d46da3dacce177455fc7f5155688b1229ec77fece8a3b80907b8e",
+      "skills/verification-review/SKILL.md": "1cdcfd6fadf9b910a19b550f081437abbf813842937a59171644e25e0fdcdc5e",
+      "skills/visual-frontend-engineering/SKILL.md": "7307cc0fc5fc1db055f47e1b8407f3f0a53e0351a24e82959730eefb9c918094"
+    },
+    "counts": {
+      "agents": 12,
+      "commands": 24,
+      "policies": 9,
+      "skills": 6
+    },
+    "generator": "se_core.opencode"
+  },
+  "output": {
+    "artifacts": [
+      {
+        "description": "Analyze discovery output and formalize requirements, assumptions, constraints and risks.",
+        "format": "markdown",
+        "path": ".opencode/agents/analyst.md",
+        "type": "agent"
+      },
+      {
+        "description": "Define the architecture and design that satisfies the requirements.",
+        "format": "markdown",
+        "path": ".opencode/agents/architect.md",
+        "type": "agent"
+      },
+      {
+        "description": "Orchestrate the lifecycle, route work to agents and enforce gates and traceability.",
+        "format": "markdown",
+        "path": ".opencode/agents/coordinator.md",
+        "type": "agent"
+      },
+      {
+        "description": "Prepare deployment, operations and rollback for authorized environments.",
+        "format": "markdown",
+        "path": ".opencode/agents/devops.md",
+        "type": "agent"
+      },
+      {
+        "description": "Produce and maintain clear, non-duplicated documentation and release notes.",
+        "format": "markdown",
+        "path": ".opencode/agents/documentation.md",
+        "type": "agent"
+      },
+      {
+        "description": "Discover context, constraints, unknowns and existing state before planning.",
+        "format": "markdown",
+        "path": ".opencode/agents/explorer.md",
+        "type": "agent"
+      },
+      {
+        "description": "Implement authorized tasks and produce verifiable artifacts.",
+        "format": "markdown",
+        "path": ".opencode/agents/implementer.md",
+        "type": "agent"
+      },
+      {
+        "description": "Decompose requirements into a traceable, unblocked plan of tasks.",
+        "format": "markdown",
+        "path": ".opencode/agents/planner.md",
+        "type": "agent"
+      },
+      {
+        "description": "Independently review artifacts, evidence and process for correctness and quality.",
+        "format": "markdown",
+        "path": ".opencode/agents/reviewer.md",
+        "type": "agent"
+      },
+      {
+        "description": "Identify security risks and produce security evidence across the lifecycle.",
+        "format": "markdown",
+        "path": ".opencode/agents/security.md",
+        "type": "agent"
+      },
+      {
+        "description": "Verify that implementation satisfies requirements and collect evidence.",
+        "format": "markdown",
+        "path": ".opencode/agents/tester.md",
+        "type": "agent"
+      },
+      {
+        "description": "Produce visual, media and design deliverables and their evidence.",
+        "format": "markdown",
+        "path": ".opencode/agents/visual.md",
+        "type": "agent"
+      },
+      {
+        "description": "Create or repair a managed project workspace.",
+        "format": "markdown",
+        "path": ".opencode/commands/init.md",
+        "type": "command"
+      },
+      {
+        "description": "Scan the project and produce a discovery report.",
+        "format": "markdown",
+        "path": ".opencode/commands/explore.md",
+        "type": "command"
+      },
+      {
+        "description": "Create a record from its template.",
+        "format": "markdown",
+        "path": ".opencode/commands/new.md",
+        "type": "command"
+      },
+      {
+        "description": "Apply a controlled, audited mutation to a record.",
+        "format": "markdown",
+        "path": ".opencode/commands/update.md",
+        "type": "command"
+      },
+      {
+        "description": "Advance the project lifecycle through its gates.",
+        "format": "markdown",
+        "path": ".opencode/commands/transition.md",
+        "type": "command"
+      },
+      {
+        "description": "Check requirement coverage and scaffold tasks; with --json derive an ordered READ-ONLY plan envelope (se.plan/1).",
+        "format": "markdown",
+        "path": ".opencode/commands/plan.md",
+        "type": "command"
+      },
+      {
+        "description": "Report the next actionable tasks.",
+        "format": "markdown",
+        "path": ".opencode/commands/implement.md",
+        "type": "command"
+      },
+      {
+        "description": "Evaluate verification readiness and missing evidence.",
+        "format": "markdown",
+        "path": ".opencode/commands/verify.md",
+        "type": "command"
+      },
+      {
+        "description": "Static review of schema, references and coverage.",
+        "format": "markdown",
+        "path": ".opencode/commands/review.md",
+        "type": "command"
+      },
+      {
+        "description": "Create and optionally approve a release artifact.",
+        "format": "markdown",
+        "path": ".opencode/commands/release.md",
+        "type": "command"
+      },
+      {
+        "description": "Validate the Master System installation and environment.",
+        "format": "markdown",
+        "path": ".opencode/commands/doctor.md",
+        "type": "command"
+      },
+      {
+        "description": "Validate schemas, agents, domains and an optional project.",
+        "format": "markdown",
+        "path": ".opencode/commands/validate.md",
+        "type": "command"
+      },
+      {
+        "description": "Evaluate a single gate against a project.",
+        "format": "markdown",
+        "path": ".opencode/commands/gate.md",
+        "type": "command"
+      },
+      {
+        "description": "Capability governance: registry, policy check and resolution.",
+        "format": "markdown",
+        "path": ".opencode/commands/capabilities.md",
+        "type": "command"
+      },
+      {
+        "description": "Reconstruct the minimum relevant context (AUTO-02).",
+        "format": "markdown",
+        "path": ".opencode/commands/context.md",
+        "type": "command"
+      },
+      {
+        "description": "Aggregate health status from existing checks (doctor, validate, capabilities, review).",
+        "format": "markdown",
+        "path": ".opencode/commands/health.md",
+        "type": "command"
+      },
+      {
+        "description": "Deterministic decision engine: consumes health aggregation and emits a machine-readable next-action decision (se.auto/1).",
+        "format": "markdown",
+        "path": ".opencode/commands/auto.md",
+        "type": "command"
+      },
+      {
+        "description": "Normalize an explicit structured intent into a READ-ONLY se.intent/1 envelope.",
+        "format": "markdown",
+        "path": ".opencode/commands/intent.md",
+        "type": "command"
+      },
+      {
+        "description": "Create or load a HANDOFF.json artifact for project continuity.",
+        "format": "markdown",
+        "path": ".opencode/commands/handoff.md",
+        "type": "command"
+      },
+      {
+        "description": "Create a verified archive bundle of the project.",
+        "format": "markdown",
+        "path": ".opencode/commands/archive.md",
+        "type": "command"
+      },
+      {
+        "description": "Restore a project from an archive bundle.",
+        "format": "markdown",
+        "path": ".opencode/commands/restore.md",
+        "type": "command"
+      },
+      {
+        "description": "Execute tasks in topological order with authorization, evidence, fail-closed.",
+        "format": "markdown",
+        "path": ".opencode/commands/execute.md",
+        "type": "command"
+      },
+      {
+        "description": "Observe execution state: IN_PROGRESS tasks, evidence, artifacts, receipts (READ-ONLY).",
+        "format": "markdown",
+        "path": ".opencode/commands/observe.md",
+        "type": "command"
+      },
+      {
+        "description": "Manage deterministic multi-agent workflows (DAG + gates): create, execute, list.",
+        "format": "markdown",
+        "path": ".opencode/commands/orchestrate.md",
+        "type": "command"
+      },
+      {
+        "description": "Skill checkpoint-release",
+        "format": "markdown",
+        "path": ".opencode/skills/checkpoint-release/SKILL.md",
+        "type": "skill"
+      },
+      {
+        "description": "Skill dbg-systematic",
+        "format": "markdown",
+        "path": ".opencode/skills/dbg-systematic/SKILL.md",
+        "type": "skill"
+      },
+      {
+        "description": "Skill impl-tdd",
+        "format": "markdown",
+        "path": ".opencode/skills/impl-tdd/SKILL.md",
+        "type": "skill"
+      },
+      {
+        "description": "Skill rev-adversarial",
+        "format": "markdown",
+        "path": ".opencode/skills/rev-adversarial/SKILL.md",
+        "type": "skill"
+      },
+      {
+        "description": "Skill verification-review",
+        "format": "markdown",
+        "path": ".opencode/skills/verification-review/SKILL.md",
+        "type": "skill"
+      },
+      {
+        "description": "Skill visual-frontend-engineering",
+        "format": "markdown",
+        "path": ".opencode/skills/visual-frontend-engineering/SKILL.md",
+        "type": "skill"
+      },
+      {
+        "description": "OpenCode adapter output manifest",
+        "format": "json",
+        "path": ".opencode/adapter-manifest.json",
+        "type": "config"
+      },
+      {
+        "description": "Generated agent/command overview",
+        "format": "markdown",
+        "path": ".opencode/AGENTS.md",
+        "type": "docs"
+      },
+      {
+        "description": "MCP context7 configuration",
+        "format": "json",
+        "path": ".opencode/mcp/context7.json",
+        "type": "mcp"
+      },
+      {
+        "description": "MCP engram configuration",
+        "format": "json",
+        "path": ".opencode/mcp/engram.json",
+        "type": "mcp"
+      },
+      {
+        "description": "MCP filesystem configuration",
+        "format": "json",
+        "path": ".opencode/mcp/filesystem.json",
+        "type": "mcp"
+      },
+      {
+        "description": "MCP skill-server configuration",
+        "format": "json",
+        "path": ".opencode/mcp/skill-server.json",
+        "type": "mcp"
+      }
+    ],
+    "generated_files": [
+      "AGENTS.md",
+      "agents/analyst.md",
+      "agents/architect.md",
+      "agents/coordinator.md",
+      "agents/devops.md",
+      "agents/documentation.md",
+      "agents/explorer.md",
+      "agents/implementer.md",
+      "agents/planner.md",
+      "agents/reviewer.md",
+      "agents/security.md",
+      "agents/tester.md",
+      "agents/visual.md",
+      "commands/archive.md",
+      "commands/auto.md",
+      "commands/capabilities.md",
+      "commands/context.md",
+      "commands/doctor.md",
+      "commands/execute.md",
+      "commands/explore.md",
+      "commands/gate.md",
+      "commands/handoff.md",
+      "commands/health.md",
+      "commands/implement.md",
+      "commands/init.md",
+      "commands/intent.md",
+      "commands/new.md",
+      "commands/observe.md",
+      "commands/orchestrate.md",
+      "commands/plan.md",
+      "commands/release.md",
+      "commands/restore.md",
+      "commands/review.md",
+      "commands/transition.md",
+      "commands/update.md",
+      "commands/validate.md",
+      "commands/verify.md",
+      "mcp/context7.json",
+      "mcp/engram.json",
+      "mcp/filesystem.json",
+      "mcp/skill-server.json",
+      "skills/checkpoint-release/SKILL.md",
+      "skills/dbg-systematic/SKILL.md",
+      "skills/impl-tdd/SKILL.md",
+      "skills/rev-adversarial/SKILL.md",
+      "skills/verification-review/SKILL.md",
+      "skills/visual-frontend-engineering/SKILL.md"
+    ],
+    "validation": {
+      "enabled": true,
+      "schema_version": "1",
+      "strategy": "content-hash"
+    }
+  },
+  "schema_version": "1",
+  "target": "opencode"
+}

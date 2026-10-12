@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>SE-CONSOLE · SYSTEM-ENGINEERING (solo lectura)</title>
+<link rel="stylesheet" href="/assets/console.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230b6bcb'/><text x='16' y='22' font-size='18' font-family='monospace' fill='white' text-anchor='middle'>SE</text></svg>">
+</head>
+<body>
+<a class="skip-link" href="#main">Saltar al contenido principal</a>
+
+<header class="app-header" role="banner">
+  <div class="header-row">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">SE</span>
+      <div class="brand-text">
+        <h1>SE-CONSOLE</h1>
+        <p class="brand-sub">
+          <span class="mono" id="hdr-system">SYSTEM-ENGINEERING</span>
+          <span class="dot" aria-hidden="true">·</span>
+          <span class="mono" id="hdr-version">v—</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div id="hdr-health" class="health-chip health-UNKNOWN" role="status" aria-live="polite">
+        <span class="chip-dot" aria-hidden="true"></span>
+        <span class="chip-label">UNKNOWN</span>
+      </div>
+      <button type="button" id="btn-refresh" class="btn" aria-label="Recargar datos del sistema">
+        <span class="btn-ico" aria-hidden="true">⟳</span> Actualizar
+      </button>
+      <button type="button" id="btn-theme" class="btn btn-icon" aria-label="Cambiar tema claro/oscuro" title="Cambiar tema">
+        <span aria-hidden="true">◐</span>
+      </button>
+      <div class="token-box">
+        <input type="password" id="inp-token" class="token-inp" placeholder="token" aria-label="Token SE-CONSOLE">
+        <button type="button" id="btn-save-token" class="btn btn-small">Guardar</button>
+        <span id="token-hint" class="token-hint">~/.config/se-console/token</span>
+      </div>
+    </div>
+  </div>
+
+  <nav class="tabs" role="navigation" aria-label="Secciones de la consola">
+    <button type="button" class="tab is-active" data-view="overview" aria-current="page">Resumen</button>
+    <button type="button" class="tab" data-view="projects">Proyectos</button>
+    <button type="button" class="tab" data-view="attention">Atención</button>
+  </nav>
+
+  <p class="epistemic-strip" id="epistemic-strip">
+    Cada valor muestra su procedencia: <span class="tag tag-OBSERVED">OBSERVED</span>
+    veredicto de <span class="mono">se</span> ·
+    <span class="tag tag-DERIVED">DERIVED</span> calculado por la consola ·
+    <span class="tag tag-UNKNOWN">UNKNOWN</span> no determinable
+  </p>
+</header>
+
+<main id="main" role="main" tabindex="-1">
+  <div id="view-root" class="view-root">
+    <p class="loading" role="status">Cargando estado observado&hellip;</p>
+  </div>
+</main>
+
+<footer class="app-footer" role="contentinfo">
+  <div class="footer-grid">
+    <div class="footer-item">
+      <span class="footer-key">se root</span>
+      <span class="mono footer-val" id="ft-root">—</span>
+    </div>
+    <div class="footer-item">
+      <span class="footer-key">contrato</span>
+      <span class="mono footer-val" id="ft-contract">se.report/1</span>
+    </div>
+    <div class="footer-item">
+      <span class="footer-key">fingerprint</span>
+      <span class="mono footer-val" id="ft-fp">—</span>
+    </div>
+    <div class="footer-item">
+      <span class="footer-key">actualizado</span>
+      <span class="mono footer-val" id="ft-time">—</span>
+    </div>
+  </div>
+  <p class="footer-note" id="ft-capability">
+    <span class="tag tag-UNKNOWN">UNKNOWN</span>
+    <span>visual.review no verificado: esta consola se valida con comprobaciones deterministas
+    (snapshot, capturas, errores de consola), no con revision visual.</span>
+  </p>
+  <p class="footer-legal">SE-CONSOLE es GET-only por defecto. No escribe estado de SE: la unica via de escritura es el POST autenticado y en lista blanca a /api/action, que delega en <span class="mono">se</span>.</p>
+</footer>
+
+<script src="/assets/console.js"></script>
+</body>
+</html>

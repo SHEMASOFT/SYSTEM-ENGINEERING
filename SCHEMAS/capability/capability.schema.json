@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/capability.schema.json",
+  "title": "Capability Registry",
+  "description": "Contract for the canonical capability registry (CORE/capabilities/capabilities.json). Declares operation classes, providers (tools/MCP servers) and the capabilities they enable. Mapping is declarative and must remain the single source of truth.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "description", "operation_classes", "providers", "capabilities"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "description": { "type": "string", "minLength": 1 },
+    "operation_classes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["read", "search", "write"] }
+    },
+    "providers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "availability"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "type": { "enum": ["mcp", "tool", "builtin"] },
+          "endpoint": { "type": "string" },
+          "availability": { "enum": ["available", "unavailable", "unknown"] }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "description", "operation", "provider", "availability"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" },
+          "description": { "type": "string", "minLength": 1 },
+          "operation": { "enum": ["read", "search", "write"] },
+          "provider": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "availability": { "enum": ["available", "unavailable", "unknown"] }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0018",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "process",
+  "date": "2026-09-19",
+  "context": "Global assets (SYSTEM-ENGINEERING / ~/.config/opencode) and project assets (PROJECTS/<P>/.opencode) can define agents, commands and skills with colliding names. OpenCode deep-merges configs and lets the project override the global scope. Master System gates must never be degraded by a project or domain pack. Restrictions: do not mix global and project agents; no silent shadowing.",
+  "problem": "What precedence and naming rules prevent silent shadowing, collisions and gate degradation across scopes?",
+  "options_considered": [
+    { "option": "Documented precedence + prefixed naming + collision check", "pros": ["Predictable resolution", "Project agents visibly namespaced (<slug>-*)", "Collisions detected by se validate", "Gates remain additive-only"], "cons": ["Requires discipline and validation"] },
+    { "option": "Flat names everywhere", "pros": ["Simple"], "cons": ["Guarantees silent shadowing conflicts"] },
+    { "option": "Disallow project agents entirely", "pros": ["No collision possible"], "cons": ["Blocks legitimate project-specific agents", "Breaks the intended project customization"] }
+  ],
+  "decision": "Adopt explicit precedence and naming. Precedence for OpenCode config: built-in < GLOBAL < PROJECT < LOCAL (env). For the Master System: CORE < DOMAIN packs < PROJECT, strictly additive, so gates are never weakened. Names: GLOBAL agents/commands/skills are unprefixed (reviewer); PROJECT assets are prefixed with the project slug (<slug>-reviewer). `se validate` runs a collision check that reports any project asset shadowing a global one unless it is an explicit, documented override.",
+  "reason": "It gives predictable resolution, keeps global and project agents separate (restriction 3), prevents silent shadowing, and hard-guards gate non-degradation (restriction 7).",
+  "consequences": "NAMING_CONVENTIONS.md and PRECEDENCE_RULES.md define the rules. se validate implements the collision check. Project assets already prefixed with their slug conform; every project must follow.",
+  "affected_components": ["DOCS/NAMING_CONVENTIONS.md", "DOCS/PRECEDENCE_RULES.md", "SCRIPTS", "PROJECTS"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-09-19T00:00:00Z",
+  "updated_at": "2026-09-19T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "MASTER-SYSTEM-CHECKPOINT-001",
+    "depends_on_adr": ["ADR-0015", "ADR-0017"]
+  }
+}

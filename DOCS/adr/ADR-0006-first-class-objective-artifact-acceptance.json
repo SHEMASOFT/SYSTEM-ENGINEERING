@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0006",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-17",
+  "context": "MASTER-002 demonstrated that the traceability chain OBJECTIVE -> REQUIREMENT -> TASK -> ARTIFACT -> EVIDENCE -> ACCEPTANCE -> RELEASE could not be fully represented: OBJECTIVE, ARTIFACT (deliverable) and ACCEPTANCE were not first-class entities, and the word 'artifact' was used both for any persisted record and for a deliverable.",
+  "problem": "Should OBJECTIVE, ARTIFACT and ACCEPTANCE become first-class entities, and how should the terminology ambiguity be resolved?",
+  "options_considered": [
+    { "option": "Add OBJECTIVE, ARTIFACT and ACCEPTANCE as first-class entities and reserve 'ARTIFACT' for deliverables (records are the generic term)", "pros": ["Full traceability", "Unambiguous", "Validable"], "cons": ["More schemas", "Existing projects need migration"] },
+    { "option": "Represent them as attributes or relations of existing entities", "pros": ["Fewer files"], "cons": ["Objectives/acceptances are not derivable from requirements/tasks", "Keeps the MASTER-002 gap", "Ambiguity remains"] },
+    { "option": "Leave the model unchanged", "pros": ["No work"], "cons": ["Chain stays partial", "Contradicts the mission traceability model"] }
+  ],
+  "decision": "Add OBJECTIVE, ARTIFACT and ACCEPTANCE as first-class records. ARTIFACT means a deliverable produced by tasks; the generic term for persisted typed JSON is 'record'. OBJECTIVE separates lifecycle status from epistemic_status (OBJECTIVE/FACT/ASSUMPTION/UNKNOWN), where FACT requires evidence and ASSUMPTION/UNKNOWN require a rationale.",
+  "reason": "The pilot proved these concepts carry information that cannot be derived from existing entities, and the mission's traceability model requires them explicitly.",
+  "consequences": "New schemas, templates and gate conditions (G1.4, G2.5, G4.4, G6.2). Existing projects require a minimal migration. Review now validates project_id consistency and the new reference fields.",
+  "affected_components": ["SCHEMAS", "CORE/artifacts", "CORE/gates", "TEMPLATES", "SCRIPTS/se_core", "TESTS", "DOCS/core-model.md"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T10:00:00Z",
+  "updated_at": "2026-09-17T10:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

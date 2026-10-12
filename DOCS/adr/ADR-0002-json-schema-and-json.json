@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0002",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "technology",
+  "date": "2026-09-17",
+  "context": "The mission prefers YAML or JSON Schema for schemas, and mentions PROJECT.yaml conceptually. PyYAML is not installed and global installation is restricted.",
+  "problem": "Which schema and data format should the system use?",
+  "options_considered": [
+    { "option": "JSON Schema 2020-12 + JSON data", "pros": ["jsonschema already installed", "Standard and machine-readable", "No new dependency"], "cons": ["More verbose than YAML", "No comments"] },
+    { "option": "YAML schemas and manifests", "pros": ["Human-friendly", "Comments"], "cons": ["Requires PyYAML installation", "Less rigorous validation ecosystem"] },
+    { "option": "Custom DSL", "pros": ["Tailored"], "cons": ["Non-standard", "Requires a parser and tooling", "Over-engineering"] }
+  ],
+  "decision": "Use JSON Schema 2020-12 for schemas and JSON for artifact/manifest data. Treat 'PROJECT.yaml' in the mission as conceptual.",
+  "reason": "JSON Schema is explicitly permitted, jsonschema is already available, and JSON is standard-library parseable, keeping the system hermetic and dependency-light.",
+  "consequences": "Artifacts are JSON, not YAML. Human readability is provided through documentation and templates. A YAML adapter could be added later without changing CORE.",
+  "affected_components": ["SCHEMAS", "TEMPLATES", "SCRIPTS", "TESTS"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T00:00:00Z",
+  "updated_at": "2026-09-17T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

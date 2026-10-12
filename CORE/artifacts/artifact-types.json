@@ -1,0 +1,38 @@
+{
+  "schema_version": "1",
+  "model_version": "0.2.0",
+  "description": "Core record types and the common metadata fields they share.",
+  "terminology": {
+    "record": "Any persisted typed JSON file in a project workspace (OBJECTIVE, REQUIREMENT, TASK, ARTIFACT, EVIDENCE, ACCEPTANCE, DECISION, RELEASE, DISCOVERY).",
+    "ARTIFACT": "A concrete deliverable produced by executing tasks. Distinct from REQUIREMENT (a need), TASK (work) and EVIDENCE (proof). The file name artifact-types.json is historical; this file defines core record types.",
+    "epistemic_status": "Separate from lifecycle status. Values: OBJECTIVE (a defined goal/intent), FACT (verified, requires evidence), ASSUMPTION (believed, requires rationale), UNKNOWN (not known, requires rationale)."
+  },
+  "core_metadata_fields": [
+    "artifact_id",
+    "project_id",
+    "type",
+    "version",
+    "status",
+    "created_at",
+    "updated_at",
+    "owner",
+    "author",
+    "source",
+    "related_tasks",
+    "related_requirements",
+    "related_decisions"
+  ],
+  "artifact_types": [
+    { "type": "PROJECT", "schema": "SCHEMAS/project/project.schema.json", "storage": "PROJECT.json", "description": "Project manifest and identity." },
+    { "type": "OBJECTIVE", "schema": "SCHEMAS/objective/objective.schema.json", "storage": "objectives/<id>.json", "description": "A goal or intent the project exists to achieve." },
+    { "type": "REQUIREMENT", "schema": "SCHEMAS/requirement/requirement.schema.json", "storage": "requirements/<id>.json", "description": "Requirement, assumption, constraint, risk, idea or unknown." },
+    { "type": "TASK", "schema": "SCHEMAS/task/task.schema.json", "storage": "tasks/<id>.json", "description": "Unit of planned work." },
+    { "type": "ARTIFACT", "schema": "SCHEMAS/artifact/artifact.schema.json", "storage": "artifacts/<id>.json", "description": "A concrete deliverable produced by executing tasks." },
+    { "type": "EVIDENCE", "schema": "SCHEMAS/evidence/evidence.schema.json", "storage": "evidence/<id>.json", "description": "First-class proof linked to requirements, tasks and artifacts." },
+    { "type": "ACCEPTANCE", "schema": "SCHEMAS/acceptance/acceptance.schema.json", "storage": "acceptances/<id>.json", "description": "Explicit acceptance decision with human authority and evidence." },
+    { "type": "DECISION", "schema": "SCHEMAS/decision/decision.schema.json", "storage": "decisions/<id>.json", "description": "Recorded decision with context and consequences." },
+    { "type": "RELEASE", "schema": "SCHEMAS/release/release.schema.json", "storage": "releases/<id>.json", "description": "Versioned, reversible release." },
+    { "type": "DISCOVERY", "schema": "SCHEMAS/discovery/discovery.schema.json", "storage": "discovery.json", "description": "Discovery report separating findings, assumptions, unknowns, constraints and risks." }
+  ],
+  "principle": "Do not force every domain-specific artifact into the common core metadata model beyond the shared fields above."
+}

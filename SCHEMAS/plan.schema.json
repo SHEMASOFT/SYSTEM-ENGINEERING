@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/plan.schema.json",
+  "title": "AUTO-03 PLAN envelope (se.plan/1)",
+  "type": "object",
+  "description": "Deterministic, ordered, auditable plan envelope produced by AUTO-03 (`se plan --intent <file> --json` or `se plan --json`). READ-ONLY, structured, machine-readable, LLM-independent: the ordered steps are derived deterministically from the canonical TASK set (topological order by dependencies, deterministic tie-break), entry criteria come from gate G2 (REQUIREMENTS READY) and exit criteria from gate G3 (PLAN READY); risks/uncertainties come from discovery.json. Compatible with ADR-0021: it is an ephemeral derived view of the implicit plan (TASK set + gates G2/G3), never a persisted record, and it implements no plan-identity runtime.",
+  "required": [
+    "contract",
+    "operation",
+    "status",
+    "objective",
+    "project_id",
+    "steps",
+    "dependencies",
+    "entry_criteria",
+    "exit_criteria",
+    "risks",
+    "uncertainties",
+    "completion_criterion",
+    "source",
+    "observation"
+  ],
+  "properties": {
+    "contract": {
+      "type": "string",
+      "const": "se.plan/1",
+      "description": "Contract identifier for this envelope format"
+    },
+    "operation": {
+      "type": "string",
+      "const": "plan",
+      "description": "Operation type - always 'plan' for AUTO-03"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "WARN", "MANUAL", "FAIL"],
+      "description": "Plan readiness derived from entry/exit gate conditions (FAIL if any automated G2/G3 condition fails)"
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The objective the plan achieves (objetivo)"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$",
+      "description": "Project context (contexto/proyecto)"
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "task_id", "title", "type", "status", "dependencies", "related_requirements"],
+        "properties": {
+          "order": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based execution order (topological; deterministic)"
+          },
+          "task_id": {
+            "type": "string",
+            "pattern": "^TASK-\\d{4}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Canonical TASK status"
+          },
+          "dependencies": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^TASK-\\d{4}$" },
+            "description": "Task id dependencies that must precede this step"
+          },
+          "related_requirements": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^REQ-\\d{4}$" },
+            "description": "Approved requirements covered by this task"
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["acyclic", "edges"],
+      "properties": {
+        "acyclic": {
+          "type": "boolean",
+          "description": "True when the task dependency graph has no cycles"
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              { "type": "string", "pattern": "^TASK-\\d{4}$" },
+              { "type": "string", "pattern": "^TASK-\\d{4}$" }
+            ],
+            "items": false,
+            "description": "[from, to] dependency edges, sorted for determinism"
+          }
+        }
+      }
+    },
+    "entry_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "description", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["PASS", "WARN", "FAIL", "MANUAL"] }
+        }
+      },
+      "description": "Gate G2 (REQUIREMENTS READY) conditions - entry criteria"
+    },
+    "exit_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "description", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["PASS", "WARN", "FAIL", "MANUAL"] }
+        }
+      },
+      "description": "Gate G3 (PLAN READY) conditions - exit criteria"
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "statement"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^RSK-\\d{4}$" },
+          "statement": { "type": "string", "minLength": 1 }
+        }
+      },
+      "description": "Risks (riesgos) from discovery.json"
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "question"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^UNK-\\d{4}$" },
+          "question": { "type": "string", "minLength": 1 }
+        }
+      },
+      "description": "Uncertainties (incertidumbres) from discovery.json unknowns"
+    },
+    "completion_criterion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Deterministic statement of what defines plan completion"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Traceability: intent file/id, objective id, canonical sources (gates, discovery, tasks)"
+    },
+    "observation": {
+      "type": "object",
+      "required": ["observed_at", "tool", "source_root"],
+      "properties": {
+        "observed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of envelope construction"
+        },
+        "tool": {
+          "type": "string",
+          "const": "se"
+        },
+        "source_root": {
+          "type": "string",
+          "description": "Path to the SYSTEM-ENGINEERING root"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

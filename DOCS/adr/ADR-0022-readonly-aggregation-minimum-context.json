@@ -1,0 +1,32 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0022",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-24",
+  "context": "SE-AUTOMATION-001A identified reproducible read-only engineering operations (health, context reconstruction, task readiness, verification bundle, project consistency, traceability, skill/adapter conformance, checkpoint preparation) that are today performed by manually running several commands (doctor/validate/review/gate/capabilities/verify/implement) and hand-walking the persisted record graph. SE-AUTOMATION-001B-B0 was opened to define, before any implementation, a read-only aggregation surface and a machine-readable output contract. Constraints on disk: STATE_POLICY.md forbids new state/memory/workflow/context engines; EXECUTION_INTEGRITY.md keeps execution/receipt/digest as conventions; CAPABILITY_GOVERNANCE.md states governance is contractual, not a runtime sandbox; permissions.json forbids gate bypass and self-approval. A future SE-CONSOLE is a consumer, never a source of truth.",
+  "problem": "How can SYSTEM-ENGINEERING expose deterministic read-only aggregation (health, context reconstruction, readiness, conformance, consistency, traceability) with a stable machine-readable representation, without adding authority, engines, a new persistent store, or new schemas, and without inflating the context sent to the model?",
+  "options_considered": [
+    { "option": "Read-only native surface composed from existing se_core functions + a versioned JSON envelope contract + a minimum-context/on-demand policy", "pros": ["Reuses evaluate_gate, _coverage_report, run_doctor, check_policies, resolve_plan, audit_contracts, all_collections", "No new schema, no engine, no store; single source of truth preserved", "Deterministic and idempotent; stdout only", "Smallest sufficient context by default limits token use", "SE-CONSOLE can consume JSON without becoming authoritative"], "cons": ["Requires an ADR + command-contract change to expose it (COMMANDS/commands.json + adapter regeneration)", "Context relevance selection must be defined precisely", "No empirical token measurement yet"] },
+    { "option": "Introduce a new core subsystem / aggregation engine / context engine", "pros": ["Central place for all views"], "cons": ["Violates the architecture-creep barrier (STATE_POLICY.md §13, EXECUTION_INTEGRITY.md §7)", "Second source of truth risk", "Over-engineering relative to composing existing functions"] },
+    { "option": "Persist an aggregated snapshot (SQLite/file) as the source of truth", "pros": ["Fast queries"], "cons": ["Duplicates canonical files; drift; contradicts ADR-0003 file-per-artifact and STATE_POLICY one-canonical-source rule"] },
+    { "option": "Adopt an external aggregation/framework dependency", "pros": ["Less code"], "cons": ["Lock-in; no capability SE does not already have; rejected by ARCH-ECOSYSTEM-001-05"] }
+  ],
+  "decision": "Adopt a READ-ONLY AGGREGATION SURFACE as a small native extension of the reference implementation (implementation deferred to an authorized later phase), governed by a MINIMUM CONTEXT / ON-DEMAND policy. The surface composes existing read-only functions only; it never mutates, never creates records, never bypasses or auto-passes a gate, and never grants authority. Its output is a versioned machine-readable envelope identified as `se.report/1`, with stable additive-only keys, reference-first lists (id + minimal fields, not full bodies), explicit epistemic labels, provenance per fact, and an optional/separable `observation` block carrying the only non-deterministic field (timestamp). DEFAULT = the smallest sufficient context; broader context requires an explicit scope (identity|work|authority|trace|deep). Context reconstruction (AUTO-02) is always available but never auto-executed per session. No new schema is introduced; field-level validation is deferred to the implementation phase. SE-CONSOLE remains a consumer only.",
+  "reason": "Every operation is already computable from canonical files by existing read-only functions; composing them behind a stable envelope yields deterministic, auditable, portable output while preserving AUTOMATE OPERATIONS, NOT AUTHORITY and the single-source-of-truth rule. A default-minimum, on-demand scope model directly reduces the context sent to the model without promising any unmeasured savings.",
+  "consequences": "This ADR records design intent only. Implementation proceeds in authorized phases: B1 = JSON output enabler (AUTO-16), then B2 = deterministic context reconstruction (AUTO-02), then B3 = skill/adapter conformance (AUTO-07/08). Exposing any new command requires the command-contract change process (COMMANDS/commands.json entry + ADR + tests + `se adapter opencode` regeneration + doctor/validate). The envelope's `contract` id and key set are frozen additively; existing keys are never repurposed. Broad context (LEVEL 3/4) is never returned by default. Any future request to persist aggregated state, or to let the surface approve anything, requires a new ADR and is out of scope.",
+  "affected_components": ["DOCS/adr/ADR-0022-readonly-aggregation-minimum-context.json", "DOCS/MINIMUM_CONTEXT_POLICY.md", "DOCS/SKILL_DISCOVERY_OPENCODE.md", "(future) SCRIPTS/se_core", "(future) COMMANDS/commands.json"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-09-24T00:00:00Z",
+  "updated_at": "2026-09-24T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "SE-AUTOMATION-001B-B0",
+    "depends_on_adr": ["ADR-0015", "ADR-0003", "ADR-0004"],
+    "references": ["DOCS/STATE_POLICY.md", "DOCS/EXECUTION_INTEGRITY.md", "DOCS/CAPABILITY_GOVERNANCE.md", "CORE/policies/permissions.json"]
+  }
+}

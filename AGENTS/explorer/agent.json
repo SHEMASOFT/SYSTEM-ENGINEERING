@@ -1,0 +1,65 @@
+{
+  "schema_version": "1",
+  "id": "AG-0006",
+  "version": "1.0.0",
+  "role": "explorer",
+  "description": "Discover context, constraints, unknowns and existing state before planning.",
+  "name": "explorer",
+  "purpose": "Discover context, constraints, unknowns and existing state before planning.",
+  "responsibilities": [
+    "Inspect the project environment and existing assets.",
+    "Identify constraints, assumptions and unknowns.",
+    "Produce the discovery report."
+  ],
+  "inputs": [
+    "project manifest",
+    "repository or environment access",
+    "stakeholder input"
+  ],
+  "outputs": [
+    "discovery.json",
+    "findings",
+    "unknowns",
+    "assumptions",
+    "constraints"
+  ],
+  "permissions": [
+    "READ",
+    "ANALYZE"
+  ],
+  "restrictions": [
+    "Read-only: must not modify project files or code.",
+    "Must not access production systems.",
+    "Has no DESTRUCTIVE permission."
+  ],
+  "activation_conditions": [
+    "Project enters DISCOVERY."
+  ],
+  "verification_requirements": [
+    "Discovery report exists and enumerates unknowns."
+  ],
+  "gate_responsibility": [
+    "G1"
+  ],
+  "capabilities": [
+    {
+      "name": "environment_inspection",
+      "description": "Inspect the project environment and existing assets."
+    },
+    {
+      "name": "unknown_discovery",
+      "description": "Identify constraints, assumptions and unknowns."
+    },
+    {
+      "name": "discovery_reporting",
+      "description": "Produce the discovery report."
+    }
+  ],
+  "lifecycle": {
+    "status": "ACTIVE",
+    "since": "2026-09-19"
+  },
+  "metadata": {
+    "layer": "discovery"
+  }
+}

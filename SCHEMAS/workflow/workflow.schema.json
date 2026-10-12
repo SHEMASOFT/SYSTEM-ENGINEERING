@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/workflow.schema.json",
+  "title": "Workflow",
+  "description": "Deterministic workflow definition with DAG, gates, and agent assignments",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "workflow_id", "project_id", "name", "version", "status", "nodes", "edges"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "workflow_id": { "type": "string", "pattern": "^WF-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "status": { "enum": ["DRAFT", "READY", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"] },
+    "description": { "type": "string" },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["node_id", "agent", "action", "inputs", "outputs"],
+        "properties": {
+          "node_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "agent": { "type": "string", "description": "Agent role to execute this node" },
+          "action": { "type": "string", "description": "Action/command to execute" },
+          "inputs": {
+            "type": "object",
+            "description": "Input mapping: parameter -> source (memory_id, artifact_id, literal, gate_output)",
+            "additionalProperties": { "type": "string" }
+          },
+          "outputs": {
+            "type": "object",
+            "description": "Output mapping: parameter -> destination (memory_id, artifact_id, gate_input)",
+            "additionalProperties": { "type": "string" }
+          },
+          "gate": { "type": "string", "description": "Gate to evaluate before this node (optional)" },
+          "depends_on": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Node IDs this node depends on"
+          },
+          "timeout_seconds": { "type": "integer", "minimum": 1, "default": 300 },
+          "retry_policy": {
+            "type": "object",
+            "properties": {
+              "max_retries": { "type": "integer", "minimum": 0, "default": 0 },
+              "backoff_seconds": { "type": "integer", "minimum": 1, "default": 5 }
+            }
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to"],
+        "properties": {
+          "from": { "type": "string", "description": "Source node_id" },
+          "to": { "type": "string", "description": "Target node_id" },
+          "condition": { "type": "string", "description": "Optional condition expression" }
+        }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gate_id", "nodes"],
+        "properties": {
+          "gate_id": { "type": "string", "pattern": "^G[0-9]+$" },
+          "nodes": { "type": "array", "items": { "type": "string" }, "description": "Node IDs that must pass this gate" }
+        }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "author": { "type": "string" },
+    "metadata": { "type": "object" }
+  }
+}

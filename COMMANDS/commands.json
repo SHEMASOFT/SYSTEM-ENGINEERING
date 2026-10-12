@@ -1,0 +1,1276 @@
+{
+  "schema_version": "1",
+  "interface_version": "0.4.0",
+  "description": "Conceptual command interface. Exposable via CLI, OpenCode, other agents or automation.",
+  "conventions": {
+    "project_flag": "--project <dir> points at a managed project workspace.",
+    "exit_codes": {
+      "0": "success",
+      "1": "validation or gate failure",
+      "2": "usage error"
+    },
+    "note": "Commands never bypass gates. Manual gate conditions are reported, never auto-passed."
+  },
+  "commands": [
+    {
+      "id": "CMD-0001",
+      "version": "1.0.0",
+      "name": "init",
+      "description": "Create or repair a managed project workspace.",
+      "purpose": "Create or repair a managed project workspace (seeds .gitignore and discovery.json without overwriting).",
+      "agent": "coordinator",
+      "execution_intent": "CREATE",
+      "risk_level": "low",
+      "inputs": [
+        "--dir",
+        "--name",
+        "--owner",
+        "--domains",
+        "--criticality",
+        "--id",
+        "--force"
+      ],
+      "outputs": [
+        "PROJECT.json",
+        "workspace directories",
+        ".gitignore",
+        "discovery.json"
+      ],
+      "gate": "G0",
+      "primary_agent": "coordinator",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE",
+        "WRITE_DOCS"
+      ],
+      "arguments": [
+        {
+          "name": "--dir",
+          "type": "path",
+          "required": true,
+          "description": "Target directory for the project workspace."
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "required": false,
+          "description": "Project display name."
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "required": false,
+          "description": "Project owner identity."
+        },
+        {
+          "name": "--domains",
+          "type": "array",
+          "required": false,
+          "description": "Domain pack slugs."
+        },
+        {
+          "name": "--criticality",
+          "type": "string",
+          "required": false,
+          "description": "Project criticality (low|medium|high|critical|unknown)."
+        },
+        {
+          "name": "--id",
+          "type": "string",
+          "required": false,
+          "description": "Project id (PRJ-XXXX)."
+        },
+        {
+          "name": "--force",
+          "type": "boolean",
+          "required": false,
+          "description": "Repair or force re-run without overwriting seeded files."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0002",
+      "version": "1.0.0",
+      "name": "explore",
+      "description": "Scan the project and produce a discovery report.",
+      "purpose": "Scan the project and produce a discovery report.",
+      "agent": "explorer",
+      "execution_intent": "READ",
+      "risk_level": "low",
+      "inputs": [
+        "--project",
+        "--force"
+      ],
+      "outputs": [
+        "discovery.json",
+        "lifecycle transition DRAFT->DISCOVERY when G0 passes"
+      ],
+      "gate": "G1",
+      "primary_agent": "explorer",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--force",
+          "type": "boolean",
+          "required": false,
+          "description": "Repair or force re-run without overwriting seeded files."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0003",
+      "version": "1.0.0",
+      "name": "new",
+      "description": "Create a record from its template.",
+      "purpose": "Create a record (objective, requirement, task, artifact, evidence, acceptance, decision) from its template.",
+      "agent": "coordinator",
+      "execution_intent": "CREATE",
+      "risk_level": "low",
+      "inputs": [
+        "record",
+        "--project",
+        "type-specific flags"
+      ],
+      "outputs": [
+        "<canonical dir>/<ID>.json"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE",
+        "WRITE_DOCS"
+      ],
+      "arguments": [
+        {
+          "name": "record",
+          "type": "string",
+          "required": true,
+          "description": "Record type (objective|requirement|task|artifact|evidence|acceptance|decision)."
+        },
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--type-flags",
+          "type": "array",
+          "required": false,
+          "description": "Type-specific creation flags."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0004",
+      "version": "1.0.0",
+      "name": "update",
+      "description": "Apply a controlled, audited mutation to a record.",
+      "purpose": "Apply a controlled mutation to an existing record (validated, atomic, reference-safe, audited).",
+      "agent": "coordinator",
+      "execution_intent": "MUTATE",
+      "risk_level": "medium",
+      "inputs": [
+        "record",
+        "record_id",
+        "--project",
+        "--set",
+        "--add",
+        "--remove",
+        "--by"
+      ],
+      "outputs": [
+        "updated record",
+        "mutation-log.jsonl entry"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE",
+        "WRITE_DOCS"
+      ],
+      "arguments": [
+        {
+          "name": "record",
+          "type": "string",
+          "required": true,
+          "description": "Record type (objective|requirement|task|artifact|evidence|acceptance|decision)."
+        },
+        {
+          "name": "record_id",
+          "type": "string",
+          "required": true,
+          "description": "Record id to mutate."
+        },
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--set",
+          "type": "array",
+          "required": false,
+          "description": "Fields to set (key=value)."
+        },
+        {
+          "name": "--add",
+          "type": "array",
+          "required": false,
+          "description": "Array fields to add."
+        },
+        {
+          "name": "--remove",
+          "type": "array",
+          "required": false,
+          "description": "Array fields to remove."
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": false,
+          "description": "Actor performing the action."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0005",
+      "version": "1.0.0",
+      "name": "transition",
+      "description": "Advance the project lifecycle through its gates.",
+      "purpose": "Advance the project lifecycle through its gates; requires human attestation for MANUAL conditions.",
+      "agent": "coordinator",
+      "execution_intent": "CONTROL",
+      "risk_level": "high",
+      "inputs": [
+        "--project",
+        "--to",
+        "--attest",
+        "--by"
+      ],
+      "outputs": [
+        "lifecycle_state change",
+        "metadata.transitions record"
+      ],
+      "gate": "varies",
+      "primary_agent": "coordinator",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "WRITE_DOCS"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--to",
+          "type": "string",
+          "required": true,
+          "description": "Target lifecycle state."
+        },
+        {
+          "name": "--attest",
+          "type": "boolean",
+          "required": false,
+          "description": "Human attestation for MANUAL gate conditions."
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": false,
+          "description": "Actor performing the action."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0006",
+      "version": "1.0.0",
+      "name": "plan",
+      "description": "Check requirement coverage and scaffold tasks; with --json derive an ordered READ-ONLY plan envelope (se.plan/1).",
+      "purpose": "Check requirement coverage and report or scaffold tasks; with --intent/--json derive a deterministic, structured, READ-ONLY plan envelope (se.plan/1) from the canonical TASK set and gates G2/G3.",
+      "agent": "planner",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [
+        "--project",
+        "--create-tasks",
+        "--intent",
+        "--json"
+      ],
+      "outputs": [
+        "coverage report",
+        "optional task scaffolds",
+        "se.plan/1 plan envelope (READ-ONLY with --intent/--json)"
+      ],
+      "gate": "G3",
+      "primary_agent": "planner",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--create-tasks",
+          "type": "boolean",
+          "required": false,
+          "description": "Scaffold missing tasks. Cannot be combined with --intent/--json."
+        },
+        {
+          "name": "--intent",
+          "type": "path",
+          "required": false,
+          "description": "Explicit intent file (se.intent/1 intent payload) used to derive the plan."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.plan/1 envelope (READ-ONLY derivation)."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0007",
+      "version": "1.0.0",
+      "name": "implement",
+      "description": "Report the next actionable tasks.",
+      "purpose": "Report the next actionable tasks after checking the plan gate.",
+      "agent": "implementer",
+      "execution_intent": "REPORT",
+      "risk_level": "medium",
+      "inputs": [
+        "--project"
+      ],
+      "outputs": [
+        "actionable task list"
+      ],
+      "gate": "G4",
+      "primary_agent": "implementer",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0008",
+      "version": "1.0.0",
+      "name": "verify",
+      "description": "Evaluate verification readiness and missing evidence.",
+      "purpose": "Evaluate verification readiness and report missing evidence.",
+      "agent": "tester",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [
+        "--project"
+      ],
+      "outputs": [
+        "gate G5 report",
+        "missing evidence list"
+      ],
+      "gate": "G5",
+      "primary_agent": "tester",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE",
+        "TEST"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0009",
+      "version": "1.0.0",
+      "name": "review",
+      "description": "Static review of schema, references and coverage.",
+      "purpose": "Static review: schema validity, references, project_id, duplicates, coverage gaps and informational link notes.",
+      "agent": "reviewer",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [
+        "--project"
+      ],
+      "outputs": [
+        "review findings",
+        "coverage report",
+        "link notes"
+      ],
+      "gate": "G6",
+      "primary_agent": "reviewer",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.report/1 envelope instead of human-readable output."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0010",
+      "version": "1.0.0",
+      "name": "release",
+      "description": "Create and optionally approve a release artifact.",
+      "purpose": "Create and optionally approve a release artifact.",
+      "agent": "devops",
+      "execution_intent": "CREATE",
+      "risk_level": "high",
+      "inputs": [
+        "--project",
+        "--version",
+        "--scope",
+        "--approve",
+        "--by"
+      ],
+      "outputs": [
+        "releases/REL-*.json"
+      ],
+      "gate": "G7",
+      "primary_agent": "devops",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "WRITE_DOCS",
+        "DEPLOY"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--version",
+          "type": "string",
+          "required": true,
+          "description": "Release version (semver)."
+        },
+        {
+          "name": "--scope",
+          "type": "string",
+          "required": false,
+          "description": "Release scope."
+        },
+        {
+          "name": "--approve",
+          "type": "boolean",
+          "required": false,
+          "description": "Approve the release."
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": false,
+          "description": "Actor performing the action."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0011",
+      "version": "1.0.0",
+      "name": "doctor",
+      "description": "Validate the Master System installation and environment.",
+      "purpose": "Validate the Master System installation and environment.",
+      "agent": "coordinator",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [],
+      "outputs": [
+        "PASS/WARN/FAIL report"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.report/1 envelope instead of human-readable output."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0012",
+      "version": "1.0.0",
+      "name": "validate",
+      "description": "Validate schemas, agents, domains and an optional project.",
+      "purpose": "Validate schemas, agents, domains and (optionally) a project.",
+      "agent": "coordinator",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [
+        "--project"
+      ],
+      "outputs": [
+        "validation report"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.report/1 envelope instead of human-readable output."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0013",
+      "version": "1.0.0",
+      "name": "gate",
+      "description": "Evaluate a single gate against a project.",
+      "purpose": "Evaluate a single gate against a project.",
+      "agent": "coordinator",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [
+        "--project",
+        "--gate"
+      ],
+      "outputs": [
+        "gate condition report"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--gate",
+          "type": "string",
+          "required": true,
+          "description": "Gate id to evaluate (G0..G8)."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.report/1 envelope instead of human-readable output."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0014",
+      "version": "1.0.0",
+      "name": "capabilities",
+      "description": "Capability governance: registry, policy check and resolution.",
+      "purpose": "Inspect the capability registry and declarative provider mapping, validate declared capability policies (skills, agents, project profiles, tasks) and resolve a deterministic capability plan (system, project and/or task scope).",
+      "agent": "coordinator",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [
+        "--check",
+        "--project",
+        "--task"
+      ],
+      "outputs": [
+        "capability registry view",
+        "policy validation report",
+        "resolved capability plan"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--check",
+          "type": "boolean",
+          "required": false,
+          "description": "Validate declared capability policies (canonical skills/agents plus optional project/task)."
+        },
+        {
+          "name": "--project",
+          "type": "path",
+          "required": false,
+          "description": "Managed project workspace for policy check / resolved plan."
+        },
+        {
+          "name": "--task",
+          "type": "string",
+          "required": false,
+          "description": "Task artifact id (TASK-xxxx) within --project for plan / check."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.report/1 envelope instead of human-readable output."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0015",
+      "version": "1.0.0",
+      "name": "context",
+      "description": "Reconstruct the minimum relevant context (AUTO-02).",
+      "purpose": "Read-only, deterministic, on-demand reconstruction of the smallest sufficient context for a project or focused entity (LEVEL 0 identity by default; work/authority/trace/deep require an explicit scope). Composes existing read-only functions; grants no authority; emits a se.report/1 envelope with --json.",
+      "agent": "coordinator",
+      "execution_intent": "READ",
+      "risk_level": "low",
+      "inputs": [
+        "--project",
+        "--scope",
+        "--focus"
+      ],
+      "outputs": [
+        "se.report/1 context reconstruction envelope",
+        "minimum context selection"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--scope",
+          "type": "string",
+          "required": false,
+          "description": "Context level: identity (default) | work | authority | trace | deep."
+        },
+        {
+          "name": "--focus",
+          "type": "string",
+          "required": false,
+          "description": "Optional focus id (TASK-xxxx/REQ-xxxx/OBJ-xxxx/... or the project id)"
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.report/1 envelope instead of human-readable output."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0016",
+      "version": "1.0.0",
+      "name": "health",
+      "description": "Aggregate health status from existing checks (doctor, validate, capabilities, review).",
+      "purpose": "Aggregate health status from existing read-only checks (doctor, validate, capabilities --check, review) into a single deterministic, machine-readable health envelope (operation=health).",
+      "agent": "coordinator",
+      "execution_intent": "READ",
+      "risk_level": "low",
+      "inputs": [
+        "--project",
+        "--json"
+      ],
+      "outputs": [
+        "se.report/1 health envelope"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.report/1 envelope instead of human-readable output."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0017",
+      "version": "1.0.0",
+      "name": "auto",
+      "description": "Deterministic decision engine: consumes health aggregation and emits a machine-readable next-action decision (se.auto/1).",
+      "purpose": "Convert structured health status into a deterministic, auditable decision about the next AUTO pipeline step. READ-ONLY; no mutations, no LLM, no autonomous execution.",
+      "agent": "coordinator",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [
+        "--project",
+        "--json"
+      ],
+      "outputs": [
+        "se.auto/1 decision envelope"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.auto/1 envelope instead of human-readable output."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0018",
+      "version": "1.0.0",
+      "name": "intent",
+      "description": "Normalize an explicit structured intent into a READ-ONLY se.intent/1 envelope.",
+      "purpose": "Validate and normalize an explicit structured intent (objetivo, contexto/proyecto, alcance, restricciones, criterio de éxito) from a file or an existing OBJECTIVE artifact, emitting a deterministic se.intent/1 envelope. READ-ONLY; no mutations, no LLM.",
+      "agent": "coordinator",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [
+        "--project",
+        "--file",
+        "--objective"
+      ],
+      "outputs": [
+        "se.intent/1 intent envelope"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--file",
+          "type": "path",
+          "required": false,
+          "description": "Explicit intent JSON file (objective, context, scope, restrictions, success_criteria)."
+        },
+        {
+          "name": "--objective",
+          "type": "string",
+          "required": false,
+          "description": "Derive the intent from an existing OBJECTIVE artifact (OBJ-xxxx)."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.intent/1 envelope instead of human-readable output."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0019",
+      "version": "1.0.0",
+      "name": "handoff",
+      "description": "Create or load a HANDOFF.json artifact for project continuity.",
+      "purpose": "Explicit handoff artifact capturing project state, context snapshot, blockers, and deterministic next-actions for seamless context transfer across sessions or agents. READ-ONLY (create does not mutate project records; load is pure read).",
+      "agent": "coordinator",
+      "execution_intent": "READ",
+      "risk_level": "low",
+      "inputs": [
+        "--project",
+        "create|load",
+        "--scope",
+        "--focus",
+        "--file",
+        "--by",
+        "--force"
+      ],
+      "outputs": [
+        "HANDOFF.json (create)",
+        "handoff summary (load)"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE",
+        "WRITE_DOCS"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "subcommand",
+          "type": "string",
+          "required": true,
+          "description": "create | load"
+        },
+        {
+          "name": "--scope",
+          "type": "string",
+          "required": false,
+          "description": "Context level for create: identity|work|authority|trace|deep (default: trace)."
+        },
+        {
+          "name": "--focus",
+          "type": "string",
+          "required": false,
+          "description": "Optional focus id for context snapshot (create)."
+        },
+        {
+          "name": "--file",
+          "type": "path",
+          "required": false,
+          "description": "Path to HANDOFF.json (load; default: <project>/HANDOFF.json)."
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": false,
+          "description": "Author of handoff (create)."
+        },
+        {
+          "name": "--force",
+          "type": "boolean",
+          "required": false,
+          "description": "Overwrite existing HANDOFF.json (create)."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit machine-readable se.report/1 envelope."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0020",
+      "version": "1.0.0",
+      "name": "archive",
+      "description": "Create a verified archive bundle of the project.",
+      "purpose": "Create a tamper-evident archive (.tar.gz) containing all project files with SHA-256 hashes, embedded archive-manifest.json with record counts, and pre-archive validation. READ-ONLY (does not mutate project records).",
+      "agent": "coordinator",
+      "execution_intent": "READ",
+      "risk_level": "low",
+      "inputs": [
+        "--project",
+        "--output",
+        "--by",
+        "--force"
+      ],
+      "outputs": [
+        "<project_id>-<version>-<date>.tar.gz",
+        "archive-manifest.json (embedded)"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "required": false,
+          "description": "Output archive path (default: <cwd>/<project_id>-<version>-<date>.tar.gz)."
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": false,
+          "description": "Author of archive."
+        },
+        {
+          "name": "--force",
+          "type": "boolean",
+          "required": false,
+          "description": "Archive even if validation fails."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit machine-readable se.report/1 envelope."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0021",
+      "version": "1.0.0",
+      "name": "restore",
+      "description": "Restore a project from an archive bundle.",
+      "purpose": "Restore a project from a verified archive bundle; verifies SHA-256 hashes against embedded manifest, extracts all files, and runs se validate on the restored project. Does not overwrite without --force.",
+      "agent": "coordinator",
+      "execution_intent": "CREATE",
+      "risk_level": "medium",
+      "inputs": [
+        "archive",
+        "--target",
+        "--force"
+      ],
+      "outputs": [
+        "restored project directory",
+        "validation report"
+      ],
+      "gate": null,
+      "primary_agent": "coordinator",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE",
+        "WRITE_DOCS"
+      ],
+      "arguments": [
+        {
+          "name": "archive",
+          "type": "path",
+          "required": true,
+          "description": "Path to archive .tar.gz file."
+        },
+        {
+          "name": "--target",
+          "type": "path",
+          "required": false,
+          "description": "Target directory (default: <cwd>/restored)."
+        },
+        {
+          "name": "--force",
+          "type": "boolean",
+          "required": false,
+          "description": "Overwrite existing target / ignore hash mismatches."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit machine-readable se.report/1 envelope."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0022",
+      "version": "1.0.0",
+      "name": "execute",
+      "description": "Execute tasks in topological order with authorization, evidence, fail-closed.",
+      "purpose": "Execute actionable tasks respecting authorized_actions, create evidence on completion, create artifacts for deliverable tasks, fail-closed on first failure, produce execution receipts.",
+      "agent": "implementer",
+      "execution_intent": "IMPLEMENT",
+      "risk_level": "medium",
+      "inputs": [
+        "--project",
+        "--task",
+        "--dry-run",
+        "--force",
+        "--continue-on-error"
+      ],
+      "outputs": [
+        "execution receipts",
+        "evidence records",
+        "artifact records"
+      ],
+      "gate": "G3",
+      "primary_agent": "implementer",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE",
+        "IMPLEMENT"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--task",
+          "type": "string",
+          "required": false,
+          "description": "Execute a single task by ID (default: all actionable tasks in topological order)."
+        },
+        {
+          "name": "--dry-run",
+          "type": "boolean",
+          "required": false,
+          "description": "Simulate execution without mutating state."
+        },
+        {
+          "name": "--force",
+          "type": "boolean",
+          "required": false,
+          "description": "Re-execute already DONE tasks."
+        },
+        {
+          "name": "--continue-on-error",
+          "type": "boolean",
+          "required": false,
+          "description": "Continue executing remaining tasks after a failure (default: fail-closed)."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.execute/1 envelope."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0023",
+      "version": "1.0.0",
+      "name": "observe",
+      "description": "Observe execution state: IN_PROGRESS tasks, evidence, artifacts, receipts (READ-ONLY).",
+      "purpose": "Read-only view of execution progress including IN_PROGRESS tasks, collected evidence, produced artifacts, and execution receipts.",
+      "agent": "implementer",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [
+        "--project"
+      ],
+      "outputs": [
+        "se.observe/1 observation envelope"
+      ],
+      "gate": null,
+      "primary_agent": "implementer",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.observe/1 envelope."
+        }
+      ]
+    },
+    {
+      "id": "CMD-0024",
+      "version": "1.0.0",
+      "name": "orchestrate",
+      "description": "Manage deterministic multi-agent workflows (DAG + gates): create, execute, list.",
+      "purpose": "Create workflow definitions from nodes/edges/gates, execute them with topological ordering and gate enforcement, and list workflows in a project.",
+      "agent": "coordinator",
+      "execution_intent": "CONTROL",
+      "risk_level": "medium",
+      "inputs": [
+        "--project",
+        "--workflow",
+        "create|execute|list",
+        "--nodes",
+        "--edges",
+        "--gates",
+        "--dry-run",
+        "--name"
+      ],
+      "outputs": [
+        "workflow definition (create)",
+        "execution receipts and evidence (execute)",
+        "workflow list (list)"
+      ],
+      "gate": "varies",
+      "primary_agent": "coordinator",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE",
+        "WRITE_DOCS"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": true,
+          "description": "Managed project workspace."
+        },
+        {
+          "name": "subcommand",
+          "type": "string",
+          "required": true,
+          "description": "create | execute | list"
+        },
+        {
+          "name": "--workflow",
+          "type": "string",
+          "required": false,
+          "description": "Workflow ID (WF-xxxx) for execute/list."
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "required": false,
+          "description": "Workflow name for create."
+        },
+        {
+          "name": "--nodes",
+          "type": "path",
+          "required": false,
+          "description": "Path to nodes.json for create."
+        },
+        {
+          "name": "--edges",
+          "type": "path",
+          "required": false,
+          "description": "Path to edges.json for create."
+        },
+        {
+          "name": "--gates",
+          "type": "path",
+          "required": false,
+          "description": "Path to gates.json for create."
+        },
+        {
+          "name": "--dry-run",
+          "type": "boolean",
+          "required": false,
+          "description": "Validate and plan execution without running (execute subcommand)."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.report/1 envelope."
+        }
+      ]
+    }
+  ]
+}

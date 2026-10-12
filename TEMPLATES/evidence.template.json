@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "id": "EVD-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "type": "test",
+  "title": "Short evidence title",
+  "description": "What was observed.",
+  "location": "path/or/uri",
+  "checksum": "",
+  "command": "command that produced this evidence",
+  "result": "PASS",
+  "related_requirements": ["REQ-0001"],
+  "related_tasks": ["TASK-0001"],
+  "related_releases": [],
+  "collected_at": "1970-01-01T00:00:00Z",
+  "collected_by": "agent-or-human",
+  "metadata": {}
+}

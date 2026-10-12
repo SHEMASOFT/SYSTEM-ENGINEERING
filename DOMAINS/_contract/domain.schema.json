@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/domain.schema.json",
+  "title": "Domain Pack",
+  "description": "Contract that every domain pack must satisfy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "name", "description", "status", "artifact_extensions", "gate_additions", "agent_additions", "checklists"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["FULL", "MINIMAL"] },
+    "artifact_extensions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "purpose"],
+        "properties": {
+          "type": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "schema": { "type": ["string", "null"] },
+          "purpose": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "gate_additions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gate", "condition", "automated"],
+        "properties": {
+          "gate": { "type": "string", "pattern": "^G[0-8]$" },
+          "condition": { "type": "string", "minLength": 1 },
+          "automated": { "type": "boolean" }
+        }
+      }
+    },
+    "agent_additions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "purpose"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "purpose": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "checklists": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "tooling": { "type": "array", "items": { "type": "string" } },
+    "metadata": { "type": "object" }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0008",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "data",
+  "date": "2026-09-17",
+  "context": "MASTER-002 used discovery.json as a non-core artifact with a documented shape but no schema, so discovery data (including unknowns and assumptions) was never machine-validated.",
+  "problem": "Should discovery.json have a formal JSON Schema, and how large should it be?",
+  "options_considered": [
+    { "option": "Add a minimal schema covering only current discovery fields and separate unknowns/assumptions/constraints/risks", "pros": ["Validated", "Keeps unknowns explicit", "Small"], "cons": ["Schema changes require care"] },
+    { "option": "Keep discovery unvalidated", "pros": ["No work"], "cons": ["Unknowns can be malformed or lost", "G1 cannot verify structure"] },
+    { "option": "Design an expansive discovery schema", "pros": ["Comprehensive"], "cons": ["Over-engineering", "Contradicts the minimum-change principle"] }
+  ],
+  "decision": "Add SCHEMAS/discovery/discovery.schema.json validating summary, findings (with confidence), unknowns, assumptions, constraints, risks, reviewed_by and reviewed_at. Move DISCOVERY from non-core to a validated core record type.",
+  "reason": "It makes discovery machine-validated and guarantees that unknowns are represented explicitly, which was a stated MASTER-002 concern.",
+  "consequences": "G1.1 validates the discovery report. The discovery template and generated reports must conform.",
+  "affected_components": ["SCHEMAS/discovery", "SCHEMAS/index.json", "CORE/artifacts", "CORE/gates", "TESTS/test_discovery.py"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T10:00:00Z",
+  "updated_at": "2026-09-17T10:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

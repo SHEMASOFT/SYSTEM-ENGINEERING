@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/task.schema.json",
+  "title": "TASK",
+  "description": "Unit of planned work with explicit permissions and verification.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "project_id", "title", "objective", "type", "status", "authorized_actions", "created_at", "updated_at"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "id": { "type": "string", "pattern": "^TASK-\\d{4}$" },
+    "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "objective": { "type": "string", "minLength": 1 },
+    "type": { "enum": ["analysis", "design", "implementation", "test", "documentation", "deployment", "review", "research", "operations", "other"] },
+    "scope": { "type": "string" },
+    "inputs": { "type": "array", "items": { "type": "string" } },
+    "dependencies": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^TASK-\\d{4}$" } },
+    "parent_task": { "type": ["string", "null"], "pattern": "^TASK-\\d{4}$" },
+    "subtasks": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^TASK-\\d{4}$" } },
+    "authorized_actions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["READ", "ANALYZE", "WRITE_DOCS", "IMPLEMENT", "TEST", "DEPLOY", "DESTRUCTIVE"] }
+    },
+    "restrictions": { "type": "array", "items": { "type": "string" } },
+    "capability_policy": {
+      "description": "Optional capability governance (CP-020). Refines the resolved capability plan for this task.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": ["READ_ONLY", "READ_WRITE"],
+          "description": "READ_ONLY forbids write-operation capabilities (filesystem.write) and only allows read/search capabilities."
+        },
+        "requires": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" }
+        },
+        "allows": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" }
+        },
+        "denies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*([.][a-z][a-z0-9-]*)*$" }
+        }
+      }
+    },
+    "acceptance_criteria": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "verification": { "type": "string" },
+    "evidence": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^EVD-\\d{4}$" } },
+    "status": { "enum": ["PENDING", "READY", "IN_PROGRESS", "BLOCKED", "VERIFYING", "DONE", "CANCELLED"] },
+    "blocked_reason": { "type": "string", "minLength": 1 },
+    "resolution_path": { "type": "string", "minLength": 1 },
+    "related_requirements": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^REQ-\\d{4}$" } },
+    "owner": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "metadata": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "BLOCKED" } },
+        "required": ["status"]
+      },
+      "then": { "required": ["blocked_reason", "resolution_path"] }
+    }
+  ]
+}

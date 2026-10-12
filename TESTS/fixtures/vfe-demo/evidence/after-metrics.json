@@ -1,0 +1,144 @@
+{
+  "job": "after",
+  "target": "TESTS\\fixtures\\vfe-demo\\index.html",
+  "url": "file:///PROJECTS/vfe-demo/index.html",
+  "viewport": {
+    "1280x800": {
+      "metrics": {
+        "headings": [
+          "H1",
+          "H2",
+          "H3",
+          "H3",
+          "H3",
+          "H2",
+          "H2"
+        ],
+        "h1count": 1,
+        "missingAlt": 0,
+        "imgCount": 0,
+        "landmarks": [
+          "header",
+          "nav",
+          "main",
+          "footer"
+        ],
+        "overflow": false,
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "title": "VFE Demo — AFTER"
+      },
+      "contrast": [
+        {
+          "selector": "p.muted",
+          "fg": "#475569",
+          "bg": "#ffffff",
+          "ratio": 7.58,
+          "pass": true
+        },
+        {
+          "selector": ".lead",
+          "fg": "#475569",
+          "bg": "#ffffff",
+          "ratio": 7.58,
+          "pass": true
+        },
+        {
+          "selector": "nav a",
+          "fg": "#2563eb",
+          "bg": "#ffffff",
+          "ratio": 5.17,
+          "pass": true
+        },
+        {
+          "selector": ".btn",
+          "fg": "#ffffff",
+          "bg": "#2563eb",
+          "ratio": 5.17,
+          "pass": true
+        },
+        {
+          "selector": "footer",
+          "fg": "#475569",
+          "bg": "#ffffff",
+          "ratio": 7.58,
+          "pass": true
+        }
+      ],
+      "screenshot_viewport": "after-viewport-1280x800.png",
+      "screenshot_fullpage": "after-fullpage-1280x800.png",
+      "fail": []
+    },
+    "375x812": {
+      "metrics": {
+        "headings": [
+          "H1",
+          "H2",
+          "H3",
+          "H3",
+          "H3",
+          "H2",
+          "H2"
+        ],
+        "h1count": 1,
+        "missingAlt": 0,
+        "imgCount": 0,
+        "landmarks": [
+          "header",
+          "nav",
+          "main",
+          "footer"
+        ],
+        "overflow": false,
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "title": "VFE Demo — AFTER"
+      },
+      "contrast": [
+        {
+          "selector": "p.muted",
+          "fg": "#475569",
+          "bg": "#ffffff",
+          "ratio": 7.58,
+          "pass": true
+        },
+        {
+          "selector": ".lead",
+          "fg": "#475569",
+          "bg": "#ffffff",
+          "ratio": 7.58,
+          "pass": true
+        },
+        {
+          "selector": "nav a",
+          "fg": "#2563eb",
+          "bg": "#ffffff",
+          "ratio": 5.17,
+          "pass": true
+        },
+        {
+          "selector": ".btn",
+          "fg": "#ffffff",
+          "bg": "#2563eb",
+          "ratio": 5.17,
+          "pass": true
+        },
+        {
+          "selector": "footer",
+          "fg": "#475569",
+          "bg": "#ffffff",
+          "ratio": 7.58,
+          "pass": true
+        }
+      ],
+      "screenshot_viewport": "after-viewport-375x812.png",
+      "screenshot_fullpage": "after-fullpage-375x812.png",
+      "fail": []
+    }
+  },
+  "metrics": [],
+  "summary": {
+    "FAIL": 0,
+    "CHECK": 2
+  }
+}

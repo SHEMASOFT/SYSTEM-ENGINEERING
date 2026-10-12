@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0011",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "data",
+  "date": "2026-09-17",
+  "context": "MASTER-004 added a bidirectional link check to `review` that failed when a record listed a reference whose target's reverse field was populated but omitted the source. Running it against a real project produced findings (e.g. REQ-0002.related_decisions lists ADR-0001 while ADR-0001.related_requirements omits REQ-0002), even though no model rule was violated.",
+  "problem": "Should `review` enforce completeness of both sides of a relation?",
+  "options_considered": [
+    { "option": "Treat related_* lists as non-exhaustive associations; report reverse omissions as informational notes only", "pros": ["No redundancy required", "Reverse is derivable", "No false failures"], "cons": ["Misses genuine incompleteness"] },
+    { "option": "Fail when the reverse field is populated but omits a listed source", "pros": ["Strict"], "cons": ["Demands redundant documentation", "False positives on valid data", "Contradicts the MASTER-004 rule"] },
+    { "option": "Remove any reverse checking", "pros": ["Simplest"], "cons": ["Loses a useful signal"] }
+  ],
+  "decision": "related_* fields are non-exhaustive associations. `review` reports reverse-link omissions as informational LINK NOTES and does not fail on them. It still fails on dangling references, project_id mismatches, duplicate ids and schema errors.",
+  "reason": "The model does not declare the reverse lists exhaustive, and requiring both sides to be complete would demand redundant documentation of a deterministically derivable relation.",
+  "consequences": "That project's review returns PASS. Potential incompleteness is still surfaced, but never as a hard error.",
+  "affected_components": ["SCRIPTS/se_core/commands.py", "TESTS/test_review.py", "COMMANDS"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T12:30:00Z",
+  "updated_at": "2026-09-17T12:30:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

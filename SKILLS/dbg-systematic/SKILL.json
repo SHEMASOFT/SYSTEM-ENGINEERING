@@ -1,0 +1,37 @@
+{
+  "schema_version": "1",
+  "skill_id": "SK-0004",
+  "name": "dbg-systematic",
+  "version": "0.1.0",
+  "description": "Procedimiento de debugging sistemático (workflow): reproducir -> hipótesis -> aislar -> corregir -> verificar, registrando cada hipótesis y su evidencia como EVD comprobable. Aplicar cuando un fallo/incidencia requiera diagnóstico que termine en verificación demostrable en vez de arreglos a ciegas.",
+  "skill_kind": "workflow",
+  "scope": {
+    "target": "project",
+    "description": "Diagnóstico de fallos e incidencias en proyectos de SYSTEM-ENGINEERING"
+  },
+  "restrictions": [
+    "NO modifica código fuera del flujo autorizado",
+    "NO da por cerrado un fallo sin verificación que confirme la corrección",
+    "NO inventa hipótesis ni evidencia; cada paso se registra con EVD"
+  ],
+  "usage_rules": [
+    {
+      "rule": "Cada hipótesis se registra como EVD con su resultado (confirmada/refutada) antes de corregir."
+    },
+    {
+      "rule": "Preferir los commands se verify|gate|doctor para cerrar; la Skill provee el procedimiento."
+    }
+  ],
+  "capabilities": {
+    "required": ["filesystem.read", "filesystem.search", "structured.reasoning"],
+    "optional": ["documentation.lookup", "browser.snapshot", "browser.screenshot"]
+  },
+  "constraints": {
+    "write": "allowed"
+  },
+  "metadata": {
+    "checkpoint": "CP-023",
+    "adapter": "opencode",
+    "ecosystem": "ECH-002-SEED-1"
+  }
+}

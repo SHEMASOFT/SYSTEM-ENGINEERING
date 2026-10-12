@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0014",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-17",
+  "context": "MASTER-006 left a D3 ambiguity: `se update` does not enforce the TASK transition graph in CORE/tasks/task-states.json, so a task may be moved to any schema-valid status. MASTER-007 audited every status-like field to decide whether transition governance is required.",
+  "problem": "Should `se update` enforce process-state transitions, and for which record types?",
+  "options_considered": [
+    { "option": "Document statuses as guidance; enforce only where a gate depends on the outcome", "pros": ["Minimal", "No rigidity", "Matches existing gate design"], "cons": ["Intermediate workflow states are not enforced"] },
+    { "option": "Enforce the task transition graph inside `se update`", "pros": ["Matches the documented graph"], "cons": ["Single use case", "Blocks legitimate corrections such as reopening DONE tasks", "More bureaucracy"] },
+    { "option": "Introduce a generic transition engine for all record types", "pros": ["Uniform"], "cons": ["Over-engineering", "Most statuses are decisional/informational, not process"] }
+  ],
+  "decision": "Adopt a minimal-governance state policy: process states may use transition control only when a gate depends on the outcome; decisional states use authority/evidence control; epistemic states use evidence control; descriptive data uses normal mutation; the PROJECT lifecycle uses gates via `se transition`. Concretely, CORE/tasks/task-states.json is declared GUIDANCE and is not enforced by `se update`; no new transition command is introduced. Gate integrity remains outcome-based (G4 requires evidence and artifacts for DONE deliverable tasks).",
+  "reason": "The audit found no gate that relies on intermediate task states, so enforcing them would add rigidity (blocking legitimate reopen) without improving correctness, traceability or governance. Only TASK has a process graph, so a reusable engine is not justified.",
+  "consequences": "`se update` keeps accepting any schema-valid task status (BLOCKED still requires a reason). The task graph is documented as guidance. Future need for enforced process transitions requires a new ADR and at least two real use cases.",
+  "affected_components": ["CORE/tasks/task-states.json", "DOCS/core-model.md", "DOCS/validation/master-007-validation.md"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T16:00:00Z",
+  "updated_at": "2026-09-17T16:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": { "audit": "MASTER-007" }
+}

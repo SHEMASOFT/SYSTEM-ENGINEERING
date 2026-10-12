@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "project_id": "PRJ-XXXX",
+  "created_at": "ISO8601",
+  "created_by": "agent|human",
+  "lifecycle_state": "ACTIVE",
+  "blocked": false,
+  "blocked_reason": "",
+  "focus": "TASK-0001",
+  "context_level": "trace",
+  "context_snapshot": {},
+  "blocked_tasks": [],
+  "next_actions": [],
+  "authority": "owner",
+  "runtime_hint": {
+    "adapter": "opencode",
+    "capabilities_needed": [],
+    "model_preference": ""
+  },
+  "metadata": {}
+}

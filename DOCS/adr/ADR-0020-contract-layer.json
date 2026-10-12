@@ -1,0 +1,30 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0020",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-19",
+  "context": "The corpus contracts live in AGENTS/_contract/agent.schema.json, COMMANDS/_contract and DOMAINS/_contract/domain.schema.json. They are validated as-is by SCHEMAS/index.json. Their strict additionalProperties:false blocks evolution, and external references ($ref across files) are unsafe: schemas must be self-contained because the Draft202012Validator used by the reference implementation and doctor has no schema registry. CHECKPOINT-002 introduced a dedicated contract layer under SCHEMAS/ (agent-contract, command-contract, skill-contract, adapter-manifest, project-context) that encodes the canonical vocabulary (execution_intent, risk_level, capabilities, lifecycle). The 12 agents and 13 commands still carry the legacy shape, so the corpus and the contract layer have not converged.",
+  "problem": "How do we make the SCHEMAS contract layer the single source of truth for agents and commands, migrate the corpus to the canonical vocabulary without breaking existing consumers, and prevent future drift between the contract layer, the generation pipeline (ADR-0017) and tests?",
+  "options_considered": [
+    { "option": "In-place patch of the legacy schemas", "pros": ["Fast", "No new files"], "cons": ["Mixes legacy and canonical concerns", "Legacy files remain the reference", "No single canonical home", "Drift risk persists"] },
+    { "option": "Canonical SCHEMAS contract layer, additive migration and index consolidation", "pros": ["Single source of truth", "Additive migration preserves compatibility", "index.json central registry already exists", "Clear supersession path reviewed by doctor/tests"], "cons": ["Two schemas for one concept during a transition window", "Legacy file must be updated in place"] },
+    { "option": "Compose contracts with external $ref", "pros": ["DRY", "Smaller schemas"], "cons": ["Violates the self-contained rule", "Draft202012Validator has no registry for relative URI resolution", "Doctor and tests would need a ref resolver"] }
+  ],
+  "decision": "The SCHEMAS/*-contract.schema.json files are the canonical contract layer, referenced from SCHEMAS/index.json by logical name. SCHEMAS/index.json now maps \"agent\" to SCHEMAS/agent-contract.schema.json (was AGENTS/_contract/agent.schema.json). Agents were migrated additively: id AG-XXXX, version 1.0.0, role (role == name), description, capabilities[{name,description}], lifecycle{status,since}. Commands were migrated additively: id CMD-XXXX, version, description, agent, execution_intent, risk_level, permissions, arguments[]; command-contract.schema.json gained optional version and agent. AGENTS/_contract/agent.schema.json is retained and expanded to accept the canonical fields so migrated and legacy files both validate; it is marked legacy via $comment/description pointing at the canonical schema. Contract schemas remain self-contained: no external $ref is embedded. Execution-intent and risk-level vocabulary belongs to commands (and skills), not to agents (R1 in CHECKPOINT-003-AUDIT.md).",
+  "reason": "A single canonical home plus additive migration keeps every consumer working while the corpus converges; index.json already centralizes resolution and the doctor validates every registered schema; external $ref is unsafe under the self-contained rule and the registry-less validator.",
+  "consequences": "tests now validate agents and commands against the canonical contracts; any future contract change edits SCHEMAS/*-contract plus the migrated files and follows ADR-0019 (agent lifecycle) with an ADR + VERSION bump; the legacy agent schema stays as a compatibility superset until removed by a future ADR; contract files must never embed external $ref.",
+  "affected_components": ["SCHEMAS", "SCHEMAS/index.json", "AGENTS", "AGENTS/_contract", "COMMANDS", "TESTS", "MASTER SYSTEM"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-09-19T00:00:00Z",
+  "updated_at": "2026-09-19T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "MASTER-SYSTEM-CHECKPOINT-003",
+    "depends_on_adr": ["ADR-0016", "ADR-0017", "ADR-0018", "ADR-0019"]
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": "1",
+  "run_id": "RUN-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "state": "PENDING",
+  "created_at": "1970-01-01T00:00:00Z",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "author": "",
+  "intent": {
+    "objective": "",
+    "scope": "",
+    "inputs": [],
+    "acceptance": []
+  },
+  "decisions": [],
+  "execution": {
+    "tasks": [],
+    "workflows": [],
+    "skills": [],
+    "agents": [],
+    "commands": [],
+    "attempts": []
+  },
+  "runtime": {
+    "adapter": "",
+    "harness": "",
+    "model": "",
+    "provider": "",
+    "platform": "",
+    "python": "",
+    "environment": "",
+    "source": "unknown",
+    "captured_at": ""
+  },
+  "capabilities": {
+    "mcps": [],
+    "tools": [],
+    "services": []
+  },
+  "changes": {
+    "files": [],
+    "commits": [],
+    "migrations": []
+  },
+  "tests": [],
+  "evidence": [],
+  "artifacts": [],
+  "reports": [],
+  "checkpoint": {
+    "at": "",
+    "state": "",
+    "completed": [],
+    "pending": [],
+    "blocked": [],
+    "next_step": "",
+    "resume": {
+      "cwd": "",
+      "command": "",
+      "env": {}
+    }
+  },
+  "recovery": {
+    "handoff": "",
+    "notes": ""
+  },
+  "metadata": {}
+}

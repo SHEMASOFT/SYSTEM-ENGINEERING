@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "acceptance_id": "ACC-0001",
+  "project_id": "PRJ-EXAMPLE-001",
+  "scope": "What is being accepted.",
+  "criteria_refs": ["REQ-0001"],
+  "related_requirements": ["REQ-0001"],
+  "evidence": ["EVD-0001"],
+  "result": "DEFERRED",
+  "decided_by": "owner-name",
+  "authority": "owner",
+  "decided_at": "1970-01-01T00:00:00Z",
+  "gate": "G6",
+  "notes": "",
+  "created_at": "1970-01-01T00:00:00Z",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "metadata": {}
+}

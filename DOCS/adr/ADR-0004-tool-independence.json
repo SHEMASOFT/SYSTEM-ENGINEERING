@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0004",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-17",
+  "context": "OpenCode is the initial execution environment, but the Master System must remain usable by other orchestrators, CLIs and automation.",
+  "problem": "How do we integrate a specific tool without coupling the core system to it?",
+  "options_considered": [
+    { "option": "Adapter layer under INTEGRATIONS/", "pros": ["CORE and SCHEMAS stay tool-independent", "Tools can be added or replaced", "Clear boundary"], "cons": ["Slight indirection"] },
+    { "option": "Embed OpenCode concepts in CORE", "pros": ["Less code now"], "cons": ["Tool lock-in", "Violates mission requirement 15/17", "Hard to replace"] },
+    { "option": "No integration layer", "pros": ["Minimal"], "cons": ["Tool-specific logic leaks everywhere"] }
+  ],
+  "decision": "Keep CORE and SCHEMAS tool-independent; place all tool-specific integration in INTEGRATIONS/<tool>/. The reference CLI is one adapter among possible others.",
+  "reason": "It satisfies the explicit requirement that the system must not be tightly coupled to OpenCode and must remain tool-independent.",
+  "consequences": "Integration work is isolated. Future tools implement the same command/artifact/gate contracts without changing CORE.",
+  "affected_components": ["INTEGRATIONS", "CORE", "SCHEMAS", "COMMANDS"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "implementation-agent",
+  "created_at": "2026-09-17T00:00:00Z",
+  "updated_at": "2026-09-17T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {}
+}

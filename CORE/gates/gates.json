@@ -1,0 +1,134 @@
+{
+  "schema_version": "1",
+  "model_version": "0.2.0",
+  "description": "Project gates G0-G8. Each gate lists explicit, mostly automatable conditions.",
+  "gates": [
+    {
+      "id": "G0",
+      "name": "PROJECT INTAKE",
+      "from_state": "DRAFT",
+      "to_state": "DISCOVERY",
+      "description": "The project is formally registered and identifiable.",
+      "required_artifacts": ["PROJECT"],
+      "conditions": [
+        { "id": "G0.1", "description": "PROJECT manifest exists and validates against the project schema.", "check": "manifest_valid", "automated": true },
+        { "id": "G0.2", "description": "An owner is assigned.", "check": "manifest_owner", "automated": true },
+        { "id": "G0.3", "description": "At least one domain is declared.", "check": "manifest_domains", "automated": true },
+        { "id": "G0.4", "description": "Criticality is declared. 'unknown' is accepted at intake and is not treated as a fact.", "check": "manifest_criticality", "automated": true }
+      ]
+    },
+    {
+      "id": "G1",
+      "name": "DISCOVERY COMPLETE",
+      "from_state": "DISCOVERY",
+      "to_state": "PLANNING",
+      "description": "Enough context exists to define requirements, including an explicit objective (which may be recorded as UNKNOWN).",
+      "required_artifacts": ["DISCOVERY", "OBJECTIVE"],
+      "conditions": [
+        { "id": "G1.1", "description": "A discovery report exists (discovery.json) and validates against the discovery schema.", "check": "discovery_valid", "automated": true },
+        { "id": "G1.2", "description": "Unknowns are enumerated.", "check": "discovery_unknowns", "automated": true },
+        { "id": "G1.3", "description": "A scope summary is present.", "check": "discovery_scope", "automated": true },
+        { "id": "G1.4", "description": "At least one OBJECTIVE exists (it may be recorded with epistemic_status UNKNOWN).", "check": "objectives_present", "automated": true },
+        { "id": "G1.5", "description": "Discovery has been reviewed by a human or analyst.", "check": "manual_attestation", "automated": false }
+      ]
+    },
+    {
+      "id": "G2",
+      "name": "REQUIREMENTS READY",
+      "from_state": "PLANNING",
+      "to_state": "ACTIVE",
+      "description": "Requirements are defined, approved, testable and traceable to objectives.",
+      "required_artifacts": ["REQUIREMENT"],
+      "conditions": [
+        { "id": "G2.1", "description": "At least one artifact of type REQUIREMENT exists.", "check": "requirements_present", "automated": true },
+        { "id": "G2.2", "description": "Every REQUIREMENT has acceptance criteria.", "check": "requirements_acceptance_criteria", "automated": true },
+        { "id": "G2.3", "description": "Every REQUIREMENT is APPROVED.", "check": "requirements_approved", "automated": true },
+        { "id": "G2.4", "description": "Assumptions, constraints, risks and unknowns are recorded.", "check": "requirements_risks_recorded", "automated": true },
+        { "id": "G2.5", "description": "Every OBJECTIVE is covered by at least one REQUIREMENT unless its epistemic_status is UNKNOWN or ASSUMPTION.", "check": "objectives_covered", "automated": true }
+      ]
+    },
+    {
+      "id": "G3",
+      "name": "PLAN READY",
+      "from_state": "PLANNING",
+      "to_state": "ACTIVE",
+      "description": "Work is planned, traceable and unblocked.",
+      "required_artifacts": ["TASK"],
+      "conditions": [
+        { "id": "G3.1", "description": "At least one TASK exists.", "check": "tasks_present", "automated": true },
+        { "id": "G3.2", "description": "Every REQUIREMENT is covered by at least one TASK.", "check": "tasks_cover_requirements", "automated": true },
+        { "id": "G3.3", "description": "Task dependencies are acyclic.", "check": "tasks_acyclic", "automated": true },
+        { "id": "G3.4", "description": "Every TASK declares authorized_actions.", "check": "tasks_authorized_actions", "automated": true },
+        { "id": "G3.5", "description": "The plan has been reviewed.", "check": "manual_attestation", "automated": false }
+      ]
+    },
+    {
+      "id": "G4",
+      "name": "IMPLEMENTATION READY",
+      "from_state": "ACTIVE",
+      "to_state": "VERIFICATION",
+      "description": "Implementation deliverables are complete and ready to verify.",
+      "required_artifacts": ["TASK", "ARTIFACT"],
+      "conditions": [
+        { "id": "G4.1", "description": "No TASK is IN_PROGRESS, PENDING or READY.", "check": "tasks_settled", "automated": true },
+        { "id": "G4.2", "description": "No TASK is BLOCKED.", "check": "tasks_not_blocked", "automated": true },
+        { "id": "G4.3", "description": "Every DONE implementation TASK has at least one EVIDENCE.", "check": "tasks_have_evidence", "automated": true },
+        { "id": "G4.4", "description": "Every DONE deliverable TASK produced at least one ARTIFACT.", "check": "tasks_have_artifacts", "automated": true }
+      ]
+    },
+    {
+      "id": "G5",
+      "name": "VERIFICATION PASSED",
+      "from_state": "VERIFICATION",
+      "to_state": "ACCEPTANCE",
+      "description": "Requirements are verified with evidence.",
+      "required_artifacts": ["EVIDENCE"],
+      "conditions": [
+        { "id": "G5.1", "description": "Every REQUIREMENT is linked to at least one EVIDENCE.", "check": "requirements_have_evidence", "automated": true },
+        { "id": "G5.2", "description": "No EVIDENCE has result FAIL.", "check": "evidence_no_fail", "automated": true },
+        { "id": "G5.3", "description": "Verification has been reviewed.", "check": "manual_attestation", "automated": false }
+      ]
+    },
+    {
+      "id": "G6",
+      "name": "ACCEPTANCE",
+      "from_state": "ACCEPTANCE",
+      "to_state": "RELEASED",
+      "description": "The owner accepts the verified result.",
+      "required_artifacts": ["EVIDENCE", "ACCEPTANCE"],
+      "conditions": [
+        { "id": "G6.1", "description": "User acceptance evidence (type uat) with result PASS exists.", "check": "acceptance_uat", "automated": true },
+        { "id": "G6.2", "description": "An ACCEPTANCE record with result ACCEPTED exists (created by a human authority, never auto-approved).", "check": "acceptance_record", "automated": true },
+        { "id": "G6.3", "description": "Acceptance is approved by the owner.", "check": "manual_attestation", "automated": false }
+      ]
+    },
+    {
+      "id": "G7",
+      "name": "RELEASE",
+      "from_state": "ACCEPTANCE",
+      "to_state": "RELEASED",
+      "description": "A release is defined, approved and reversible.",
+      "required_artifacts": ["RELEASE"],
+      "conditions": [
+        { "id": "G7.1", "description": "A RELEASE artifact exists.", "check": "release_present", "automated": true },
+        { "id": "G7.2", "description": "The RELEASE status is APPROVED.", "check": "release_approved", "automated": true },
+        { "id": "G7.3", "description": "A rollback procedure is defined.", "check": "release_rollback", "automated": true },
+        { "id": "G7.4", "description": "A deployment method is defined.", "check": "release_deployment_method", "automated": true },
+        { "id": "G7.5", "description": "The RELEASE links to EVIDENCE.", "check": "release_evidence", "automated": true }
+      ]
+    },
+    {
+      "id": "G8",
+      "name": "OPERATION",
+      "from_state": "RELEASED",
+      "to_state": "OPERATING",
+      "description": "The system can be operated and monitored.",
+      "required_artifacts": ["RELEASE"],
+      "conditions": [
+        { "id": "G8.1", "description": "An operations document exists (docs/operations.md).", "check": "operations_doc", "automated": true },
+        { "id": "G8.2", "description": "Known issues are tracked on the release.", "check": "release_known_issues", "automated": true },
+        { "id": "G8.3", "description": "Monitoring/alerting is defined.", "check": "manual_attestation", "automated": false }
+      ]
+    }
+  ]
+}

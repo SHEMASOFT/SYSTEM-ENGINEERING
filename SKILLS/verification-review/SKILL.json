@@ -1,0 +1,32 @@
+{
+  "schema_version": "1",
+  "skill_id": "SK-0002",
+  "name": "verification-review",
+  "version": "0.1.0",
+  "description": "Revisar una implementación o resultado contra criterios definidos y evidencia (CRITERIA, EVIDENCE, VALIDATION, GAPS, RISKS, STATUS) y decidir PASS/PARTIAL/BLOCKED/FAIL distinguiendo 'no se encontró evidencia' de 'se verificó que no existe'.",
+  "scope": {
+    "target": "project",
+    "description": "Revisión de implementaciones y resultados de SYSTEM-ENGINEERING"
+  },
+  "restrictions": [
+    "NO modifica código",
+    "NO inventa resultados ni evidencia",
+    "No usar la conclusión final como única fuente de evidencia"
+  ],
+  "usage_rules": [
+    {
+      "rule": "Cada criterio debe etiquetarse VERIFIED / NO_EVIDENCE / ABSENT; el STATUS se deriva de las etiquetas."
+    }
+  ],
+  "capabilities": {
+    "required": ["filesystem.read", "filesystem.search"],
+    "optional": ["structured.reasoning", "documentation.lookup"]
+  },
+  "constraints": {
+    "write": "forbidden"
+  },
+  "metadata": {
+    "checkpoint": "CP-017",
+    "adapter": "opencode"
+  }
+}

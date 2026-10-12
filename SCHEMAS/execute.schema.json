@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/execute.schema.json",
+  "title": "EXECUTE",
+  "description": "Execution result envelope for AUTO-04.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "operation", "status", "project_id", "executed", "failed", "skipped", "results", "execution_receipts", "observation"],
+  "properties": {
+    "contract": { "type": "string", "const": "se.execute/1" },
+    "operation": { "type": "string", "const": "execute" },
+    "status": { "enum": ["PASS", "FAIL"] },
+    "project_id": { "type": "string" },
+    "executed": { "type": "integer", "minimum": 0 },
+    "failed": { "type": "integer", "minimum": 0 },
+    "skipped": { "type": "integer", "minimum": 0 },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "task_id": { "type": "string" },
+          "status": { "type": "string" },
+          "error": { "type": ["string", "null"] },
+          "skipped": { "type": "boolean" },
+          "evidence": { "type": ["object", "null"] },
+          "artifact": { "type": ["object", "null"] },
+          "receipt": { "type": ["object", "null"] }
+        },
+        "required": ["success", "task_id"]
+      }
+    },
+    "execution_receipts": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "observation": {
+      "type": "object",
+      "required": ["observed_at", "tool", "source_root"],
+      "properties": {
+        "observed_at": { "type": "string", "format": "date-time" },
+        "tool": { "type": "string" },
+        "source_root": { "type": "string" }
+      }
+    }
+  }
+}

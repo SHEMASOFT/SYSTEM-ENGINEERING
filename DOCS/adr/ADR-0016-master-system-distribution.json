@@ -1,0 +1,29 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0016",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "process",
+  "date": "2026-09-19",
+  "context": "The term 'Master System' is ambiguous: it is used as the product name (master_system_version, DOCS) and simultaneously exists as an empty folder MASTER SYSTEM/. The roadmap closed the decision that SYSTEM-ENGINEERING is the master source and MASTER SYSTEM is the versioned distribution layer. The reference implementation (SCRIPTS/se.py) and projects must know which distribution version they conform to.",
+  "problem": "How should the versioned distribution layer be structured so projects can pin a stable Master System version without absorbing the source, and without ambiguity between the product name and the folder?",
+  "options_considered": [
+    { "option": "MASTER SYSTEM as a pinned distribution layer", "pros": ["Separates source (mutable) from installed artifact (pinned)", "Projects fix PROJECT.json.master_system_version against a frozen snapshot", "Can bundle adapters and conformance evidence per release", "Resolves the naming ambiguity"], "cons": ["Adds a layer that must be generated/published", "Needs a publish step to keep it in sync with the source"] },
+    { "option": "Remove the folder, version only in SYSTEM.json/VERSION", "pros": ["Fewer layers"], "cons": ["Loses the source-vs-installed distinction", "No canonical home for adapters/conformance per release"] },
+    { "option": "Per-project installed copy of MASTER SYSTEM", "pros": ["Maximum isolation"], "cons": ["Duplicates content per project", "Drift risk across copies", "Violates the no-duplication principle"] }
+  ],
+  "decision": "Treat MASTER SYSTEM/ as the pinned distribution layer. It contains a MANIFEST.json (schema_version, master_system_version, source reference, adapter bundles, conformance state), VERSION, CHANGELOG.md, adapters/, and conformance/. The source of truth remains SYSTEM-ENGINEERING; the distribution is a frozen, versioned snapshot consumed by projects via se install.",
+  "reason": "It resolves the naming/product ambiguity, gives projects a stable version anchor (PROJECT.json.master_system_version), co-locates adapter bundles and conformance evidence per release, and preserves a single source of truth.",
+  "consequences": "MASTER SYSTEM must be (re)generated on release via the SE engine (future se publish). Projects pin master_system_version; se doctor alerts on mismatch. No project copies CORE/SCHEMAS into itself.",
+  "affected_components": ["MASTER SYSTEM", "SCRIPTS", "DOCS/versioning.md", "DOCS/VERSIONING_STRATEGY.md"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-09-19T00:00:00Z",
+  "updated_at": "2026-09-19T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "MASTER-SYSTEM-CHECKPOINT-001"
+  }
+}

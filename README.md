@@ -1,0 +1,178 @@
+# SYSTEM ENGINEERING
+
+A reusable, domain-agnostic **project operating system for AI-assisted work**.
+
+SYSTEM ENGINEERING (SE) gives an AI coding runtime structure instead of improvisation:
+a lifecycle, gates, roles, commands and skills that turn ad-hoc prompting into a
+traceable, repeatable process — for software, data, cloud, security, media, design
+or any other kind of project.
+
+This repository **is the system itself**. It creates and operates other projects
+without being coupled to them.
+
+> Version 0.10.0 — Status: **foundation / development**. Smallest system capable of
+> becoming the larger one; not yet validated in production.
+
+---
+
+## Why SE
+
+| Problem | What SE does |
+|---|---|
+| Long sessions burn tokens re-explaining context | A **coordinator** orchestrates and delegates to specialized **subagents**; each runs in its own fresh context and returns only its result |
+| The model forgets decisions between sessions | **Engram** memory persists decisions, fixes and discoveries across sessions |
+| Everything runs in one giant prompt | Roles, **commands** and **skills** are loaded on demand, not all at once |
+| "It works on my machine" process | A **lifecycle with gates** makes every transition explicit, gated and recorded |
+| Output nobody can audit | Evidence-based workflow: plans, artifacts and reports instead of claims |
+
+In short: SE makes AI work **cheaper (tokens), clearer and auditable**.
+
+---
+
+## Requirements
+
+| Dependency | Needed for |
+|---|---|
+| Python 3.10+ | The reference CLI (`SCRIPTS/se.py`) |
+| `jsonschema` (`pip install jsonschema`) | Schema validation; `se doctor` fails without it |
+| git | Version control checks and project isolation |
+| [OpenCode](https://opencode.ai) *(optional)* | Running the generated agent layer |
+| Node.js *(optional)* | MCP servers that use `npx` |
+
+---
+
+## Quickstart
+
+```bash
+git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git
+cd SYSTEM-ENGINEERING
+
+pip install jsonschema
+
+python SCRIPTS/se.py doctor      # health check — must report PASS
+python SCRIPTS/se.py validate    # schemas, agents, domains — must report PASS
+```
+
+On Windows use `python SCRIPTS\se.py ...` (not `python3`).
+
+Optional: start the read-only web console over the system:
+
+```bash
+cd SE-CONSOLE
+python -m console.server         # http://127.0.0.1:8777
+```
+
+---
+
+## Use it with OpenCode
+
+Generate the agent layer from the canonical contracts:
+
+```bash
+python SCRIPTS/se.py adapter opencode
+```
+
+This writes `.opencode/` with **12 agents, 24 commands and 6 skills**, all generated —
+never edit them by hand, regenerate instead.
+
+- **`coordinator`** is the primary agent: it orchestrates the lifecycle and routes work
+  to the other roles (`planner`, `implementer`, `tester`, `reviewer`, ...), each of
+  which runs as a subagent.
+- Commands (for example `/plan`, `/implement`, `/review`) are reusable prompt templates.
+- Skills (for example `impl-tdd`, `rev-adversarial`) are loaded only when relevant.
+
+To make new sessions start as the coordinator, add to `opencode.jsonc`:
+
+```jsonc
+{
+  "default_agent": "coordinator",
+}
+```
+
+MCP servers are optional; none is required by SE. See
+[`DOCS/reference/installation.md`](DOCS/reference/installation.md) for registration
+and lifecycle commands (`se install`, `se sync`, `se update`, `se uninstall`).
+
+---
+
+## Create and drive a project
+
+```bash
+# 1. Bootstrap a managed project
+python SCRIPTS/se.py init --dir PROJECTS/MyApp --name "MyApp" --owner "me" --domains software
+
+# 2. Move it through its lifecycle (intake -> release)
+python SCRIPTS/se.py transition --project PROJECTS/MyApp --to requirements
+python SCRIPTS/se.py gate       --project PROJECTS/MyApp --evaluate G1
+python SCRIPTS/se.py review     --project PROJECTS/MyApp
+python SCRIPTS/se.py release    --project PROJECTS/MyApp
+
+# 3. Run multi-agent workflows (DAG + gates)
+python SCRIPTS/se.py orchestrate create --project PROJECTS/MyApp \
+  --name "Feature Development" --nodes nodes.json --edges edges.json --gates gates.json
+python SCRIPTS/se.py orchestrate execute --project PROJECTS/MyApp --workflow WF-0001 --dry-run
+```
+
+`PROJECTS/` is intentionally excluded from version control: each project keeps its
+own repository and history.
+
+---
+
+## Repository map
+
+| Path | Purpose |
+|---|---|
+| `CORE/` | Lifecycle, gates, task states, artifact and permission models |
+| `DOMAINS/` | Domain-pack contract and initial domain definitions |
+| `AGENTS/` | Agent contract and the 12 agent definitions |
+| `COMMANDS/` | Command contracts (rendered into runtime commands) |
+| `SKILLS/` | LLM-first skills (Agent Skills format) |
+| `SCHEMAS/` | Machine-readable JSON Schemas for core artifacts |
+| `TEMPLATES/` | Fill-in templates for artifacts, projects and MCP servers |
+| `SCRIPTS/` | Reference Python CLI (`se.py`, `se_core/`) |
+| `POLICIES/` | Human-readable policies (permissions, evidence, release, security) |
+| `INTEGRATIONS/` | Runtime adapters (OpenCode today; Codex and Claude Code planned) |
+| `SE-CONSOLE/` | Local-first, read-only web console |
+| `SE-INSTALLER/` | Unified installer for SE + MCPs + runtimes (workspace) |
+| `DOCS/` | Architecture, references and working records |
+| `TESTS/` | Hermetic tests for the Master System itself |
+
+---
+
+## Multi-runtime
+
+OpenCode is the fully supported runtime today. The architecture keeps runtime
+specifics out of `CORE/` and `SCHEMAS/`:
+
+- adapters live in `INTEGRATIONS/` and are generated from contracts;
+- MCP templates use portable placeholders, never absolute host paths;
+- Codex and Claude Code support is in progress (see `SE-INSTALLER/`).
+
+---
+
+## Design principles
+
+SIMPLE · MODULAR · TRACEABLE · VERIFIABLE · EXTENSIBLE · DOMAIN-AGNOSTIC ·
+HUMAN-CONTROLLED · AUTOMATION-FRIENDLY · TOOL-INDEPENDENT.
+
+---
+
+## Documentation
+
+Start at [`DOCS/reference/architecture.md`](DOCS/reference/architecture.md).
+See [`DOCS/README.md`](DOCS/README.md) for the full index.
+
+Key references:
+
+- [`installation.md`](DOCS/reference/installation.md) — obtain, install, run, update
+- [`core-model.md`](DOCS/reference/core-model.md) — lifecycle, gates, tasks, artifacts
+- [`commands.md`](DOCS/reference/commands.md) — the command surface
+- [`workflows.md`](DOCS/reference/workflows.md) — multi-agent DAG execution
+- [`lifecycle.md`](DOCS/reference/lifecycle.md) — install/sync/update/uninstall lifecycle
+- [`opencode-adapter.md`](DOCS/reference/opencode-adapter.md) — how the agent layer is generated
+
+---
+
+## License
+
+Not yet declared. Add a license before redistributing or reusing this code.
