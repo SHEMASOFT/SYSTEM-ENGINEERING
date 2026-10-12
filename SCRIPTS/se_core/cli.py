@@ -272,6 +272,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_opencode.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
     p_opencode.set_defaults(func=commands.cmd_adapter_opencode)
 
+    # coverage
+    p_coverage = sub.add_parser("coverage", help="Document coverage baseline (governed)")
+    p_coverage_sub = p_coverage.add_subparsers(dest="coverage_command", required=True)
+    p_rebase = p_coverage_sub.add_parser(
+        "rebase",
+        help="Rebase the coverage baseline after published docs change (journalled)",
+    )
+    p_rebase.add_argument(
+        "--reason", required=True,
+        help="Why the baseline changes; recorded in the ledger (a rebase is never anonymous)",
+    )
+    p_rebase.add_argument(
+        "--by", default="operator", help="Actor recorded in the ledger (default: operator)",
+    )
+    p_rebase.set_defaults(func=commands.cmd_coverage_rebase)
+
     # install
     p_install = sub.add_parser(
         "install",

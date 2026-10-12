@@ -59,6 +59,8 @@ REQUIRED_FILES = [
 ALLOWED_ROOT_FILES = {
     ".gitignore",
     ".gitattributes",           # LF normalization: content hashes must be stable on every platform
+    "LICENSE",                  # MIT license terms
+    "CONTRIBUTING.md",          # contribution guide enforced by CI
     "README.md",
     "SYSTEM.json",
     "VERSION",
@@ -69,6 +71,7 @@ ALLOWED_ROOT_FILES = {
 
 ALLOWED_ROOT_DIRS = set(REQUIRED_DIRS) | {
     ".opencode",                # deployed adapter, audited by check_adapter
+    ".github",                  # issue/PR templates and CI workflows
 }
 
 # Runtime noise: transient by definition, already covered by .gitignore, and not a

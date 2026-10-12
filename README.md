@@ -173,6 +173,13 @@ Key references:
 
 ---
 
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). CI runs `se doctor`, `se validate` and
+the full test suite on Linux and Windows for every pull request.
+
+---
+
 ## License
 
-Not yet declared. Add a license before redistributing or reusing this code.
+MIT — see [`LICENSE`](LICENSE).

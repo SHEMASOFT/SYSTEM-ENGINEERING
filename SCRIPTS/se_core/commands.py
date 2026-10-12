@@ -3269,6 +3269,40 @@ def cmd_adapter_opencode(args) -> int:
     return 0
 
 
+def cmd_coverage_rebase(args) -> int:
+    """Rebase the coverage baseline through the governed, journalled path.
+
+    Publishing a documentation change under ``DOCS/reference/`` makes
+    ``se validate`` report the document as replaced until the baseline records
+    the new hash. This command is that record: it refuses to run without a
+    reason, appends one ledger line, and leaves the baseline consistent.
+    """
+    root = repo_root()
+    reason = str(getattr(args, "reason", "") or "").strip()
+    if not reason:
+        print("FAIL: --reason is required; a rebase is never anonymous")
+        return 2
+    actor = str(getattr(args, "by", "") or "operator").strip() or "operator"
+
+    try:
+        result = _record_coverage_baseline_rebase(root, actor, reason)
+    except Exception as exc:  # noqa: BLE001 - reported, never silent
+        print(f"FAIL: rebase raised: {exc}")
+        return 1
+
+    if result.get("error"):
+        print(f"FAIL: {result['error']}")
+        return 2
+    if not result.get("written"):
+        print("No changes: the baseline already matches the tree (nothing written).")
+        return 0
+
+    changes = result.get("changes") or []
+    print(f"Baseline rebased: {len(changes)} document change(s) recorded.")
+    print(f"Ledger: {result.get('path')}")
+    return 0
+
+
 def cmd_capabilities(args) -> int:
     from .schemas import load_schemas as _load_schemas
     from .capabilities import known_providers
