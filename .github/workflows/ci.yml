@@ -33,4 +33,31 @@ jobs:
         run: python SCRIPTS/se.py validate
 
       - name: Tests
-        run: python TESTS/run_tests.py
+        shell: bash
+        run: |
+          set +e
+          python TESTS/run_tests.py 2>&1 | tee tests.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            failures=$(grep -E "^(FAIL|ERROR):" tests.log | head -10)
+            if [ -n "$failures" ]; then
+              while IFS= read -r line; do echo "::error::$line"; done <<< "$failures"
+              {
+                echo "### Tests failed"
+                echo '```'
+                echo "$failures"
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::test run failed without a FAIL/ERROR line; see the job log"
+            fi
+          fi
+          exit "$status"
+
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-log-${{ matrix.os }}
+          path: tests.log
+          if-no-files-found: ignore
