@@ -51,6 +51,11 @@ jobs:
             else
               echo "::error::test run failed without a FAIL/ERROR line; see the job log"
             fi
+            # One annotation carrying the failing test's traceback tail, so the
+            # reason is readable from the public check-run annotations API even
+            # though GitHub hides the job log behind a login.
+            detail=$(grep -A 12 -E "^(FAIL|ERROR):" tests.log | head -40 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=Failing test detail::$detail"
           fi
           exit "$status"
 
