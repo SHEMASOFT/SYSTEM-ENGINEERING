@@ -120,6 +120,32 @@ and lifecycle commands (`se install`, `se sync`, `se update`, `se uninstall`).
 
 ---
 
+## Persistent memory
+
+SE works without memory, but it is built to use one.
+**[Engram](https://github.com/Gentleman-Programming/engram)** is an optional,
+**third-party** MCP server that persists decisions, fixes and discoveries **across
+sessions**, so a new session starts from what the last one settled instead of
+re-deriving it.
+
+- **Not bundled.** SE neither ships Engram nor pins its executable path. Install it
+  (`brew install gentleman-programming/tap/engram`,
+  `go install github.com/Gentleman-Programming/engram/v3/cmd/engram@latest`, or a
+  prebuilt binary) and register it: `engram setup opencode`, or
+  `python SCRIPTS/se.py install --with engram`.
+- **A convention, not a black box.** While it is registered, the agent saves each
+  decision, bug fix, discovery and convention as it happens (`mem_save`), reads prior
+  work before starting (`mem_search` / `mem_context`) and closes every session with a
+  summary (`mem_session_summary`) — memory is bookkeeping, never the user-facing answer.
+- **Advisory, never a gate.** No gate passes or fails because of memory. The auditable
+  record stays in the project's artifacts, evidence and receipts; memory only makes the
+  *next* session cheaper.
+
+Full install and registration steps:
+[`installation.md` §Engram (persistent memory)](DOCS/reference/installation.md).
+
+---
+
 ## Projects
 
 Bootstrap a managed project from scratch:
