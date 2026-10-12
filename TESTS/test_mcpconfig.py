@@ -184,6 +184,109 @@ class RemoveServerTextTests(unittest.TestCase):
         )
 
 
+class AddServerTextTests(unittest.TestCase):
+    SETUP = (
+        "{\n"
+        '  "mcp": {\n'
+        '    "servers": {\n'
+        '      "keep": {\n'
+        '        "type": "local",\n'
+        '        "command": ["x"]\n'
+        "      }\n"
+        "    }\n"
+        "  },\n"
+        "  // trailing comment\n"
+        "}\n"
+    )
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.path = self.root / "opencode.jsonc"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write(self, text):
+        self.path.write_text(text, encoding="utf-8")
+
+    def test_updating_existing_server_keeps_indentation(self):
+        # Regression: the update path used to splice the json.dumps output with
+        # no re-indentation, deforming the config on every `se install`.
+        self._write(self.SETUP)
+        result = mcpconfig.add_server_text(
+            self.path, "keep", {"type": "local", "command": ["y", "--flag"]}, target=self.root
+        )
+        self.assertEqual(result["errors"], [])
+        self.assertTrue(result["updated"])
+        self.assertEqual(
+            self.path.read_text(encoding="utf-8"),
+            "{\n"
+            '  "mcp": {\n'
+            '    "servers": {\n'
+            '      "keep": {\n'
+            '        "type": "local",\n'
+            '        "command": [\n'
+            '          "y",\n'
+            '          "--flag"\n'
+            "        ]\n"
+            "      }\n"
+            "    }\n"
+            "  },\n"
+            "  // trailing comment\n"
+            "}\n",
+        )
+
+    def test_adds_new_server_with_matching_indentation(self):
+        self._write(self.SETUP)
+        result = mcpconfig.add_server_text(
+            self.path, "added", {"type": "local", "command": ["z"]}, target=self.root
+        )
+        self.assertEqual(result["errors"], [])
+        self.assertTrue(result["added"])
+        self.assertEqual(
+            self.path.read_text(encoding="utf-8"),
+            "{\n"
+            '  "mcp": {\n'
+            '    "servers": {\n'
+            '      "keep": {\n'
+            '        "type": "local",\n'
+            '        "command": ["x"]\n'
+            "      },\n"
+            '      "added": {\n'
+            '        "type": "local",\n'
+            '        "command": [\n'
+            '          "z"\n'
+            "        ]\n"
+            "      }\n"
+            "    }\n"
+            "  },\n"
+            "  // trailing comment\n"
+            "}\n",
+        )
+
+    def test_creates_minimal_config_when_absent(self):
+        result = mcpconfig.add_server_text(self.path, "srv", {"type": "local"}, target=self.root)
+        self.assertEqual(result["errors"], [])
+        self.assertTrue(result["added"])
+        self.assertEqual(mcpconfig.read_config(self.path)["mcp"]["servers"]["srv"], {"type": "local"})
+
+    def test_unparseable_file_fails_closed(self):
+        self._write("{ this is not json")
+        result = mcpconfig.add_server_text(self.path, "srv", {"type": "local"}, target=self.root)
+        self.assertTrue(result["errors"])
+        self.assertFalse(result["changed"])
+        self.assertEqual(self.path.read_text(encoding="utf-8"), "{ this is not json")
+
+    def test_other_servers_untouched(self):
+        self._write(self.SETUP)
+        mcpconfig.add_server_text(
+            self.path, "added", {"type": "local", "command": ["z"]}, target=self.root
+        )
+        parsed = mcpconfig.read_config(self.path)
+        self.assertEqual(parsed["mcp"]["servers"]["keep"], {"type": "local", "command": ["x"]})
+
+
 class BackupConfigTests(unittest.TestCase):
     def test_backup_config_with_deterministic_timestamp(self):
         with tempfile.TemporaryDirectory() as tmp:

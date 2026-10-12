@@ -94,7 +94,7 @@ def get_all_components() -> list:
         requires=["se_core", "node"],
         supported_os=[OSType.WINDOWS, OSType.MACOS, OSType.LINUX],
         install_method="npx",
-        verification_command="npx -y @context7/mcp-server --help",
+        verification_command="npx -y @upstash/context7-mcp --help",
         homepage="https://context7.com",
         docs_url="https://context7.com/docs",
         recommended=True,

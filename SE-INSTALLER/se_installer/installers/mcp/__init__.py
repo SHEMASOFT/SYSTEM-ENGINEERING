@@ -17,7 +17,7 @@ class Context7Installer(BaseInstaller):
         try:
             import subprocess
             result = subprocess.run(
-                ["npx", "-y", "@context7/mcp-server", "--version"],
+                ["npx", "-y", "@upstash/context7-mcp", "--version"],
                 capture_output=True, text=True, timeout=30
             )
             if result.returncode == 0:
@@ -40,7 +40,7 @@ class Context7Installer(BaseInstaller):
         # Test that the package can be fetched
         import subprocess
         result = subprocess.run(
-            ["npx", "-y", "@context7/mcp-server", "--help"],
+            ["npx", "-y", "@upstash/context7-mcp", "--help"],
             capture_output=True, text=True, timeout=60
         )
         

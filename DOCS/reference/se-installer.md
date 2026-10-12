@@ -128,7 +128,7 @@ Each MCP declares:
 
 | MCP | Transport | Command | Key Functions | Requires |
 |-----|-----------|---------|---------------|----------|
-| Context7 | stdio | `npx -y @context7/mcp-server` | `resolve-library-id`, `query-docs` | Node, `CONTEXT7_API_KEY` |
+| Context7 | stdio | `npx -y @upstash/context7-mcp` | `resolve-library-id`, `query-docs` | Node, `CONTEXT7_API_KEY` |
 | Filesystem | stdio | `npx -y @modelcontextprotocol/server-filesystem <root>` | `read_file`, `write_file`, `list_directory`, `search_files` | Node |
 | Playwright | stdio | `npx -y @playwright/mcp` | `navigate`, `click`, `screenshot`, `fill_form`, `evaluate` | Node, Chromium |
 | Firecrawl | stdio | `npx -y @firecrawl/mcp` | `scrape`, `crawl`, `search` | Node, `FIRECRAWL_API_KEY` |
@@ -230,7 +230,7 @@ Output (`.opencode/config.jsonc`):
         "name": "Context7",
         "type": "local",
         "command": "npx",
-        "args": ["-y", "@context7/mcp-server"],
+        "args": ["-y", "@upstash/context7-mcp"],
         "environment": { "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}" }
       },
       "Filesystem": {

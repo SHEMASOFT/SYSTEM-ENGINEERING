@@ -119,7 +119,7 @@ class TestMCPRegistry:
         server = config["mcp"]["servers"]["Context7"]
         assert server["command"] == "npx"
         assert "-y" in server["args"]
-        assert "@context7/mcp-server" in server["args"]
+        assert "@upstash/context7-mcp" in server["args"]
 
     def test_env_vars_collected(self):
         registry = MCPRegistry()
