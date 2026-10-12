@@ -72,7 +72,7 @@ Generate the agent layer from the canonical contracts:
 python SCRIPTS/se.py adapter opencode
 ```
 
-This writes `.opencode/` with **12 agents, 24 commands and 6 skills**, all generated —
+This writes `.opencode/` with **12 agents, 24 commands and 7 skills**, all generated —
 never edit them by hand, regenerate instead.
 
 - **`coordinator`** is the primary agent: it orchestrates the lifecycle and routes work
@@ -115,11 +115,24 @@ guess). A project can declare an **optional profile** in `PROJECT.json`
 }
 ```
 
-The profile is **descriptive today**: it does not change the lifecycle, gates or
-evidence rules. It is the input the agents read to pick the work mode (below).
+The declared profile is **enforced**: `se validate --project` refuses a project whose
+scale/risk/criticality demand an approved SDD or a passing review receipt and it does
+not have them (see [Work modes](#work-modes)).
 
-> Adopting an **existing / advanced project** is refused by `se init` by design —
-> it requires a dedicated integration path that is not implemented yet (Roadmap).
+To bring an **existing / advanced project** under the SE lifecycle — one that already
+has its own `.opencode/`, `AGENTS.md`, `opencode.json` or `SDD/` and that `se init`
+refuses by design — use `se adopt`:
+
+```bash
+python SCRIPTS/se.py adopt PROJECTS/LegacyApp --owner "me" \
+  --scale large --risk high --criticality high
+```
+
+Adoption is **additive**: it writes `PROJECT.json` (recording `metadata.adoption` and a
+`profiles.work` starting at `brownfield`) and the empty workspace directories, and
+leaves every file the project already had byte-for-byte untouched. Installing a runtime
+adapter stays a separate, explicit step (`se adapter ...`). Use `--dry-run` to plan
+without writing.
 
 ## Work modes
 
@@ -132,7 +145,11 @@ The agent picks the mode **from the project**, not from habit:
 | **receipt** | Evidence-review layer: binds a verdict to the exact change candidate (`se new rdd` = candidate + evidence + verdict). |
 
 See [`DOCS/reference/work-modes.md`](DOCS/reference/work-modes.md) for the
-selection rule (profile → mode).
+selection rule (profile → mode). The rule is **executable, not advice**: the floor
+lives in [`CORE/policies/ceremony.json`](CORE/policies/ceremony.json),
+`se ceremony --project <dir>` shows the effective requirements, and
+`se validate --project` enforces them. It ships as the canonical skill
+`work-mode-selection` (SK-0007), so the runtime agent loads it on demand.
 
 ## Create and drive a project
 
@@ -220,14 +237,21 @@ Key references:
 
 ## Roadmap
 
-- **Adopt existing / advanced projects** — a dedicated integration path; today
-  `se init` refuses them by design.
-- **Per-size flows** — make `profiles.work.scale` drive gate depth and ceremony,
-  not just describe the project.
-- **Work-mode skill** — ship the selection rule as a canonical skill plus a
-  coordinator capability, so the runtime agent loads it automatically.
-- **Receipts by default** — agents emit an RDD review receipt for medium and
-  large changes.
+Shipped:
+
+- **Adopt existing / advanced projects** → `se adopt` (additive; never overwrites
+  project artifacts).
+- **Per-size flows** → `profiles.work.scale` (with risk and criticality) drives
+  `se validate --project` through `CORE/policies/ceremony.json`.
+- **Work-mode skill** → `SKILLS/work-mode-selection` (SK-0007) plus `se ceremony`.
+- **Receipts by default** → the ceremony floor requires a passing RDD for
+  medium/large (and high-risk / critical) work.
+
+Still open:
+
+- **Coordinator capability** — expose work-mode selection as a first-class coordinator
+  capability in the agent contracts, so the runtime advertises it.
+- **Installer UX** — one-command install for SE + MCP servers + runtimes.
 
 ---
 

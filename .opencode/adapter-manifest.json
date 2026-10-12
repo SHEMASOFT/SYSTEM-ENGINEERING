@@ -132,19 +132,20 @@
       "mcp/context7.json": "d9370f86d987473a8d88996731b525df570430837a5e44e57a40c3dfe3ade55b",
       "mcp/engram.json": "5f227d47876daa0bf9dc7c422c61d3b1a9c16e59add16b31b483f1a2817690b0",
       "mcp/filesystem.json": "e36993b6f3ddcfb59706ef82d3142a555551636b26c697549586962bfc9415e7",
-      "mcp/skill-server.json": "aedb6a5acfe16199ed36a524d22b794623a84b404405a226668dc9a1307b6899",
+      "mcp/skill-server.json": "6e1af8e3a4c691b266869f2ecf26a1293fa88d93fb556ea1e6ee94548106d06f",
       "skills/checkpoint-release/SKILL.md": "d9bc2407ad519a8f84b05a30a4fe5f77660a8856babd2aabe516ccca053ae2fa",
       "skills/dbg-systematic/SKILL.md": "742e8ce2bf48e276efa7361f2491ed0e864763ae74b059f4afdebd771c4cdef5",
       "skills/impl-tdd/SKILL.md": "a4d39e50c9f05a7dab081df0ccff9737b6b86d6d5aad424700b4cf2f3d25d8c8",
       "skills/rev-adversarial/SKILL.md": "89472405ec3d46da3dacce177455fc7f5155688b1229ec77fece8a3b80907b8e",
       "skills/verification-review/SKILL.md": "1cdcfd6fadf9b910a19b550f081437abbf813842937a59171644e25e0fdcdc5e",
-      "skills/visual-frontend-engineering/SKILL.md": "7307cc0fc5fc1db055f47e1b8407f3f0a53e0351a24e82959730eefb9c918094"
+      "skills/visual-frontend-engineering/SKILL.md": "7307cc0fc5fc1db055f47e1b8407f3f0a53e0351a24e82959730eefb9c918094",
+      "skills/work-mode-selection/SKILL.md": "de534d5a119ceb5ad972756c501dac347963765dba391e3a499fd05f72116a9e"
     },
     "counts": {
       "agents": 12,
       "commands": 24,
       "policies": 9,
-      "skills": 6
+      "skills": 7
     },
     "generator": "se_core.opencode"
   },
@@ -403,6 +404,12 @@
         "type": "skill"
       },
       {
+        "description": "Skill work-mode-selection",
+        "format": "markdown",
+        "path": ".opencode/skills/work-mode-selection/SKILL.md",
+        "type": "skill"
+      },
+      {
         "description": "OpenCode adapter output manifest",
         "format": "json",
         "path": ".opencode/adapter-manifest.json",
@@ -486,7 +493,8 @@
       "skills/impl-tdd/SKILL.md",
       "skills/rev-adversarial/SKILL.md",
       "skills/verification-review/SKILL.md",
-      "skills/visual-frontend-engineering/SKILL.md"
+      "skills/visual-frontend-engineering/SKILL.md",
+      "skills/work-mode-selection/SKILL.md"
     ],
     "validation": {
       "enabled": true,

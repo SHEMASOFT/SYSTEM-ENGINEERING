@@ -64,10 +64,26 @@ alternatives + evaluation  architecture + interfaces    candidate + evidence
 Both `spec` and `receipt` are selected per **change**, not per project: the same
 project can run organic for a fix and spec + receipt for a contract change.
 
+## Enforcement
+
+The rule is executable, not just prose:
+
+- `CORE/policies/ceremony.json` is the machine-readable floor. It maps the declared
+  `profiles.work` scale/risk and the project `criticality` to the requirements
+  (`spec_required`, `receipt_required`).
+- `se ceremony --project <dir>` prints the **effective** requirements for a project and
+  whether they are met (`--json` emits a `se.report/1` envelope).
+- `se validate --project <dir>` **enforces** them: a project whose profile demands an
+  approved SDD (`sdds/*.json` with an accepted status) or a passing receipt
+  (`rdds/*.json` with verdict `PASS`/`PARTIAL`) fails validation until it has them.
+- A project that declares **no** work profile keeps the defaults: nothing is required.
+  Adoption (`se adopt`) records the profile (`type` defaults to `brownfield`) so the
+  floor starts applying as soon as scale/risk/criticality are declared.
+
 ## Status
 
-This document is the rule. The next step is to ship it as a canonical skill
-(`SKILLS/`, advertised by description and loaded on demand) plus a coordinator
-capability in the agent contracts, so the selection rule travels with the agent
-instead of being prose it may skip. Until then, the coordinator reads this
-document before planning work on a project it has not seen.
+The selection rule ships as the canonical skill **`work-mode-selection`** (SK-0007,
+`skill_kind: workflow`, read-only): its description makes it discoverable and it is
+loaded on demand, so the rule travels with the agent instead of being prose it may
+skip. The ceremony floor is enforced by `se validate --project` (see **Enforcement**
+above), which closes the loop: the mode is not advice, it is a validation outcome.

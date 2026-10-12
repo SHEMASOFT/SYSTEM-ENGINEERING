@@ -1,0 +1,41 @@
+{
+  "schema_version": "1",
+  "skill_id": "SK-0007",
+  "name": "work-mode-selection",
+  "version": "0.1.0",
+  "description": "Choose the SE work mode (organic / spec / receipt) from the project's declared profile (type, scale, risk, criticality, contract impact) instead of by habit. Makes the choice reproducible and auditable; read-only, never lowers a gate.",
+  "skill_kind": "workflow",
+  "scope": {
+    "target": "project",
+    "description": "Selecting the ceremony floor for a change from the project profile before planning or implementing it"
+  },
+  "restrictions": [
+    "READ-ONLY: selects and documents the mode; does not create the SDD/RDD records itself",
+    "Never lowers a gate; it sets a floor that gates (se gate, se verify G5) can raise",
+    "NO hard-codes a personal preference as project policy; the mode must follow the declared profile"
+  ],
+  "usage_rules": [
+    {
+      "rule": "Resolve the mode from profiles.work (type/scale/risk) + criticality + contract impact; confirm with `se ceremony --project <dir>`."
+    },
+    {
+      "rule": "Record the profile fields that drove the mode next to the change (task/objective/RDD), so the choice is reproducible."
+    },
+    {
+      "rule": "A contract change, high scale/risk, or critical criticality pulls the mode up to spec and/or receipt; small low-risk contract-stable changes stay organic."
+    }
+  ],
+  "capabilities": {
+    "required": ["filesystem.read"],
+    "optional": ["structured.reasoning", "documentation.lookup"]
+  },
+  "constraints": {
+    "write": "forbidden"
+  },
+  "metadata": {
+    "system": "system-engineering",
+    "schema_version": "1",
+    "adapter": "opencode",
+    "checkpoint": "CP-024"
+  }
+}

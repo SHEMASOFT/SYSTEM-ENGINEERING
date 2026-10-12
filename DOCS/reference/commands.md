@@ -52,6 +52,34 @@ resolve under `PROJECTS/` when present, `TARGET:` is printed before writing, ini
 EXTERNAL/INDEPENDENT projects is refused, and no existing independent artifacts
 (`AGENTS.md`/`.opencode`/`opencode.json`/`SDD`) are overwritten. See `DOCS/PROJECT_POLICY.md`.
 
+### Adopt an existing project
+
+`se init` refuses a directory that already carries independent-project artifacts.
+`adopt` is the dedicated, **additive** integration path for those: it writes
+`PROJECT.json` (MANAGED, lifecycle `DISCOVERY`, recording `metadata.adoption` and a
+`profiles.work` starting at `brownfield`) plus the empty workspace directories, and
+leaves every pre-existing file byte-for-byte untouched.
+
+```powershell
+python SCRIPTS\se.py adopt PROJECTS\LegacyApp --owner "alice" --scale large --risk high
+python SCRIPTS\se.py adopt PROJECTS\LegacyApp --owner "alice" --dry-run   # plan only
+```
+
+It refuses the master repository and any directory that already has a `PROJECT.json`.
+Installing a runtime adapter stays a separate, explicit step (`se adapter ...`).
+
+### Ceremony floor
+
+The declared work profile is enforced through `CORE/policies/ceremony.json`:
+scale/risk/criticality map to `spec_required` (an approved SDD) and `receipt_required`
+(a passing RDD). `se ceremony` shows the effective requirements;
+`se validate --project` enforces them.
+
+```powershell
+python SCRIPTS\se.py ceremony --project PROJECTS\LegacyApp
+python SCRIPTS\se.py ceremony --project PROJECTS\LegacyApp --json
+```
+
 Reference CLI:
 
 ```powershell

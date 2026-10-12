@@ -21,6 +21,7 @@ from .artifacts import (
 )
 from .doctor import run_doctor
 from .capabilities import check_policies, resolve_plan, validate_registry, capability_plan_view
+from .ceremony import check_project_ceremony
 from .gates import (
     allowed_targets,
     evaluate_gate,
@@ -29,7 +30,12 @@ from .gates import (
     valid_states,
 )
 from .paths import load_json, now_utc, repo_root, today_utc, write_json_atomic
-from .projects import is_independent_dir, project_category, resolve_init_target
+from .projects import (
+    PROTECTED_ROOT_ARTIFACTS,
+    is_independent_dir,
+    project_category,
+    resolve_init_target,
+)
 from .reporting import build_envelope, error_envelope, render_json, wants_json
 from .schemas import check_schema, load_schemas, validate
 
@@ -416,6 +422,167 @@ def cmd_init(args) -> int:
     _seed_gitignore(target)
     _seed_discovery(target)
     print("PASS: init complete (existing files were not overwritten)")
+    return 0
+
+
+ADOPTION_NOTE = (
+    "Adoption is additive: SE wrote only PROJECT.json and the empty workspace "
+    "directories. Pre-existing project artifacts were left byte-for-byte untouched; "
+    "generating a runtime adapter stays a separate, explicit step (`se adapter ...`)."
+)
+
+ADOPTED_WORK_DEFAULT = "brownfield"
+
+
+def cmd_adopt(args) -> int:
+    """Adopt an existing/advanced project into the SE lifecycle (additive, no overwrite).
+
+    ``se init`` refuses directories that already carry independent-project artifacts
+    (.opencode/, AGENTS.md, opencode.json, SDD/). Adoption is the dedicated integration
+    path for exactly those: it records a MANAGED manifest that says where the project
+    came from, then creates the empty workspace directories. It never rewrites, moves
+    or deletes anything the project already has, and it never installs a runtime
+    adapter on its own.
+    """
+    root = repo_root()
+
+    raw = str(getattr(args, "project", "") or "").strip()
+    if not raw:
+        return _emit_failure(args, "adopt", "a target project path is required", scope="project")
+
+    target = Path(raw)
+    if not target.is_absolute():
+        resolved, code, note = resolve_init_target(raw, Path.cwd(), root)
+        if code:
+            return _emit_failure(args, "adopt", note, scope="project")
+        target = resolved
+    target = target.resolve()
+
+    if not target.is_dir():
+        return _emit_failure(
+            args, "adopt", f"target is not an existing directory: {target}", scope="project"
+        )
+    if _reject_infrastructure_target(target, root):
+        return 1
+
+    manifest_file = target / "PROJECT.json"
+    if manifest_file.exists():
+        return _emit_failure(
+            args, "adopt",
+            f"target already has PROJECT.json (managed); use `se update`/`se init` instead: {target}",
+            scope="project",
+        )
+
+    owner = str(getattr(args, "owner", "") or "").strip()
+    if not owner:
+        return _emit_failure(args, "adopt", "--owner is required to adopt a project", scope="project")
+
+    domains = [d.strip() for d in (getattr(args, "domains", None) or "software").split(",") if d.strip()]
+    invalid = [d for d in domains if not DOMAIN_PATTERN.match(d)]
+    if invalid:
+        return _emit_failure(args, "adopt", f"invalid domain id(s): {', '.join(invalid)}", scope="project")
+
+    previous_category = project_category(target) or "UNCLASSIFIED"
+    preserved = [name for name in PROTECTED_ROOT_ARTIFACTS if (target / name).exists()]
+
+    timestamp = now_utc()
+    project_id = getattr(args, "id", None) or _slug_project_id(target.name or "project")
+    work = {"type": getattr(args, "type", None) or ADOPTED_WORK_DEFAULT}
+    if getattr(args, "scale", None):
+        work["scale"] = args.scale
+    if getattr(args, "risk", None):
+        work["risk"] = args.risk
+
+    manifest = {
+        "schema_version": "1",
+        "project_id": project_id,
+        "name": getattr(args, "name", None) or target.name or "project",
+        "description": getattr(args, "description", None) or "",
+        "owner": owner,
+        "domains": domains,
+        "criticality": getattr(args, "criticality", None) or "unknown",
+        "lifecycle_state": "DISCOVERY",
+        "blocked": False,
+        "version": "0.1.0",
+        "created_at": timestamp,
+        "updated_at": timestamp,
+        "master_system_version": _master_version(root),
+        "source": "se adopt",
+        "author": owner,
+        "metadata": {
+            "category": "MANAGED",
+            "adoption": {
+                "adopted_at": timestamp,
+                "adopted_from": previous_category,
+                "preserved_root_artifacts": preserved,
+                "note": ADOPTION_NOTE,
+            },
+        },
+        "profiles": {"work": work},
+    }
+
+    errors = validate(manifest, load_schemas()["project"])
+    if errors:
+        print("FAIL: generated manifest is invalid:")
+        for err in errors:
+            print(f"  {err}")
+        return 1
+
+    for domain in domains:
+        if not (root / "DOMAINS" / domain / "domain.json").exists():
+            print(f"WARN: domain pack '{domain}' not found under DOMAINS/; manifest still records it")
+
+    if getattr(args, "dry_run", False):
+        if wants_json(args):
+            print(render_json(build_envelope(
+                "adopt", "PASS", scope="project",
+                project={"project_id": project_id, "name": manifest["name"], "path": str(target)},
+                provenance={"category": "MANAGED", "adopted_from": previous_category},
+                details={
+                    "dry_run": True,
+                    "preserved": preserved,
+                    "workspace_dirs": list(WORKSPACE_DIRS),
+                },
+                source_root=str(root),
+            )))
+            return 0
+        print(f"TARGET: {target}")
+        print(f"PLAN: adopt as {project_id} (MANAGED); adopted_from={previous_category}")
+        if preserved:
+            print(f"PLAN: preserved root artifacts: {', '.join(preserved)}")
+        print(f"PLAN: create PROJECT.json + {len(WORKSPACE_DIRS)} workspace directories (dry-run: nothing written)")
+        return 0
+
+    write_manifest(target, manifest)
+    created_dirs = 0
+    for directory in WORKSPACE_DIRS:
+        path = target / directory
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+            created_dirs += 1
+
+    if wants_json(args):
+        print(render_json(build_envelope(
+            "adopt", "PASS", scope="project",
+            project={"project_id": project_id, "name": manifest["name"], "path": str(target)},
+            provenance={"category": "MANAGED", "adopted_from": previous_category},
+            details={
+                "dry_run": False,
+                "preserved": preserved,
+                "workspace_dirs_created": created_dirs,
+                "next_step": "`se explore --project .` and `se adapter ...` are explicit follow-ups",
+            },
+            source_root=str(root),
+        )))
+        return 0
+
+    print(f"TARGET: {target}")
+    if preserved:
+        print(f"INFO: preserved existing project artifacts: {', '.join(preserved)}")
+    print(f"PASS: adopted {project_id} as a MANAGED project (adopted_from={previous_category})")
+    noun = "directory" if created_dirs == 1 else "directories"
+    print(f"PASS: wrote PROJECT.json and created {created_dirs} workspace {noun} (existing files untouched)")
+    print("NOTE: adoption is additive; runtime adapters are a separate explicit step (`se adapter claude-code|codex|opencode`).")
     return 0
 
 
@@ -3017,6 +3184,60 @@ def coverage_count_test(root, resolver) -> list[str]:
     return failures
 
 
+def cmd_ceremony(args) -> int:
+    """Show the ceremony floor for a project's declared work profile and whether it is met.
+
+    This is the read side of the ceremony policy: it resolves the requirements from
+    ``profiles.work`` (type/scale/risk) plus criticality and reports the missing
+    documents that ``se validate --project`` would refuse on.
+    """
+    project = Path(args.project)
+    if not (project / "PROJECT.json").exists():
+        return _emit_failure(args, "ceremony", f"no PROJECT.json in {project}", scope="project")
+
+    try:
+        result = check_project_ceremony(project)
+    except FileNotFoundError as exc:
+        return _emit_failure(args, "ceremony", str(exc), scope="project")
+
+    requirements = result["requirements"]
+    declared = requirements.get("declared") or {}
+
+    if wants_json(args):
+        print(render_json(build_envelope(
+            "ceremony",
+            "FAIL" if result["failures"] else "PASS",
+            scope="project",
+            project={"path": result["project"]},
+            warnings=list(result["notes"]),
+            conflicts=list(result["failures"]),
+            details={"requirements": requirements, "declared": declared},
+            source_root=str(repo_root()),
+        )))
+        return 1 if result["failures"] else 0
+
+    print(f"Project: {result['project']}")
+    print(
+        "Declared work profile: "
+        f"type={declared.get('type')} scale={declared.get('scale')} "
+        f"risk={declared.get('risk')} criticality={declared.get('criticality')}"
+    )
+    print(
+        "Requirements: "
+        f"spec_required={requirements.get('spec_required')} "
+        f"receipt_required={requirements.get('receipt_required')}"
+    )
+    for note in result["notes"]:
+        print(f"NOTE: {note}")
+    for failure in result["failures"]:
+        print(f"FAIL: {failure}")
+    if result["failures"]:
+        print("CEREMONY: FAIL")
+        return 1
+    print("CEREMONY: PASS")
+    return 0
+
+
 def cmd_validate(args) -> int:
     """Validate schemas, agents, domains, and optionally a project."""
     root = repo_root()
@@ -3094,6 +3315,9 @@ def cmd_validate(args) -> int:
                 )
                 for error in cap_errors:
                     failures.append(f"capability policy: {error}")
+                ceremony_result = check_project_ceremony(project)
+                for error in ceremony_result["failures"]:
+                    failures.append(error)
             project_status = "managed"
 
     info_warnings = _doc_delta_warnings(root) + _doc_dangling_skill_refs(root) + _doc_dangling_adr_refs(root)

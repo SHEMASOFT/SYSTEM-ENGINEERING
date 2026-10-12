@@ -27,6 +27,7 @@ CANONICAL_SKILLS = [
     "rev-adversarial",
     "verification-review",
     "visual-frontend-engineering",
+    "work-mode-selection",
 ]
 
 REQUIRED_SECTIONS = [

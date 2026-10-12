@@ -1,0 +1,45 @@
+{
+  "schema_version": "1",
+  "description": "Ceremony floor by work profile. The work modes (organic / spec / receipt) are the vocabulary; this policy is what makes them enforceable. A project that declares profiles.work turns the matching requirements into `se validate --project` failures. A project that declares no work profile keeps the defaults (nothing required), so adoption and unprofiled projects stay valid.",
+  "defaults": {
+    "spec_required": false,
+    "receipt_required": false
+  },
+  "by_scale": {
+    "small": {},
+    "medium": {
+      "receipt_required": true
+    },
+    "large": {
+      "spec_required": true,
+      "receipt_required": true
+    }
+  },
+  "by_risk": {
+    "low": {},
+    "medium": {
+      "receipt_required": true
+    },
+    "high": {
+      "spec_required": true,
+      "receipt_required": true
+    }
+  },
+  "by_criticality": {
+    "high": {
+      "spec_required": true,
+      "receipt_required": true
+    },
+    "critical": {
+      "spec_required": true,
+      "receipt_required": true
+    }
+  },
+  "spec_status_acceptable": ["APPROVED", "IMPLEMENTED", "ACCEPTED", "RELEASED"],
+  "receipt_verdicts_acceptable": ["PASS", "PARTIAL"],
+  "notes": [
+    "spec_required: an SDD in sdds/ must reach a status in spec_status_acceptable.",
+    "receipt_required: at least one RDD in rdds/ must carry a verdict in receipt_verdicts_acceptable.",
+    "The work mode is chosen from the profile (type/scale/risk + criticality + contract change), never by habit; see DOCS/reference/work-modes.md."
+  ]
+}

@@ -30,6 +30,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--force", action="store_true", help="Overwrite existing PROJECT.json")
     p_init.set_defaults(func=commands.cmd_init)
 
+    # adopt
+    p_adopt = sub.add_parser(
+        "adopt",
+        help="Adopt an existing/advanced project into the SE lifecycle (additive: writes PROJECT.json + workspace dirs, never overwrites project artifacts)",
+    )
+    p_adopt.add_argument("project", help="Existing project directory (absolute, or a name under PROJECTS/)")
+    p_adopt.add_argument("--name", default=None, help="Project name (default: the directory name)")
+    p_adopt.add_argument("--owner", default=None, help="Project owner (required)")
+    p_adopt.add_argument("--domains", default="software", help="Comma-separated domain ids")
+    p_adopt.add_argument("--criticality", default="unknown", choices=["low", "medium", "high", "critical", "unknown"], help="Declared criticality; defaults to 'unknown' (never a silent factual default)")
+    p_adopt.add_argument("--type", default=None, choices=["greenfield", "brownfield"], help="Work type profile (default: brownfield, since the project already exists)")
+    p_adopt.add_argument("--scale", default=None, choices=["small", "medium", "large"], help="Work scale profile; drives ceremony requirements")
+    p_adopt.add_argument("--risk", default=None, choices=["low", "medium", "high"], help="Work risk profile; drives ceremony requirements")
+    p_adopt.add_argument("--id", default=None, help="Explicit project_id (PRJ-...)")
+    p_adopt.add_argument("--description", default="", help="Short project description")
+    p_adopt.add_argument("--dry-run", dest="dry_run", action="store_true", help="Plan only; write nothing")
+    p_adopt.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
+    p_adopt.set_defaults(func=commands.cmd_adopt)
+
     # explore
     p_explore = sub.add_parser("explore", help="Produce a discovery report")
     p_explore.add_argument("--project", required=True)
@@ -369,6 +388,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_doctor = sub.add_parser("doctor", help="Validate the Master System")
     p_doctor.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
     p_doctor.set_defaults(func=commands.cmd_doctor)
+
+    # ceremony
+    p_ceremony = sub.add_parser(
+        "ceremony",
+        help="Show the effective ceremony requirements for a project's declared work profile, and whether they are met",
+    )
+    p_ceremony.add_argument("--project", required=True, help="Managed project workspace")
+    p_ceremony.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
+    p_ceremony.set_defaults(func=commands.cmd_ceremony)
 
 # validate
     p_validate = sub.add_parser("validate", help="Validate schemas/agents/domains and a project")
