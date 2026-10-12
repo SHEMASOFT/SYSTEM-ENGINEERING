@@ -43,6 +43,8 @@ In short: SE makes AI work **cheaper (tokens), clearer and auditable**.
 
 ## Quickstart
 
+**Minimal** — clone it and run the reference CLI:
+
 ```bash
 git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git
 cd SYSTEM-ENGINEERING
@@ -54,6 +56,29 @@ python SCRIPTS/se.py validate    # schemas, agents, domains — must report PASS
 ```
 
 On Windows use `python SCRIPTS\se.py ...` (not `python3`).
+
+**One command (recommended on a fresh machine)** — installs SE Core + the web console
++ the selected MCP servers + runtime adapters into an isolated venv, and generates a
+portable runtime config:
+
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File SE-INSTALLER\bootstrap.ps1 install --recommended
+```
+
+```bash
+# Linux / macOS
+bash SE-INSTALLER/install.sh install --recommended
+```
+
+Add `--dry-run` to plan without installing, or pass `tui` for the interactive
+selector. See [`DOCS/reference/installation.md`](DOCS/reference/installation.md)
+for the full path.
+
+> **Where the venv goes.** The installer keeps its own venv at `SE-INSTALLER/.venv`,
+> which `se doctor` audits cleanly. If you create your own venv, either keep it
+> **outside** the repository or name it `.venv` at the root — a differently-named venv
+> *inside* the repo makes `se doctor` report `FAIL` (`secrets`, `root_hygiene`).
 
 Optional: start the read-only web console over the system:
 
@@ -151,6 +176,24 @@ lives in [`CORE/policies/ceremony.json`](CORE/policies/ceremony.json),
 `se validate --project` enforces them. It ships as the canonical skill
 `work-mode-selection` (SK-0007), so the runtime agent loads it on demand.
 
+### Design records
+
+The modes are backed by concrete records, created with `se new` and validated against
+[`SCHEMAS/`](SCHEMAS/):
+
+| Record | Name | What it captures | Created with |
+|---|---|---|---|
+| **SDD** | Software Design Document (*spec*-driven development) | The agreed design: architecture, interfaces, data models, and the requirements it covers | `se new sdd --project <dir>` → `sdds/SDD-####` |
+| **ODD** | Open Design Document | A design still *open*: problem, alternatives with trade-offs, evaluation and the proposed design — kept collaborative and iterative while the decision is unsettled | `se new odd --project <dir>` → `odds/ODD-####` |
+| **RDD** | Review receipt (*receipt*-driven development) | A verdict bound to the **exact change candidate** it reviewed, with the evidence that supports it — so a review can never drift from the version it reviewed | `se new rdd --project <dir>` → `rdds/RDD-####` |
+
+Open work as an **ODD** while alternatives are still on the table, then close the agreed
+design into an **SDD**. `spec` work needs an approved **SDD**; `receipt` work needs a
+passing **RDD** — both are enforced by `CORE/policies/ceremony.json` once a project
+declares `profiles.work` (`large`/`high-risk` → SDD; `medium` → at least an RDD). Point
+decisions — including architectural ones — are recorded separately with
+`se new decision`.
+
 ## Create and drive a project
 
 ```bash
@@ -187,9 +230,9 @@ own repository and history.
 | `TEMPLATES/` | Fill-in templates for artifacts, projects and MCP servers |
 | `SCRIPTS/` | Reference Python CLI (`se.py`, `se_core/`) |
 | `POLICIES/` | Human-readable policies (permissions, evidence, release, security) |
-| `INTEGRATIONS/` | Runtime adapters (OpenCode today; Codex and Claude Code planned) |
+| `INTEGRATIONS/` | Runtime adapters (OpenCode, Claude Code, Codex) |
 | `SE-CONSOLE/` | Local-first, read-only web console |
-| `SE-INSTALLER/` | Unified installer for SE + MCPs + runtimes (workspace) |
+| `SE-INSTALLER/` | Unified installer + TUI for SE + MCP servers + runtimes |
 | `DOCS/` | Architecture, references and working records |
 | `TESTS/` | Hermetic tests for the Master System itself |
 
@@ -228,6 +271,7 @@ Key references:
 
 - [`installation.md`](DOCS/reference/installation.md) — obtain, install, run, update
 - [`core-model.md`](DOCS/reference/core-model.md) — lifecycle, gates, tasks, artifacts
+- [`work-modes.md`](DOCS/reference/work-modes.md) — organic / spec / receipt, and the SDD/ODD/RDD records
 - [`commands.md`](DOCS/reference/commands.md) — the command surface
 - [`workflows.md`](DOCS/reference/workflows.md) — multi-agent DAG execution
 - [`lifecycle.md`](DOCS/reference/lifecycle.md) — install/sync/update/uninstall lifecycle
