@@ -120,9 +120,17 @@ the external tools (never installing them for you), builds the `opencode mcp add
 registrations from `TEMPLATES/mcp/*.json.tmpl`, and reports what was registered, skipped or
 still missing.
 
+For a full bootstrap — SE Core + Console + MCPs + runtimes installed, then the MCP servers
+registered — pass `--bootstrap`: it runs the unified installer (`se-installer`) first and
+then continues with the registration below. The one-command entry points are
+[`SE-INSTALLER/bootstrap.ps1`](../../SE-INSTALLER/bootstrap.ps1) (Windows) and
+[`SE-INSTALLER/install.sh`](../../SE-INSTALLER/install.sh) (Linux/macOS), which create an
+isolated venv, install `se-installer` into it, and forward the arguments to the CLI.
+
 ```bash
 python3 SCRIPTS/se.py install --dry-run     # plan only: writes nothing
 python3 SCRIPTS/se.py install               # register every server in the project config
+python3 SCRIPTS/se.py install --bootstrap   # run se-installer, then register
 ```
 
 | MCP | What it is for | Third party |
