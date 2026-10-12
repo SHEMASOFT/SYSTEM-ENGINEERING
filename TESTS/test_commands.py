@@ -394,7 +394,13 @@ class CoverageBaselineLedgerTests(unittest.TestCase):
         self.assertNotEqual(change["from"], change["to"])
 
         on_disk = json.loads((root / "DOCS" / "coverage-baseline.json").read_text(encoding="utf-8"))
-        self.assertEqual(on_disk, commands._compute_coverage_baseline(root))
+        recomputed = commands._compute_coverage_baseline(root)
+        # ``created_at`` is a wall-clock timestamp, not content: the second may
+        # tick between the rebase write and this recompute, which made this
+        # assertion intermittently fail. Compare everything else.
+        on_disk.pop("created_at", None)
+        recomputed.pop("created_at", None)
+        self.assertEqual(on_disk, recomputed)
 
     def test_rebase_without_changes_writes_nothing(self):
         root = self._temp_root()
