@@ -94,6 +94,35 @@ class FirecrawlInstaller(BaseInstaller):
         return InstallResult(success=True, version=version or "npx", message="Firecrawl MCP ready (npx-based). Set FIRECRAWL_API_KEY env var.")
 
 
+class SequentialThinkingInstaller(BaseInstaller):
+    """Sequential Thinking MCP - structured, revisable multi-step reasoning.
+
+    Like Context7/Filesystem/Firecrawl this is an npx-based reference server:
+    it is fetched on demand and has no local install artifact, so readiness is
+    exactly "is npx available".
+    """
+
+    def check_installed(self) -> tuple[bool, Optional[str]]:
+        return self._npx_ready()
+
+    def install(self) -> InstallResult:
+        self.component.status = InstallStatus.INSTALLING
+
+        ready, version = self._npx_ready()
+        if not ready:
+            return InstallResult(
+                success=False,
+                error="npx not found. Please install Node.js first."
+            )
+
+        self.component.status = InstallStatus.SUCCESS
+        return InstallResult(
+            success=True,
+            version=version or "npx",
+            message="Sequential Thinking MCP ready (npx-based)",
+        )
+
+
 class EngramInstaller(BaseInstaller):
     """Engram - Persistent memory MCP."""
     
@@ -322,6 +351,100 @@ class NodeInstaller(BaseInstaller):
         return InstallResult(success=False, error="Node.js install verification failed")
 
 
+class RustInstaller(BaseInstaller):
+    """Rust / Cargo toolchain - required by CodeGraph (installed via rustup).
+
+    Rust is a toolchain dependency, not an MCP server, but it lives in this
+    registry for the same reason ``node`` does: the orchestrator dispatches
+    MCP-typed components here. Without this installer, selecting ``rust`` (or
+    ``install --all``) failed with "No installer for MCP: rust".
+    """
+
+    def check_installed(self) -> tuple[bool, Optional[str]]:
+        result = run_tool("cargo", ["--version"], timeout=10)
+        if result and result.returncode == 0:
+            return True, result.stdout.strip()
+        return False, None
+
+    def install(self) -> InstallResult:
+        self.component.status = InstallStatus.INSTALLING
+
+        installed, version = self.check_installed()
+        if installed:
+            self.component.status = InstallStatus.SUCCESS
+            return InstallResult(
+                success=True, version=version, message="Rust toolchain already present"
+            )
+
+        if self.dry_run:
+            return InstallResult(success=True, message="[dry-run] would install Rust via rustup")
+
+        if self._detect_os() == OSType.WINDOWS:
+            return self._install_windows()
+        return self._install_unix()
+
+    def _install_windows(self) -> InstallResult:
+        if shutil.which("winget"):
+            result = run_tool(
+                "winget",
+                ["install", "--id", "Rustlang.Rustup", "--silent",
+                 "--accept-source-agreements", "--accept-package-agreements"],
+                timeout=600,
+            )
+            if result and result.returncode == 0:
+                return self._post_install()
+
+        if shutil.which("scoop"):
+            result = run_tool("scoop", ["install", "rustup"], timeout=600)
+            if result and result.returncode == 0:
+                return self._post_install()
+
+        return InstallResult(
+            success=False,
+            error="No Windows package manager found (winget/scoop). Install Rust from https://rustup.rs/",
+        )
+
+    def _install_unix(self) -> InstallResult:
+        if shutil.which("rustup"):
+            result = run_tool(
+                "rustup", ["toolchain", "install", "stable", "--profile", "minimal"], timeout=600
+            )
+            if result and result.returncode == 0:
+                return self._post_install()
+
+        if shutil.which("bash"):
+            result = run_tool(
+                "bash",
+                ["-c",
+                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs "
+                 "| sh -s -- -y --profile minimal"],
+                timeout=600,
+            )
+            if result and result.returncode == 0:
+                return self._post_install()
+
+        return InstallResult(
+            success=False, error="rustup install failed. Install Rust from https://rustup.rs/"
+        )
+
+    def _post_install(self) -> InstallResult:
+        # rustup installs into ~/.cargo/bin, which is not on this process's PATH yet.
+        self.ensure_in_path(Path.home() / ".cargo" / "bin")
+        installed, version = self.check_installed()
+        if installed:
+            self.component.status = InstallStatus.SUCCESS
+            return InstallResult(
+                success=True, version=version, message="Rust toolchain installed via rustup"
+            )
+        return InstallResult(
+            success=False,
+            error=(
+                "Rust installed but `cargo --version` failed; open a new shell so "
+                "~/.cargo/bin is on PATH"
+            ),
+        )
+
+
 # Registry of all MCP installers
 MCP_INSTALLERS = {
     "node": NodeInstaller,
@@ -329,8 +452,10 @@ MCP_INSTALLERS = {
     "filesystem": FilesystemInstaller,
     "playwright": PlaywrightInstaller,
     "firecrawl": FirecrawlInstaller,
+    "sequential-thinking": SequentialThinkingInstaller,
     "engram": EngramInstaller,
     "codegraph": CodeGraphInstaller,
+    "rust": RustInstaller,
 }
 
 
