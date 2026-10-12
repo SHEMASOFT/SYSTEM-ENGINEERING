@@ -6,6 +6,8 @@ describes how to obtain SE on a clean machine and get it running, and how to add
 optional capabilities.
 
 The reference implementation is a Python CLI: `python3 SCRIPTS/se.py <command>`.
+On Windows the interpreter is `python`, so throughout this guide read `python3` as
+`python` and use backslash paths (`python SCRIPTS\se.py <command>`).
 
 ---
 
@@ -42,12 +44,29 @@ projects. The vendored **SE-CONSOLE** web console is included at `SE-CONSOLE/`.
 
 ## 3. Bootstrap
 
-There is no separate installer binary. Bootstrap is composed from the validated
-commands:
+There are two paths, depending on how much you want installed.
+
+**Minimal (no installer).** Bootstrap is composed from the validated commands:
 
 ```bash
 python3 SCRIPTS/se.py doctor      # structure, contracts, dependencies, git
 ```
+
+**Unified installer (recommended).** The `se-installer` package installs SE Core +
+Console + the selected MCP servers + runtime adapters in one step, into an isolated
+virtual environment. The one-command entry points create that venv and forward every
+argument to the CLI:
+
+```bash
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File SE-INSTALLER\bootstrap.ps1 install --recommended
+# Linux / macOS
+bash SE-INSTALLER/install.sh install --recommended
+```
+
+Add `--dry-run` to plan without installing, or pass `tui` for the interactive
+selector. From an already-cloned checkout you can also chain it through the CLI with
+`se install --bootstrap` (see §7).
 
 ---
 
@@ -84,8 +103,9 @@ OpenCode V2's discovery paths. The output is **generated only** — never edit
 To start new sessions as the orchestrator, add `"default_agent": "coordinator"` to
 `opencode.jsonc`.
 
-> Only `opencode` is fully adapted today. Codex and Claude Code adapters are in progress;
-> runtime-specific behavior belongs in `INTEGRATIONS/`, never in `CORE/` or `SCHEMAS/`.
+> All three adapters ship today: `se adapter opencode`, `se adapter claude-code` and
+> `se adapter codex` (or `se adapter all` for every runtime at one output root).
+> Runtime-specific behavior belongs in `INTEGRATIONS/`, never in `CORE/` or `SCHEMAS/`.
 
 ---
 
@@ -116,8 +136,9 @@ variables named in `provider_options.api_key_env`.
 
 MCP integrations are **optional**; none is required by SE. `se install` takes you from a
 cloned checkout to a runtime-configured OpenCode environment: it detects the OS, preflights
-the external tools (never installing them for you), builds the `opencode mcp add`
-registrations from `TEMPLATES/mcp/*.json.tmpl`, and reports what was registered, skipped or
+the external tools (never installing them for you), writes the servers declared in
+`TEMPLATES/mcp/*.json.tmpl` straight into the runtime config (surgical, portable edits — the
+`opencode` CLI is not needed for registration), and reports what was registered, skipped or
 still missing.
 
 For a full bootstrap — SE Core + Console + MCPs + runtimes installed, then the MCP servers
@@ -146,10 +167,14 @@ python3 SCRIPTS/se.py install --bootstrap   # run se-installer, then register
 |---|---|
 | `--project <dir>` | Target project directory (default: current directory) |
 | `--global` | Register into the user config instead of the project config |
-| `--all` | Register every server (default) |
-| `--with a,b,c` | Register only the listed servers (mutually exclusive with `--all`) |
+| `--all` | Register every server (default; mutually exclusive with `--with`) |
+| `--with a,b,c` | Register only the listed servers |
 | `--no-register` | Preflight and plan only; perform no registration |
 | `--generate-adapter` | Also generate the OpenCode adapter for the target project |
+| `--env-target {auto,windows,wsl,linux,macos}` | Runtime environment to target when resolving paths (default: `auto`; `wsl` translates Windows paths to `/mnt/<drive>`) |
+| `--bootstrap` | Run the unified `se-installer` (SE Core + Console + MCPs + runtimes, and runtime configs) first, then register |
+| `--bootstrap-components a,b` | Installer component ids for `--bootstrap` (default: recommended) |
+| `--bootstrap-runtimes a,b` | Runtimes `--bootstrap` should configure (default: `opencode`) |
 | `--dry-run` | Plan only; write nothing |
 | `--json` | Emit a machine-readable `se.report/1` envelope |
 
@@ -347,8 +372,19 @@ anything fails. See [`lifecycle.md`](lifecycle.md) for the full reference.
 
 A directory that already contains its own artifacts (`.opencode`, `AGENTS.md`,
 `opencode.json`, SDD) and has no `PROJECT.json` is classified **EXTERNAL/INDEPENDENT**.
-`se init` **refuses** it by design; *"project adoption requires a dedicated
-integration path"*, which is not implemented yet.
+`se init` **refuses** it by design; bring it under the SE lifecycle with `se adopt`
+instead:
+
+```bash
+python3 SCRIPTS/se.py adopt PROJECTS/LegacyApp --owner "me" \
+  --scale large --risk high --criticality high
+```
+
+Adoption is **additive**: it writes `PROJECT.json` (recording `metadata.adoption` and a
+`profiles.work` starting at `brownfield`) plus the empty workspace directories, and
+leaves every file the project already had byte-for-byte untouched. Installing a runtime
+adapter stays a separate, explicit step (`se adapter ...`). Use `--dry-run` to plan
+without writing.
 
 ---
 
