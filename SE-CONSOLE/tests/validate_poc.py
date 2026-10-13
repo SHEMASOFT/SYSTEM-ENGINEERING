@@ -465,9 +465,9 @@ def main() -> int:
               and all(p["health"] == "UNKNOWN" for p in unman),
               f"managed={[p['dir_name'] for p in managed]} unmanaged={[p['dir_name'] for p in unman]} "
               f"(unmanaged forced to UNKNOWN)")
-        check("S9b", "SHEMA has no invented lifecycle",
+        check("S9b", "unmanaged projects have no invented lifecycle",
               all((p.get("lifecycle") or {}).get("value") is None for p in unman),
-              "SHEMA lifecycle=None (no PROJECT.json)")
+              f"lifecycle=None for {[p['dir_name'] for p in unman]} (no PROJECT.json)")
 
         st, _h, b = http("GET", "/api/project?rel_path=PROJECTS/SHEMASEG")
         pdet = json.loads(b)
@@ -497,17 +497,28 @@ def main() -> int:
               f"se-review-type={pdet['traceability']['review_counts']['value']['REQUIREMENT']} (not averaged)")
 
         # Unmanaged project: the engine's refusal must be surfaced, not smoothed over.
-        st, _h, b = http("GET", "/api/project?rel_path=PROJECTS/SHEMA")
-        sdet = json.loads(b)
-        conflicts = sdet["engine_conflicts"]["value"]
-        check("S11c", "unmanaged project surfaces the engine's own conflict",
-              sdet["management"]["value"] != "MANAGED" and any("PROJECT.json" in c for c in conflicts),
-              f"management={sdet['management']['value']} conflicts={conflicts}")
-        check("S11d", "unevaluable gates carry envelope status, not bare UNKNOWN",
-              all(g["envelope_status"]["value"] for g in sdet["gates"]["matrix"]["value"])
-              and all(g["status"]["value"] is None for g in sdet["gates"]["matrix"]["value"]),
-              f"gate.status=None + envelope_status="
-              f"{sdet['gates']['matrix']['value'][0]['envelope_status']['value']}")
+        # The project is taken from the list above rather than named: any directory
+        # can legitimately become MANAGED (that is what `se adopt` is for), and a
+        # check about unmanaged behaviour must not start failing when it does.
+        unman_rel = unman[0]["rel_path"] if unman else None
+        if unman_rel is None:
+            check("S11c", "unmanaged project surfaces the engine's own conflict", False,
+                  "no unmanaged project to exercise the refusal contract")
+            check("S11d", "unevaluable gates carry envelope status, not bare UNKNOWN", False,
+                  "no unmanaged project to exercise the unevaluable-gate contract")
+        else:
+            st, _h, b = http("GET", f"/api/project?rel_path={unman_rel}")
+            sdet = json.loads(b)
+            conflicts = sdet["engine_conflicts"]["value"]
+            check("S11c", "unmanaged project surfaces the engine's own conflict",
+                  sdet["management"]["value"] != "MANAGED" and any("PROJECT.json" in c for c in conflicts),
+                  f"{unman_rel}: management={sdet['management']['value']} conflicts={conflicts}")
+            matrix = sdet["gates"]["matrix"]["value"]
+            check("S11d", "unevaluable gates carry envelope status, not bare UNKNOWN",
+                  all(g["envelope_status"]["value"] for g in matrix)
+                  and all(g["status"]["value"] is None for g in matrix),
+                  f"{len(matrix)} gate(s) unevaluable on {unman_rel}, envelope_status="
+                  f"{matrix[0]['envelope_status']['value'] if matrix else None}")
 
         print("\n[3] read-only enforcement (S13)")
         for method in ("POST", "PUT", "PATCH", "DELETE"):
@@ -525,9 +536,12 @@ def main() -> int:
         # Idempotency means the console accumulates no state: every
         # governance-relevant value must be byte-identical on repeat reads.
         # Observation time and subprocess wall-clock are inherently
-        # non-deterministic and are excluded by name, not by value.
+        # non-deterministic and are excluded by name, not by value: `age_seconds`
+        # is an age derived from a recorded instant, so it moves between reads
+        # while the payload stays deterministic, and decimals are part of its
+        # shape (41.2 -> 37.8 keeps the byte count, not the bytes).
         volatile = re.compile(
-            r'"(generated_at|observed_at|duration_ms)":\s*("[^"]*"|\d+)'
+            r'"(generated_at|observed_at|duration_ms|age_seconds)":\s*("[^"]*"|-?\d+(?:\.\d+)?)'
         )
         strip = lambda t: volatile.sub("", t)  # noqa: E731
         s1, s2 = strip(a1), strip(a2)
