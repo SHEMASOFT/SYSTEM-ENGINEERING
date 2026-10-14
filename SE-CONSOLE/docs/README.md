@@ -31,7 +31,7 @@ The console defaults `SE_ROOT` to the repository root when vendored.
 ## Verify it
 
 ```powershell
-python tests\validate_poc.py    # 29 checks: contract, read-only, browser, non-interference
+python tests\validate_poc.py    # 33 checks: contract, read-only, browser, non-interference
 python tests\audit_visual.py    # contrast / clipping / overlap / target size, both themes
 ```
 
