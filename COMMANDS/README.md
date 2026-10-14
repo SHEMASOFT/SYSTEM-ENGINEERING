@@ -17,7 +17,17 @@ The conceptual command interface. Machine-readable source: [`commands.json`](com
 | `doctor` | — | coordinator | Validate the Master System |
 | `validate` | — | coordinator | Validate schemas/agents/domains/project |
 | `gate` | — | coordinator | Evaluate a single gate |
+| `capabilities` | — | coordinator | Inspect the capability registry; validate declared policies and resolve a capability plan |
 | `context` | — | coordinator | Reconstruct the minimum relevant context (AUTO-02, read-only, on demand) |
+| `health` | — | coordinator | Aggregate read-only checks into one deterministic health envelope |
+| `auto` | — | coordinator | Decide the next AUTO pipeline step from health (read-only, auditable) |
+| `intent` | — | coordinator | Validate and normalize a structured intent into a `se.intent/1` envelope |
+| `handoff` | — | coordinator | Create or load a handoff artifact (state, context snapshot, blockers, next actions) |
+| `archive` | — | coordinator | Create a tamper-evident `.tar.gz` with SHA-256 hashes and an embedded manifest |
+| `restore` | — | coordinator | Restore a project from a verified archive and re-validate it |
+| `execute` | G3 | implementer | Execute actionable tasks, fail-closed, with receipts and evidence |
+| `observe` | — | implementer | Read-only view of execution progress, evidence, artifacts and receipts |
+| `orchestrate` | varies | coordinator | Create/execute/list workflows with topological order and gate enforcement |
 
 Conventions:
 
