@@ -211,6 +211,25 @@ class SelfContainmentSurfaceTests(unittest.TestCase):
         target.write_text(body, encoding="utf-8")
         return root
 
+    def test_generated_console_artifacts_are_never_scanned(self):
+        """The SE console writes `artifacts/` at runtime and `.gitignore` keeps it
+        out of the published system, so a checkout that ran the console must reach
+        the same verdict as one that never did: a captured snapshot is output, not
+        a reference a reader would follow. The rest of SE-CONSOLE stays scanned, so
+        the exclusion cannot widen into a blanket exemption for the console."""
+        skipped = self._root_with(
+            "SE-CONSOLE/artifacts/evidence/snapshot-overview.txt",
+            "captured at D:/somehost/system\n")
+        status, detail = check_self_containment(skipped)
+        self.assertEqual(status, "PASS", detail)
+        self.assertEqual(detail, "no external infrastructure references")
+
+        scanned = self._root_with(
+            "SE-CONSOLE/console/notes.md", "runs on servidor-ia\n")
+        status, detail = check_self_containment(scanned)
+        self.assertEqual(status, "WARN", detail)
+        self.assertIn("1 guidance hit(s)", detail)
+
     def test_dependency_surface_hit_fails(self):
         root = self._root_with("SCRIPTS/se_core/leak.json",
                                '{"path": "D:/somehost/system"}\n')
