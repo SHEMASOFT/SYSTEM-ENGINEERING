@@ -10,6 +10,8 @@ These lock in behaviour that previously broke silently:
 * the MCP/runtime installer modules must import ``shutil`` where they use it
   (previously a ``NameError`` killed real installs);
 * tools are launched through ``run_tool`` so Windows ``.cmd`` shims resolve;
+* a tool that is on PATH but unusable must be reported as a failed probe, never
+  raised out of ``check_installed`` (windows CI: ``cargo --version`` timed out);
 * Firecrawl must point at the published npm package;
 * every selectable component must have a registered installer
   (``sequential-thinking`` and ``rust`` had none, so ``install --all``
@@ -20,11 +22,13 @@ from __future__ import annotations
 
 import ast
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from se_installer.cli import print_components
+from se_installer.installers import base as base_module
 from se_installer.installers.base import run_tool
 from se_installer.installers.mcp import (
     Context7Installer,
@@ -103,6 +107,57 @@ def test_run_tool_resolves_path_tool_with_extension():
     result = run_tool("npx", ["--version"], timeout=30)
     assert result is not None
     assert result.returncode == 0
+
+
+def _hang(*args, **kwargs):
+    """Stand in for ``subprocess.run`` on a tool that never answers."""
+    raise subprocess.TimeoutExpired(cmd=args[0], timeout=kwargs.get("timeout", 10))
+
+
+def test_run_tool_reports_a_timeout_instead_of_raising(monkeypatch):
+    """Windows CI has rustup installed, so ``cargo`` resolves to a shim and
+    ``cargo --version`` can outlive the 10s probe budget. The run then raised
+    ``subprocess.TimeoutExpired`` out of ``RustInstaller.check_installed()``,
+    whose contract (asserted below) is that it never raises."""
+    exe = r"C:\Users\runneradmin\.cargo\bin\cargo.EXE"
+    monkeypatch.setattr(base_module.shutil, "which", lambda name: exe)
+    monkeypatch.setattr(base_module.subprocess, "run", _hang)
+
+    result = run_tool("cargo", ["--version"], timeout=10)
+
+    assert result is not None
+    assert result.returncode != 0
+    assert "timed out" in result.stderr.lower()
+
+
+def test_run_tool_reports_an_unlaunchable_tool_instead_of_raising(monkeypatch):
+    """``shutil.which`` resolves a path that the OS then refuses to launch
+    (``WinError 193`` on a broken shim, ``WinError 2`` on a dangling one)."""
+
+    def refuse(*args, **kwargs):
+        raise OSError(193, "%1 is not a valid Win32 application")
+
+    monkeypatch.setattr(base_module.shutil, "which", lambda name: r"C:\fake\tool.EXE")
+    monkeypatch.setattr(base_module.subprocess, "run", refuse)
+
+    result = run_tool("tool", ["--version"], timeout=10)
+
+    assert result is not None
+    assert result.returncode != 0
+    assert result.stderr
+
+
+def test_rust_check_installed_is_false_when_cargo_hangs(monkeypatch):
+    """The exact windows-latest failure: cargo present but timing out."""
+    monkeypatch.setattr(
+        base_module.shutil, "which", lambda name: r"C:\Users\runneradmin\.cargo\bin\cargo.EXE"
+    )
+    monkeypatch.setattr(base_module.subprocess, "run", _hang)
+
+    installed, version = RustInstaller(_make_component("rust")).check_installed()
+
+    assert installed is False
+    assert version is None
 
 
 @pytest.mark.parametrize(
