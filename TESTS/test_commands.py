@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
 
-from se_core.cli import main  # noqa: E402
+from se_core.cli import build_parser, main  # noqa: E402
 
 from se_core import commands  # noqa: E402
 
@@ -26,6 +26,12 @@ def run(*argv):
 
 
 class CommandTests(unittest.TestCase):
+    def test_root_help_points_to_the_console(self):
+        """SE-07: someone types `se console` and gets a bare error. The console is
+        a separate read-only web app, so the root help must say where it lives."""
+        text = build_parser().format_help()
+        self.assertIn("SE-CONSOLE", text)
+
     def test_init_creates_valid_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "demo"

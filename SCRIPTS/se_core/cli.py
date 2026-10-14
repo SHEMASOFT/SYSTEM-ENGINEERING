@@ -11,6 +11,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="se",
         description="SYSTEM ENGINEERING reference CLI (v0.10.0)",
+        epilog="There is no `se console` command: the console is a separate, read-only web app "
+               "in SE-CONSOLE/ (run `python -m console.server` from that directory).",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
