@@ -2536,6 +2536,7 @@ def cmd_new(args) -> int:
     elif kind == "evidence":
         overrides.update({
             "title": args.title or "(untitled evidence)",
+            "description": args.description or "",
             "type": args.type or "log",
             "result": args.result or "INFO",
             "location": args.location or "",
