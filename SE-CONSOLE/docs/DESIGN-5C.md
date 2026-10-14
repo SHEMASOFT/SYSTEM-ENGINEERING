@@ -213,3 +213,33 @@ Phases 2–4 (§9) each begin only on their own explicit go-ahead.
 
 Decided by the project owner, 2026-10-14. The console's lifecycle stays as it is today until
 phase 2 lands (§9): this decision governs the **design**, not the schedule.
+
+## 12. Phase 4 as built (2026-10-14)
+
+Branch `feat/installer-console-shortcut`. The design asked for `se_installer/shortcuts.py` +
+`InstallationPlan.create_shortcuts` + a TUI prompt (§9.4). What was built differs in three
+ways, each put to the owner before the code was written:
+
+1. **The question is opt-in and defaults to no.** The TUI carries a checkbox, and the CLI
+   gained `--shortcuts` / `--no-shortcuts`. §9.4 said "TUI prompt": a modal prompt could not be
+   executed in the environment this was built in (the TUI's dependency is installed neither
+   there nor in CI), and an installer must not write to an operator's Desktop unless asked.
+2. **The Linux shortcut carries its own start recipe.** The console ships a double-clickable
+   start script for Windows (`Start SE Console.cmd`) and for macOS (`Start SE Console.command`)
+   but none for Linux, and phase 4 is confined to `se_installer/`: no console files were added
+   to make a shortcut possible. Windows and macOS keep pointing at the console's own scripts.
+3. **The shortcut is created only when SE Console is part of the installation, and only after
+   that installation succeeds.** A shortcut to a console that was not installed — or to an
+   install that failed — is a link that breaks silently on a Desktop weeks later.
+
+Per platform: Windows creates `SE Console.lnk` through `WScript.Shell`, asking Windows for the
+Desktop with `[Environment]::GetFolderPath('Desktop')` because OneDrive relocates it; macOS
+creates a wrapper `.command` rather than a symlink, because the console's launcher begins with
+`cd "$(dirname "$0")"` and through a Desktop symlink that resolves to the Desktop; Linux
+creates an executable `.desktop`, marked trusted through `gio` where it is available.
+
+**Phase 4 does not depend on phase 3, but D3's promise does.** The shortcut starts the console,
+and the console stops itself only once phase 3 has landed: on `main` the launcher still starts
+the server without `--idle-timeout` (default `0`, never stop). Until phase 3 merges, a
+shortcut-started console runs until it is stopped by hand — the behaviour D3 was chosen to
+remove, not to introduce.
