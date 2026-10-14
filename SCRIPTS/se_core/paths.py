@@ -29,6 +29,11 @@ def write_json_atomic(path: Path, data) -> None:
 
     The temp name is unique per writer so concurrent writers of the same target do not
     clobber each other's staging file.
+
+    Writes LF on every platform (``newline="\\n"``). The SHA-256 of a file's raw bytes
+    identifies a record (`_file_revision` / `--expected-revision`) and is archived, so
+    the same content has to hash identically on Windows and on a fresh clone; see
+    `.gitattributes`.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -36,7 +41,7 @@ def write_json_atomic(path: Path, data) -> None:
         dir=str(path.parent), prefix=path.name + ".", suffix=".tmp"
     )
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(data, fh, indent=2, ensure_ascii=False)
             fh.write("\n")
         os.replace(tmp_name, path)
