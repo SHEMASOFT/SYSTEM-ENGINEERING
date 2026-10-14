@@ -2750,7 +2750,9 @@ def _append_mutation_log(project, kind, record_id, actor, changes, action=None, 
         # original ADR-0013 shape ({at, record_type, record_id, by, changes}).
         entry["action"] = action or ""
         entry["key"] = key
-    with path.open("a", encoding="utf-8") as fh:
+    # newline="\n": the ledger's bytes are part of the record (see .gitattributes),
+    # so the line ending must not depend on the platform that appended the entry.
+    with path.open("a", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
@@ -5046,7 +5048,8 @@ def _record_coverage_baseline_rebase(root: Path, actor: str, reason: str) -> dic
         "changes": changes,
     }
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("a", encoding="utf-8") as fh:
+    # Same byte contract as the mutation log: the appended line is LF on every platform.
+    with log_path.open("a", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     write_json_atomic(baseline_path, new)
