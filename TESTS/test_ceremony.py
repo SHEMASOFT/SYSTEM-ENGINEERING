@@ -180,5 +180,70 @@ class CeremonyCliTests(unittest.TestCase):
         self.assertIn("CEREMONY: PASS", out)
 
 
+class PolicySchemaAlignmentTests(unittest.TestCase):
+    """The ceremony policy must only accept statuses the schemas can actually hold.
+
+    `spec_status_acceptable` listed `ACCEPTED` and `RELEASED`, which are not in the
+    SDD status enum: no SDD record can ever carry them, so the policy advertised two
+    dead paths (and printed them in the failure message). Nothing cross-checked the
+    two, which is how the drift survived. These tests are that cross-check: every
+    accepted value must exist in the schema it refers to, and the in-code default
+    must agree with the policy file it shadows.
+    """
+
+    def sdd_status_enum(self):
+        return support.schemas()["sdd"]["properties"]["status"]["enum"]
+
+    def rdd_verdict_enum(self):
+        return support.schemas()["rdd"]["properties"]["verdict"]["enum"]
+
+    def policy_file(self):
+        with (support.REPO_ROOT / "CORE" / "policies" / "ceremony.json").open(encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_spec_statuses_are_reachable_in_the_sdd_schema(self):
+        acceptable = ceremony.load_policy()["spec_status_acceptable"]
+        self.assertTrue(acceptable, "the policy must accept at least one status")
+        unreachable = sorted(set(acceptable) - set(self.sdd_status_enum()))
+        self.assertEqual(
+            unreachable, [],
+            f"spec_status_acceptable declares statuses the SDD schema forbids: {unreachable}",
+        )
+
+    def test_receipt_verdicts_are_reachable_in_the_rdd_schema(self):
+        acceptable = ceremony.load_policy()["receipt_verdicts_acceptable"]
+        self.assertTrue(acceptable, "the policy must accept at least one verdict")
+        unreachable = sorted(set(acceptable) - set(self.rdd_verdict_enum()))
+        self.assertEqual(
+            unreachable, [],
+            f"receipt_verdicts_acceptable declares verdicts the RDD schema forbids: {unreachable}",
+        )
+
+    def test_policy_file_and_builtin_default_agree(self):
+        policy = self.policy_file()
+        for key in ("spec_status_acceptable", "receipt_verdicts_acceptable"):
+            self.assertEqual(
+                policy[key], ceremony._DEFAULT_POLICY[key],
+                f"{key} drifted between CORE/policies/ceremony.json and ceremony._DEFAULT_POLICY",
+            )
+
+    def test_requirement_message_advertises_only_reachable_statuses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            support.write_json(project / "PROJECT.json", support.manifest(profiles={"work": {"scale": "large"}}))
+            support.write_json(project / "sdds" / "SDD-0001.json", {"sdd_id": "SDD-0001", "status": "DRAFT"})
+            support.write_json(project / "rdds" / "RDD-0001.json", {"rdd_id": "RDD-0001", "verdict": "PASS"})
+
+            result = ceremony.check_project_ceremony(project)
+
+        self.assertTrue(result["failures"])
+        message = " ".join(result["failures"])
+        for forbidden in ("ACCEPTED", "RELEASED"):
+            self.assertNotIn(
+                forbidden, message,
+                f"the failure message must not advertise the unreachable status {forbidden}",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

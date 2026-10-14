@@ -184,5 +184,41 @@ class NewRecordTests(unittest.TestCase):
         self.assertEqual(data["related_decisions"], ["ADR-0001"])
 
 
+    def test_evidence_description_is_recorded(self):
+        """`--description` is declared for `se new` and the evidence schema has
+        the field, yet the value was dropped silently (`description: ""`)."""
+        text = "Ran the harness twice; identical payload (20480 chars) both times."
+        code, out = self.create(
+            "evidence", "--title", "Evd", "--type", "test", "--result", "PASS",
+            "--location", "SE-CONSOLE/tests/validate_poc.py",
+            "--command", "python SE-CONSOLE/tests/validate_poc.py",
+            "--description", text,
+        )
+        self.assertEqual(code, 0, out)
+        data = load_json(self.project / DIR["evidence"] / "EVD-0001.json")
+        self.assertEqual(validate(data, self.schemas["evidence"]), [])
+        self.assertEqual(data["description"], text)
+
+    def test_evidence_without_description_is_empty(self):
+        code, out = self.create("evidence", "--title", "Evd", "--type", "test", "--result", "PASS")
+        self.assertEqual(code, 0, out)
+        data = load_json(self.project / DIR["evidence"] / "EVD-0001.json")
+        self.assertEqual(validate(data, self.schemas["evidence"]), [])
+        self.assertEqual(data["description"], "")
+
+    def test_evidence_keeps_location_and_command(self):
+        """Guard: the fix must not disturb the flags that already worked."""
+        code, out = self.create(
+            "evidence", "--title", "Evd", "--type", "test", "--result", "PASS",
+            "--location", "TESTS/test_new.py", "--command", "python -m unittest",
+            "--description", "txt",
+        )
+        self.assertEqual(code, 0, out)
+        data = load_json(self.project / DIR["evidence"] / "EVD-0001.json")
+        self.assertEqual(data["location"], "TESTS/test_new.py")
+        self.assertEqual(data["command"], "python -m unittest")
+        self.assertEqual(data["description"], "txt")
+
+
 if __name__ == "__main__":
     unittest.main()

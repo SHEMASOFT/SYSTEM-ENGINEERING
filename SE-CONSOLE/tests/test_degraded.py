@@ -27,18 +27,37 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONSOLE_ROOT = os.path.dirname(HERE)
 
-#: Canonical SE root exercised by phase C. Portable default: the sibling checkout
-#: next to this console. The previous hardcoded Windows literal made phase C
-#: unrunnable off Windows, which then overwrote this harness's committed evidence
-#: with a truncated run.
-SE_ROOT_REAL = os.environ.get("SE_ROOT_REAL") or os.path.join(
-    os.path.dirname(CONSOLE_ROOT), "SYSTEM-ENGINEERING"
-)
+#: Canonical SE root exercised by phase C. The previous hardcoded Windows literal
+#: made phase C unrunnable off Windows, which then overwrote this harness's
+#: committed evidence with a truncated run; the resolver below keeps it portable.
+def _resolve_se_root() -> str:
+    """Locate a canonical SE root for phase C.
+
+    ``SE_ROOT_REAL`` overrides. Otherwise two layouts are supported, because the
+    console must be testable in whichever one it ships in:
+
+    * vendored -- the console lives inside the SE repo (``<SE>/SE-CONSOLE``), so
+      the root is ``<console-parent>``;
+    * sibling  -- the console is checked out next to ``SYSTEM-ENGINEERING``, so the
+      root is ``<console-parent>/SYSTEM-ENGINEERING``.
+    """
+    override = os.environ.get("SE_ROOT_REAL")
+    if override:
+        return override
+    parent = os.path.dirname(CONSOLE_ROOT)
+    for candidate in (parent, os.path.join(parent, "SYSTEM-ENGINEERING")):
+        if os.path.exists(os.path.join(candidate, "SCRIPTS", "se.py")):
+            return candidate
+    return os.path.join(parent, "SYSTEM-ENGINEERING")
+
+
+SE_ROOT_REAL = _resolve_se_root()
 
 results: list[dict] = []
 
@@ -256,12 +275,29 @@ def run_record_and_health_contract() -> None:
               (sh.get("envelope") or {}).get("epistemic") in ("OBSERVED", "UNKNOWN"),
               f"envelope epistemic={(sh.get('envelope') or {}).get('epistemic')}")
 
-        st, body = srv.get("/api/project?rel_path=PROJECTS/SHEMA", timeout=240)
-        unm = json.loads(body)
-        ush = unm.get("se_health") or {}
-        check("H8", "unmanaged project gets no invented health",
-              (ush.get("health") or {}).get("value") == "UNKNOWN",
-              f"health={(ush.get('health') or {}).get('value')} reason={(ush.get('reason') or {}).get('value')}")
+        # H8: an UNMANAGED project must get no invented health. Which project is
+        # unmanaged depends on the workspace -- a directory becomes MANAGED the
+        # moment it gets a schema-valid PROJECT.json, so hardcoding a name made
+        # this check pass only in the checkout it was written against. Discover an
+        # unmanaged project from the console itself instead.
+        st, body = srv.get("/api/projects", timeout=180)
+        listed = json.loads(body).get("projects", []) if st == 200 else []
+        unmanaged = [p for p in listed if p.get("management") != "MANAGED"]
+        if not unmanaged:
+            check("H8", "unmanaged project gets no invented health", False,
+                  "no unmanaged project in this workspace: the property cannot be "
+                  "exercised (declared, not silently skipped)")
+        else:
+            target = str(unmanaged[0]["rel_path"]).replace("\\", "/")
+            st, body = srv.get(
+                "/api/project?rel_path=" + urllib.parse.quote(target), timeout=240
+            )
+            unm = json.loads(body)
+            ush = unm.get("se_health") or {}
+            check("H8", f"unmanaged project ({target}) gets no invented health",
+                  (ush.get("health") or {}).get("value") == "UNKNOWN",
+                  f"health={(ush.get('health') or {}).get('value')} "
+                  f"reason={(ush.get('reason') or {}).get('value')}")
 
         st, body = srv.get("/api/system", timeout=300)
         sysd = json.loads(body)
