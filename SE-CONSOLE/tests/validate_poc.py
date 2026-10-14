@@ -89,8 +89,20 @@ def start_server() -> subprocess.Popen:
 # --------------------------------------------------------------------------
 
 
+#: Paths under the SE root that are gitignored working records, not canonical
+#: content. They are written during normal work, so a change there is not
+#: evidence that the console wrote anything and must not fail S12.
+NON_CANONICAL_PREFIXES = ("DOCS/internal/",)
+
+
 def core_fingerprint() -> dict:
-    """Hash the canonical SE tree. Proves the console changed nothing."""
+    """Hash the canonical SE tree. Proves the console changed nothing.
+
+    Only canonical content is fingerprinted: the gitignored working records under
+    ``DOCS/internal/`` are excluded (until 2026-10-14 they were not, so an
+    unrelated write there during a run produced a false S12 non-interference
+    failure).
+    """
     # Portable default: when vendored the file lives at <repo>/SE-CONSOLE/tests,
     # so the repository root is two dirname() hops up from here.
     se = os.environ.get("SE_ROOT") or os.path.dirname(os.path.dirname(HERE))
@@ -100,12 +112,17 @@ def core_fingerprint() -> dict:
     ]
     skip = re.compile(r"node_modules|__pycache__|\\\.git\\|\\db_backups\\")
     files: list[str] = []
+
+    def non_canonical(p: str) -> bool:
+        rel = os.path.relpath(p, se).replace("\\", "/")
+        return rel.startswith(NON_CANONICAL_PREFIXES)
+
     for d in dirs:
         base = os.path.join(se, d)
         for root, _sub, names in os.walk(base):
             for n in names:
                 p = os.path.join(root, n)
-                if not skip.search(p):
+                if not skip.search(p) and not non_canonical(p):
                     files.append(p)
     for n in os.listdir(se):
         p = os.path.join(se, n)
@@ -617,10 +634,14 @@ def main() -> int:
 
     print("\n[6] non-interference after (S12) + artifacts (S15)")
     after = core_fingerprint()
+    same = (
+        before["tree_sha256"] == after["tree_sha256"]
+        and before["file_count"] == after["file_count"]
+    )
     check("S12", "SYSTEM-ENGINEERING byte-identical",
-          before["tree_sha256"] == after["tree_sha256"]
-          and before["file_count"] == after["file_count"],
-          f"{before['file_count']} files, sha256 {after['tree_sha256'][:16]} unchanged")
+          same,
+          f"{before['file_count']} files, sha256 {before['tree_sha256'][:16]}"
+          + ("" if same else f" -> {after['file_count']} files, sha256 {after['tree_sha256'][:16]} CHANGED"))
     bad = no_forbidden_artifacts()
     check("S15", "no SQLite / no new dependency manifest", not bad, f"found={bad}")
 
