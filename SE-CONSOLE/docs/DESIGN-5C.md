@@ -1,8 +1,9 @@
 # SE-CONSOLE — 5C · Lifecycle & Shutdown (Design)
 
-Status: **PROPOSED — not approved, not implemented.** This document exists so that the
-decision *"how does the console process end, and what does the operator get on the
-desktop?"* is taken deliberately and is auditable. Nothing in it authorises code.
+Status: **ACCEPTED — 2026-10-14. Not implemented.** The owner decided (see §7, §11):
+option **A** (idle-timeout heartbeat), **N = 15 min**, **one** desktop shortcut (start only).
+This document records the design; it does **not** authorise code (§10). Each phase in §9 is
+its own work unit with its own go-ahead.
 
 Extends `docs/DESIGN.md`. Follows `docs/DESIGN-5B.md` (5B opened one named exception to
 the read-only invariant; this document asks whether a second one is ever needed at all).
@@ -143,17 +144,19 @@ anything changes at all. Stated as a table so the answer can be audited:
 **Consequence:** option **A changes no invariant.** Option **B changes layer 1 again**, which
 is precisely why it must be an explicit decision with its own §-equivalent, not a footnote.
 
-## 7. Recommendation
+## 7. Decision (accepted 2026-10-14)
 
-1. **Q1 → option A** (idle timeout), because it is the only mechanism that delivers the
-   requested behaviour *and* survives the cases the page cannot see. Default **off**
-   (`--idle-timeout 0`); the launcher passes a sane default (15 min) when it starts the
-   console, so a hand-run `python -m console.server` keeps today's behaviour.
-2. **Option B is not required.** Add it later only if "stop the instant I close the tab" is
-   judged worth a second named exception. It is an accelerator, never the mechanism.
-3. **Option C is the fallback** if the owner prefers zero change to the console.
-4. **Q2 follows from Q1:** with A (or C) the installer creates **one** shortcut
-   ("SE Console" → start; the browser opens). With D it creates **two** (start + stop).
+1. **Q1 → option A** (idle timeout). It is the only mechanism that delivers the requested
+   behaviour *and* survives the cases the page cannot see (§4). Default **off**
+   (`--idle-timeout 0`); the launcher passes **15 min** when it starts the console, so a
+   hand-run `python -m console.server` keeps today's behaviour.
+2. **Option B is rejected as the mechanism.** It may be revisited only as an accelerator on
+   top of A, and only if the second named POST exception is judged worth it — that would be
+   a **new** decision, not a continuation of this one.
+3. **Option C is not chosen.** It stays documented as the fallback if A proves insufficient
+   in practice.
+4. **Q2 → one shortcut.** The installer creates a single "SE Console" shortcut (start; the
+   browser opens). There is no Stop shortcut: the server stops itself (A).
 
 ## 8. What would change, and what would not
 
@@ -181,24 +184,32 @@ Each phase is independently verifiable and is its own work unit:
 4. **Install-time shortcut** — `se_installer/shortcuts.py` + `InstallationPlan.create_shortcuts`
    + TUI prompt; one or two shortcuts per §7.4.
 
-Phase 4 depends on Q2, which depends on this document's decision. Phases 2–3 are **not**
-authorised until the owner decides.
+Phase 4 follows from the accepted Q2 (§7.4) and no longer waits on a decision. All phases
+remain separate work units: acceptance of this design is **not** authorisation to write the
+code (§10).
 
 ## 10. Explicitly NOT authorised by this document
 
-- Implementing any option (A, B, C or D), in whole or in part.
-- Adding any route — POST or GET — to the console's table.
+Accepting the design is **not** authorising its implementation. This document does not
+authorise:
+
+- Writing any of the code listed in §8.
+- Adding any route — POST or **GET** — to the console's table.
 - Adding a `--idle-timeout` flag, a heartbeat, or a watcher thread.
 - Creating anything in `se_installer/` or on any desktop.
-- Treating §7 as a decision: it is a **recommendation** awaiting the owner.
+- Option **B**: no second named exception to the GET-only invariant has been approved.
+- Options **C** or **D** as the mechanism.
 
-## 11. Decision required
+Phases 2–4 (§9) each begin only on their own explicit go-ahead.
 
-| # | Choice | Options |
-|---|---|---|
-| D1 | Stop mechanism (Q1) | A idle timeout / B beacon (+A) / C window-owned / D none |
-| D2 | If A: idle N | 5 / 15 / 30 min (default proposed: 15) |
-| D3 | Desktop shortcuts (Q2) | one (start) / two (start + stop) — follows from D1 |
-| D4 | If B: accept a second named POST exception | yes / no |
+## 11. Decision record
 
-Until D1 is recorded here, the console's lifecycle stays as it is today.
+| # | Choice | Decided | Options considered |
+|---|---|---|---|
+| D1 | Stop mechanism (Q1) | **A — idle-timeout heartbeat** | A idle timeout / B beacon (+A) / C window-owned / D none |
+| D2 | If A: idle N | **15 min** | 5 / 15 / 30 min |
+| D3 | Desktop shortcuts (Q2) | **one (start only)** | one (start) / two (start + stop) |
+| D4 | If B: a second named POST exception | **n/a — B rejected** | yes / no |
+
+Decided by the project owner, 2026-10-14. The console's lifecycle stays as it is today until
+phase 2 lands (§9): this decision governs the **design**, not the schedule.
