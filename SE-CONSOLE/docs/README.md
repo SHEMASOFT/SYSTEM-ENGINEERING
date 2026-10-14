@@ -28,6 +28,32 @@ interpreter that already runs `se`, and `jsonschema` (already present for
 Point it elsewhere with `SE_ROOT`; change the port with `SE_CONSOLE_PORT`.
 The console defaults `SE_ROOT` to the repository root when vendored.
 
+### Start / stop with one click (optional)
+
+`scripts/dev_console.py` is a small local helper for the operator: bring the
+console up while you work, take it down when you stop. It is **not** a service
+and needs no privileges -- no Docker, no systemd, no NSSM, no boot entry. It
+writes only under `SE-CONSOLE/.runtime/` (gitignored); the console process itself
+still writes nothing into the SE tree.
+
+```powershell
+python scripts\dev_console.py start     # up in the background, waits for /api/health
+python scripts\dev_console.py status
+python scripts\dev_console.py stop      # clean shutdown
+python scripts\dev_console.py restart
+python scripts\dev_console.py logs -n 40
+```
+
+Double-clickable shortcuts live next to it:
+
+- Windows: `scripts\Start SE Console.cmd`, `scripts\Stop SE Console.cmd`
+  (point a Desktop shortcut at either one)
+- macOS: `scripts\Start SE Console.command`, `scripts\Stop SE Console.command`
+
+The helper proves a running console by its `/api/health` signature
+(`console=se-console`, `mode=read-only`), never by a bare PID, and refuses to
+kill a process it cannot prove is this console (`--force` overrides).
+
 ## Verify it
 
 ```powershell

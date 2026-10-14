@@ -41,6 +41,16 @@ _CONSOLE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SE_ROOT = os.environ.get("SE_ROOT") or os.path.dirname(_CONSOLE_ROOT)
 SE_ENTRY = os.path.join(SE_ROOT, "SCRIPTS", "se.py")
 
+#: Windows-only. A process with NO console makes every child console process
+#: allocate a NEW console window -- and `se` is invoked through
+#: ``sys.executable``, i.e. a console application. A console started detached
+#: (e.g. by ``scripts/dev_console.py``) would therefore pop one window per
+#: invocation: two for ``/api/system`` (``se doctor`` + ``se capabilities``) and
+#: nine for ``/api/gates``. ``CREATE_NO_WINDOW`` keeps the child consoles
+#: invisible, with no console at all being created. It is 0 on other platforms,
+#: where the flag does not exist and ``creationflags`` must stay 0.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+
 #: The only `se` subcommands this console may ever invoke.
 #: Every entry here is declared ``mutates: false`` in COMMANDS/commands.json.
 READ_ONLY_COMMANDS = frozenset(
@@ -207,6 +217,7 @@ def probe_se(*, timeout: int = 20) -> dict[str, Any]:
                 timeout=timeout,
                 encoding="utf-8",
                 errors="replace",
+                creationflags=_NO_WINDOW,
             )
         except subprocess.TimeoutExpired:
             result["reason"] = "se probe timed out"
@@ -363,6 +374,7 @@ def run_se(
             timeout=timeout,
             encoding="utf-8",
             errors="replace",
+            creationflags=_NO_WINDOW,
         )
     except subprocess.TimeoutExpired:
         meta["transport"] = "timeout"
