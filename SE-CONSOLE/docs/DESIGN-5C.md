@@ -1,9 +1,10 @@
 # SE-CONSOLE — 5C · Lifecycle & Shutdown (Design)
 
-Status: **ACCEPTED — 2026-10-14. Not implemented.** The owner decided (see §7, §11):
-option **A** (idle-timeout heartbeat), **N = 15 min**, **one** desktop shortcut (start only).
-This document records the design; it does **not** authorise code (§10). Each phase in §9 is
-its own work unit with its own go-ahead.
+Status: **ACCEPTED — 2026-10-14. Phases 1–3 LANDED; phase 4 pending.** The owner decided
+(see §7, §11): option **A** (idle-timeout heartbeat), **N = 15 min**, **one** desktop shortcut
+(start only). Phases 1–3 were each given their own go-ahead and are merged on `main` (§9
+carries the evidence). This document records the design; accepting it was **not** the
+authorisation for code (§10). Phase 4 is its own work unit.
 
 Extends `docs/DESIGN.md`. Follows `docs/DESIGN-5B.md` (5B opened one named exception to
 the read-only invariant; this document asks whether a second one is ever needed at all).
@@ -177,16 +178,17 @@ shape, any `se` delegation, the `se.report/1` handling. No third-party dependenc
 
 Each phase is independently verifiable and is its own work unit:
 
-1. **This document** — the decision, recorded. *(now)*
+1. **This document** — the decision, recorded. *(landed: PR #33)*
 2. **Idle timeout** — server flag + heartbeat, off by default; tests prove stop-on-idle and
-   stay-alive-under-heartbeat.
+   stay-alive-under-heartbeat. *(landed: PR #32 — `tests/test_idle_timeout.py`, cases I1/I2/I3)*
 3. **Launcher wiring** — `dev_console.py start` passes the timeout; `status` shows it.
+   *(landed: PR #34 — 15 min by default, `--idle-timeout` on `start` and `restart`)*
 4. **Install-time shortcut** — `se_installer/shortcuts.py` + `InstallationPlan.create_shortcuts`
-   + TUI prompt; one or two shortcuts per §7.4.
+   + TUI prompt; one or two shortcuts per §7.4. *(pending)*
 
-Phase 4 follows from the accepted Q2 (§7.4) and no longer waits on a decision. All phases
-remain separate work units: acceptance of this design is **not** authorisation to write the
-code (§10).
+Phase 4 follows from the accepted Q2 (§7.4) and no longer waits on a decision. Each phase is
+its own work unit: acceptance of this design was **not** authorisation to write the code
+(§10) — every landed phase above had its own explicit go-ahead.
 
 ## 10. Explicitly NOT authorised by this document
 
@@ -202,6 +204,9 @@ authorise:
 
 Phases 2–4 (§9) each begin only on their own explicit go-ahead.
 
+*Subsequently: the owner gave those go-aheads for phases 2 and 3, and both are merged. The
+list above stays as the record of what this document alone did not authorise.*
+
 ## 11. Decision record
 
 | # | Choice | Decided | Options considered |
@@ -211,5 +216,6 @@ Phases 2–4 (§9) each begin only on their own explicit go-ahead.
 | D3 | Desktop shortcuts (Q2) | **one (start only)** | one (start) / two (start + stop) |
 | D4 | If B: a second named POST exception | **n/a — B rejected** | yes / no |
 
-Decided by the project owner, 2026-10-14. The console's lifecycle stays as it is today until
-phase 2 lands (§9): this decision governs the **design**, not the schedule.
+Decided by the project owner, 2026-10-14. The decision governs the **design**, not the
+schedule: the console's lifecycle changed when phase 2 landed (§9), not when this document
+was written — and it is now implemented through phase 3.
