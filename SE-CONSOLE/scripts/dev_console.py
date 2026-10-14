@@ -12,7 +12,11 @@ privileges:
 * state lives under ``SE-CONSOLE/.runtime/`` (gitignored) -- one PID file and one
   log per run;
 * nothing is written into the SE tree, so the console's read-only contract and
-  ``se doctor``'s fingerprints are untouched.
+  ``se doctor``'s fingerprints are untouched;
+* when it spawns the console it also ARMS the server's idle timeout (15 minutes
+  by default, ``--idle-timeout``), so closing the browser is by itself enough to
+  bring the console down. A console started by hand keeps the server's default
+  of *no* timeout and never stops on its own.
 
 Design rules (why the code looks like this)
 -------------------------------------------
@@ -61,6 +65,13 @@ PID_FILE = RUNTIME_DIR / "se-console.json"
 DEFAULT_HOST = os.environ.get("SE_CONSOLE_HOST", "127.0.0.1")
 DEFAULT_PORT = int(os.environ.get("SE_CONSOLE_PORT", "8777"))
 
+#: How long a console started by this tool may sit with nobody asking it for
+#: anything. The SERVER defaults to 0 (off) because a console started by hand in
+#: a terminal must not vanish on its own; the LAUNCHER switches it on, because a
+#: console started from here is the one a browser gets pointed at, and the
+#: operator wants it gone once they close the tab (DESIGN-5C, decision D2).
+DEFAULT_IDLE_TIMEOUT = int(os.environ.get("SE_CONSOLE_IDLE_TIMEOUT", str(15 * 60)))
+
 START_TIMEOUT = 45.0          # seconds to wait for /api/health after spawn
 STOP_TIMEOUT = 20.0           # seconds to wait for the process to disappear
 POLL = 0.25
@@ -106,6 +117,13 @@ def _say(msg: str) -> None:
 def _fail(msg: str, code: int = 1) -> int:
     print(f"[se-console-dev][ERROR] {msg}", file=sys.stderr)
     return code
+
+
+def _human_seconds(seconds: int) -> str:
+    """900 -> '15 min'. Whole minutes only; anything else is shown as seconds."""
+    if seconds and seconds % 60 == 0:
+        return f"{seconds // 60} min"
+    return f"{seconds}s"
 
 
 def _is_windows() -> bool:
@@ -209,6 +227,9 @@ def _spawn_env(host: str, port: int) -> dict[str, str]:
 
 def cmd_start(args: argparse.Namespace) -> int:
     host, port = args.host, args.port
+    idle = int(args.idle_timeout)
+    if idle < 0:
+        return _fail("--idle-timeout must be 0 (never stop) or a positive number of seconds")
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
     # already running?
@@ -250,10 +271,18 @@ def cmd_start(args: argparse.Namespace) -> int:
         kwargs["start_new_session"] = True
 
     _say(f"starting console (se_root={se_root()}, port={port})")
+    if idle > 0:
+        _say(f"idle timeout: {_human_seconds(idle)} with no client, then it stops on its own")
+    else:
+        _say("idle timeout: disabled (it stops only on an explicit 'stop')")
     _say(f"log -> {log_path}")
+    # Passed EXPLICITLY, never inherited from the environment: the child's own
+    # log line then states the value actually in force, so 'status' and the
+    # console's log cannot disagree.
+    argv = [sys.executable, "-m", "console.server", "--idle-timeout", str(idle)]
     with open(log_path, "ab") as log:
         proc = subprocess.Popen(  # noqa: S603 (fixed argv, own interpreter)
-            [sys.executable, "-m", "console.server"],
+            argv,
             cwd=str(CONSOLE_ROOT),
             env=env,
             stdin=subprocess.DEVNULL,
@@ -270,6 +299,7 @@ def cmd_start(args: argparse.Namespace) -> int:
             "se_root": se_root(),
             "console_root": str(CONSOLE_ROOT),
             "started_at": datetime.now().isoformat(timespec="seconds"),
+            "idle_timeout": idle,
             "log": str(log_path),
         }
     )
@@ -396,6 +426,12 @@ def _status_data() -> dict[str, Any]:
         "se_root": (payload or {}).get("se_root") or (data or {}).get("se_root"),
         "health": (payload or {}).get("status"),
         "version": (payload or {}).get("version"),
+        # Configured by THIS tool at start, read back from its own PID file. It
+        # is deliberately not read from the server: /api/health carries no idle
+        # timeout, and adding a field there would change a frozen response shape
+        # (DESIGN-5B). None means "we did not start this one", so we do not claim
+        # to know its value.
+        "idle_timeout": (data or {}).get("idle_timeout"),
         "log": (data or {}).get("log"),
     }
 
@@ -408,6 +444,17 @@ def cmd_status(args: argparse.Namespace) -> int:
     if info["state"] == "running":
         _say(f"RUNNING  {info['url']}  pid={info['pid']}  health={info['health']}")
         _say(f"se_root={info['se_root']}  version={info['version']}")
+        idle = info.get("idle_timeout")
+        if isinstance(idle, int) and idle > 0:
+            _say(f"idle_timeout={_human_seconds(idle)}  (stops after that long with no client)")
+        elif isinstance(idle, int):
+            _say("idle_timeout=off  (it will not stop on its own)")
+        elif info.get("pid") is None:
+            _say("idle_timeout=unknown  (not started by this tool)")
+        else:
+            # A PID file with no idle_timeout field was written before the option
+            # existed. Say that, rather than guess a value never recorded.
+            _say("idle_timeout=unknown  (started before this option existed)")
         if info["log"]:
             _say(f"log -> {info['log']}")
     elif info["state"] == "stale":
@@ -471,6 +518,23 @@ def cmd_logs(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _add_idle_argument(parser: argparse.ArgumentParser) -> None:
+    """The same flag on ``start`` and ``restart``, so they cannot drift apart."""
+    parser.add_argument(
+        "--idle-timeout",
+        type=int,
+        default=DEFAULT_IDLE_TIMEOUT,
+        metavar="SECONDS",
+        help=(
+            "stop the console once no client has asked it for anything for "
+            f"SECONDS (default {DEFAULT_IDLE_TIMEOUT}s = "
+            f"{_human_seconds(DEFAULT_IDLE_TIMEOUT)}); use 0 to disable. The "
+            "count only starts after the first client connects, so a console "
+            "nobody opens never stops on its own."
+        ),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="dev_console.py",
@@ -482,6 +546,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--host", default=DEFAULT_HOST)
     s.add_argument("--port", type=int, default=DEFAULT_PORT)
     s.add_argument("--timeout", type=float, default=START_TIMEOUT)
+    _add_idle_argument(s)
     s.set_defaults(func=cmd_start)
 
     s = sub.add_parser("stop", help="stop the console started by this tool")
@@ -497,6 +562,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--port", type=int, default=DEFAULT_PORT)
     s.add_argument("--timeout", type=float, default=START_TIMEOUT)
     s.add_argument("--force", action="store_true")
+    _add_idle_argument(s)
     s.set_defaults(func=cmd_restart)
 
     s = sub.add_parser("logs", help="tail the console log")
