@@ -235,6 +235,10 @@ class InstallerApp(App):
                 yield Static("## Componentes a Instalar", id="sidebar-title")
                 yield Static("SPACE=select | ENTER=install | A=recommended", id="hint")
                 yield ComponentTree(self.get_components_by_cat(), id="component-tree")
+                yield Checkbox(
+                    "Crear acceso directo en el Escritorio (SE Console)",
+                    id="chk-shortcuts",
+                )
                 
                 with Horizontal(id="buttons"):
                     yield Button("Instalar Seleccionados", id="btn-install", variant="primary")
@@ -328,6 +332,13 @@ class InstallerApp(App):
             progress_callback=self._on_progress
         )
         
+        # The operator answered the shortcut question with this checkbox. It is
+        # read here, at install time, so what gets created matches what the box
+        # said when Install was pressed.
+        self.orchestrator.plan.create_shortcuts = bool(
+            self.query_one("#chk-shortcuts", Checkbox).value
+        )
+        
         self.orchestrator.prepare_plan(
             selected_ids=list(self.selected_ids),
             target_runtimes=["opencode"]  # default
@@ -338,6 +349,7 @@ class InstallerApp(App):
         self.query_one("#btn-recommended", Button).disabled = True
         self.query_one("#btn-refresh", Button).disabled = True
         self.query_one("#btn-dryrun", Button).disabled = True
+        self.query_one("#chk-shortcuts", Checkbox).disabled = True
         
         # Run installation in background
         self.run_worker(self._run_installation, exclusive=True)
@@ -351,6 +363,7 @@ class InstallerApp(App):
         self.query_one("#btn-recommended", Button).disabled = False
         self.query_one("#btn-refresh", Button).disabled = False
         self.query_one("#btn-dryrun", Button).disabled = False
+        self.query_one("#chk-shortcuts", Checkbox).disabled = False
         
         summary = self.orchestrator.get_summary()
         if success:
@@ -391,6 +404,15 @@ class InstallerApp(App):
                 log.add_entry("ERROR", f"{comp_id}: {data['error']}")
         elif event == "component_failed":
             log.add_entry("ERROR", f"{data['component']} falló: {data['error']}")
+        elif event == "shortcut":
+            if data.get("created"):
+                log.add_entry("SUCCESS", f"Acceso directo creado: {data['path']}")
+            elif data.get("skipped"):
+                log.add_entry("INFO", f"Acceso directo omitido: {data.get('reason', '')}")
+            elif data.get("dry_run") and not data.get("error"):
+                log.add_entry("INFO", f"Acceso directo (dry run): {data['path']}")
+            else:
+                log.add_entry("ERROR", f"Acceso directo: {data.get('error') or 'no se pudo crear'}")
         elif event == "completed":
             log.add_entry("INFO" if data["success"] else "ERROR", 
                          f"Instalación {'completada' if data['success'] else 'fallida'}")

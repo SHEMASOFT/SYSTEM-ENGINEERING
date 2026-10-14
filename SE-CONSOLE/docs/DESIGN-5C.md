@@ -1,10 +1,10 @@
 # SE-CONSOLE — 5C · Lifecycle & Shutdown (Design)
 
-Status: **ACCEPTED — 2026-10-14. Phases 1–3 LANDED; phase 4 pending.** The owner decided
+Status: **ACCEPTED — 2026-10-14. Phases 1–3 LANDED on `main`; phase 4 in this PR.** The owner decided
 (see §7, §11): option **A** (idle-timeout heartbeat), **N = 15 min**, **one** desktop shortcut
 (start only). Phases 1–3 were each given their own go-ahead and are merged on `main` (§9
 carries the evidence). This document records the design; accepting it was **not** the
-authorisation for code (§10). Phase 4 is its own work unit.
+authorisation for code (§10). Phase 4 is its own work unit and carries its own go-ahead.
 
 Extends `docs/DESIGN.md`. Follows `docs/DESIGN-5B.md` (5B opened one named exception to
 the read-only invariant; this document asks whether a second one is ever needed at all).
@@ -182,9 +182,11 @@ Each phase is independently verifiable and is its own work unit:
 2. **Idle timeout** — server flag + heartbeat, off by default; tests prove stop-on-idle and
    stay-alive-under-heartbeat. *(landed: PR #32 — `tests/test_idle_timeout.py`, cases I1/I2/I3)*
 3. **Launcher wiring** — `dev_console.py start` passes the timeout; `status` shows it.
-   *(landed: PR #34 — 15 min by default, `--idle-timeout` on `start` and `restart`)*
+   *(landed: PR #35 — 15 min by default, `--idle-timeout` on `start` and `restart`; the
+   launcher itself arrived in PR #34)*
 4. **Install-time shortcut** — `se_installer/shortcuts.py` + `InstallationPlan.create_shortcuts`
-   + TUI prompt; one or two shortcuts per §7.4. *(pending)*
+   + TUI prompt; one or two shortcuts per §7.4. *(landed by this PR — `se_installer/shortcuts.py`;
+   §12 records the three deviations, each agreed with the owner beforehand)*
 
 Phase 4 follows from the accepted Q2 (§7.4) and no longer waits on a decision. Each phase is
 its own work unit: acceptance of this design was **not** authorisation to write the code
@@ -204,8 +206,9 @@ authorise:
 
 Phases 2–4 (§9) each begin only on their own explicit go-ahead.
 
-*Subsequently: the owner gave those go-aheads for phases 2 and 3, and both are merged. The
-list above stays as the record of what this document alone did not authorise.*
+*Subsequently: the owner gave those go-aheads for phases 2, 3 and 4 — phases 2 and 3 are
+merged, phase 4 is in this PR. The list above stays as the record of what this document alone
+did not authorise.*
 
 ## 11. Decision record
 
@@ -218,4 +221,35 @@ list above stays as the record of what this document alone did not authorise.*
 
 Decided by the project owner, 2026-10-14. The decision governs the **design**, not the
 schedule: the console's lifecycle changed when phase 2 landed (§9), not when this document
-was written — and it is now implemented through phase 3.
+was written — and it is implemented through phase 3 on `main`, with phase 4 in this PR (§12).
+
+## 12. Phase 4 as built (2026-10-14)
+
+Branch `feat/installer-console-shortcut`. The design asked for `se_installer/shortcuts.py` +
+`InstallationPlan.create_shortcuts` + a TUI prompt (§9.4). What was built differs in three
+ways, each put to the owner before the code was written:
+
+1. **The question is opt-in and defaults to no.** The TUI carries a checkbox, and the CLI
+   gained `--shortcuts` / `--no-shortcuts`. §9.4 said "TUI prompt": a modal prompt could not be
+   executed in the environment this was built in (the TUI's dependency is installed neither
+   there nor in CI), and an installer must not write to an operator's Desktop unless asked.
+2. **The Linux shortcut carries its own start recipe.** The console ships a double-clickable
+   start script for Windows (`Start SE Console.cmd`) and for macOS (`Start SE Console.command`)
+   but none for Linux, and phase 4 is confined to `se_installer/`: no console files were added
+   to make a shortcut possible. Windows and macOS keep pointing at the console's own scripts.
+3. **The shortcut is created only when SE Console is part of the installation, and only after
+   that installation succeeds.** A shortcut to a console that was not installed — or to an
+   install that failed — is a link that breaks silently on a Desktop weeks later.
+
+Per platform: Windows creates `SE Console.lnk` through `WScript.Shell`, asking Windows for the
+Desktop with `[Environment]::GetFolderPath('Desktop')` because OneDrive relocates it; macOS
+creates a wrapper `.command` rather than a symlink, because the console's launcher begins with
+`cd "$(dirname "$0")"` and through a Desktop symlink that resolves to the Desktop; Linux
+creates an executable `.desktop`, marked trusted through `gio` where it is available.
+
+**Phase 4 does not depend on phase 3, but D3's promise does.** The shortcut only *starts* the
+console; what stops it is the idle timeout phase 3 armed. Phase 3 has since landed (PR #35,
+§9.3): the launcher passes `--idle-timeout` by default, 15 min with no client, so a console
+started from the shortcut stops itself once the browser is gone. Had phase 4 landed first, a
+shortcut-started console would have run until it was stopped by hand — the behaviour D3 was
+chosen to remove, not to introduce. That is why the dependency is recorded here.

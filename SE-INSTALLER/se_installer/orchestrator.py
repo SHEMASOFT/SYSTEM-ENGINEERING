@@ -15,6 +15,7 @@ from .state import InstallationState
 from .installers.base import BaseInstaller
 from .installers.mcp import get_mcp_installer
 from .installers.runtime import get_runtime_installer
+from . import shortcuts
 
 
 class InstallerOrchestrator:
@@ -25,6 +26,8 @@ class InstallerOrchestrator:
         self.dry_run = dry_run
         self.progress_callback = progress_callback
         self.state = InstallationState()
+        # Outcome of the install-time desktop shortcut, when one was asked for.
+        self.shortcut: Optional[dict] = None
         
         # Initialize components if not already
         if not self.plan.components:
@@ -94,6 +97,7 @@ class InstallerOrchestrator:
                 comp.status = InstallStatus.SUCCESS
                 comp.installed_version = "dry-run"
                 self._emit("status_change", {"component": comp.id, "status": InstallStatus.SUCCESS.value, "version": "dry-run"})
+            self.install_console_shortcut(succeeded=True)
             self._emit("completed", {"success": True})
             return True
         
@@ -124,6 +128,7 @@ class InstallerOrchestrator:
         self.plan.completed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         self.state.save_plan(self.plan)
         
+        self.install_console_shortcut(succeeded=success)
         self._emit("completed", {"success": success})
         return success
     
@@ -191,6 +196,51 @@ class InstallerOrchestrator:
             self._emit("status_change", {"component": comp.id, "status": InstallStatus.FAILED.value, "error": comp.error_message})
             return False
     
+    def install_console_shortcut(self, succeeded: bool = True) -> Optional[dict]:
+        """Offer the SE Console desktop shortcut (DESIGN-5C phase 4).
+
+        Returns ``None`` when the plan did not ask for a shortcut, otherwise the
+        outcome, which is also recorded on ``self.shortcut`` and emitted as one
+        ``shortcut`` event.
+
+        Three things are deliberate: a shortcut is only useful if the console is
+        actually part of this installation; a dry run reports the shortcut it
+        would create and creates none; and a shortcut is only created after a
+        successful install, so it never points at something that failed to land.
+        """
+        if not self.plan.create_shortcuts:
+            return None
+
+        console = self.plan.get_by_id("se_console")
+        if console is None or console.status == InstallStatus.SKIPPED:
+            data = {
+                "created": False,
+                "skipped": True,
+                "reason": "SE Console is not part of this installation",
+            }
+        elif self.dry_run:
+            planned = shortcuts.plan_shortcut(os_type=self.plan.os_type)
+            data = {**planned.as_dict(), "created": False, "dry_run": True}
+            if not planned.target.exists():
+                data["error"] = f"the console entry point does not exist: {planned.target}"
+        elif not succeeded:
+            data = {
+                "created": False,
+                "skipped": True,
+                "reason": "the installation did not succeed",
+            }
+        else:
+            try:
+                result = shortcuts.install_console_shortcut(os_type=self.plan.os_type)
+            except shortcuts.ShortcutError as exc:
+                data = {"created": False, "error": str(exc)}
+            else:
+                data = result.as_dict()
+
+        self.shortcut = data
+        self._emit("shortcut", data)
+        return data
+
     def _get_installer(self, comp) -> Optional[BaseInstaller]:
         """Get appropriate installer for component."""
         if comp.component_type == ComponentType.MCP:
@@ -215,6 +265,9 @@ class InstallerOrchestrator:
             "success": sum(1 for c in selected if c.status == InstallStatus.SUCCESS),
             "failed": sum(1 for c in selected if c.status == InstallStatus.FAILED),
             "skipped": sum(1 for c in self.plan.components if c.status == InstallStatus.SKIPPED),
+            # None unless the plan asked for the SE Console shortcut, so an
+            # install that never mentioned shortcuts keeps its old shape.
+            "shortcut": self.shortcut,
             "components": [
                 {
                     "id": c.id,
