@@ -19,10 +19,17 @@ Machine-readable: `COMMANDS/commands.json`. Human summary: `COMMANDS/README.md`.
 | `doctor` | — | coordinator |
 | `validate` | — | coordinator |
 | `gate` | — | coordinator |
+| `capabilities` | — | coordinator |
 | `context` | — | coordinator |
+| `health` | — | coordinator |
+| `auto` | — | coordinator |
+| `intent` | — | coordinator |
 | `handoff` | — | coordinator |
 | `archive` | — | coordinator |
 | `restore` | — | coordinator |
+| `execute` | G3 | implementer |
+| `observe` | — | implementer |
+| `orchestrate` | varies | coordinator |
 
 `adapter` is a CLI infrastructure group (not a contract command — it consumes the contracts
 to generate tool artifacts):
