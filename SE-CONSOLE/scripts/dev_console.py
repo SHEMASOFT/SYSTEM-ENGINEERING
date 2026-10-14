@@ -225,6 +225,20 @@ def _spawn_env(host: str, port: int) -> dict[str, str]:
     return env
 
 
+def _console_at(data: dict[str, Any]) -> tuple[str, int, int]:
+    """The host/port/pid named by a PID file, tolerating a hand-edited one."""
+    try:
+        return (
+            str(data.get("host") or DEFAULT_HOST),
+            int(data.get("port", DEFAULT_PORT)),
+            int(data.get("pid", 0)),
+        )
+    except (TypeError, ValueError):
+        # Unreadable: report it as pid-less, so it is treated as stale and
+        # cleared. The port checks below still protect against a real collision.
+        return (DEFAULT_HOST, DEFAULT_PORT, 0)
+
+
 def cmd_start(args: argparse.Namespace) -> int:
     host, port = args.host, args.port
     idle = int(args.idle_timeout)
@@ -232,24 +246,40 @@ def cmd_start(args: argparse.Namespace) -> int:
         return _fail("--idle-timeout must be 0 (never stop) or a positive number of seconds")
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # already running?
+    # Already running? Identity is proven on the port the PID FILE names, NEVER
+    # on the port being requested. Those two differ whenever a console is running
+    # somewhere else, and probing the requested one made this tool report a
+    # perfectly healthy console as "/api/health did not answer" -- a false
+    # diagnosis (fixed 2026-10-14; regression test in tests/test_dev_console.py).
     existing = read_pidfile()
-    payload = probe_health(host, port)
-    if existing and _pid_alive(int(existing.get("pid", 0))):
-        if is_our_console(payload):
-            _say(f"already running (pid={existing['pid']}) -> http://{host}:{port}")
-            return 0
-        _say(
-            f"pid file exists (pid={existing.get('pid')}) but /api/health did not "
-            f"answer -- refusing to start a second console; run 'stop' first"
-        )
-        return 1
     if existing:
-        _say("clearing stale pid file")
+        e_host, e_port, e_pid = _console_at(existing)
+        if _pid_alive(e_pid):
+            if not is_our_console(probe_health(e_host, e_port)):
+                return _fail(
+                    f"pid {e_pid} from the pid file is alive but does not answer as "
+                    f"se-console on {e_host}:{e_port}; refusing to start a second "
+                    f"console (use 'stop --force' only if you know that process is ours)"
+                )
+            if (e_host, e_port) == (host, port):
+                _say(f"already running (pid={e_pid}) -> http://{host}:{port}")
+                return 0
+            return _fail(
+                f"a console is already running on http://{e_host}:{e_port} "
+                f"(pid={e_pid}); this tool tracks one console at a time -- stop it "
+                f"before starting one on {host}:{port}"
+            )
+        _say(f"clearing stale pid file (pid {e_pid} is gone)")
         clear_pidfile()
 
-    # is the port taken by something that is not ours?
-    if payload is not None and not is_our_console(payload):
+    # Is the requested port already serving something?
+    taken = probe_health(host, port)
+    if is_our_console(taken):
+        return _fail(
+            f"a se-console already answers on http://{host}:{port}, but this tool did "
+            f"not start it (there is no pid file for it); stop it where you started it"
+        )
+    if taken is not None:
         return _fail(f"port {port} is in use by another service (not se-console)")
 
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")

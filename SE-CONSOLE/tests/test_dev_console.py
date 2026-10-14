@@ -15,6 +15,8 @@ server ever spawned.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import os
 import sys
 import tempfile
@@ -225,6 +227,125 @@ class StatusReportsTheTimeout(unittest.TestCase):
     def test_unknown_when_the_pidfile_predates_the_feature(self):
         dev_console.write_pidfile({"pid": 1234, "host": "127.0.0.1", "port": 8777})
         self.assertIsNone(dev_console._status_data()["idle_timeout"])
+
+
+OURS = {
+    "console": "se-console", "mode": "read-only",
+    "status": "OK", "version": "t", "se_root": "/x",
+}
+STRANGER = {"status": "OK", "console": "other"}
+START_PORT = 8777
+OTHER_PORT = 8781
+
+
+class StartPreflight(unittest.TestCase):
+    """``start`` must diagnose against the console the PID FILE names.
+
+    Regression (fixed 2026-10-14): the "already running?" check probed the port
+    being REQUESTED. With a PID file for 8781 and a request for 8777 the probe
+    went to 8777, found nothing, and the tool announced that a healthy console had
+    "not answered": a false diagnosis of exactly the situation this preflight
+    exists to get right (never duplicate, never kill a stranger).
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._orig = (
+            dev_console.RUNTIME_DIR, dev_console.LOGS_DIR, dev_console.PID_FILE,
+            dev_console.subprocess.Popen, dev_console.probe_health, dev_console._pid_alive,
+        )
+        dev_console.RUNTIME_DIR = Path(self._tmp.name)
+        dev_console.LOGS_DIR = Path(self._tmp.name) / "logs"
+        dev_console.PID_FILE = Path(self._tmp.name) / "se-console.json"
+
+        self.answers = {}    # port -> payload returned by the probe
+        self.alive = set()   # pids that exist
+        self.spawned = []
+
+        class FakeProc:
+            pid = 999
+            returncode = None
+
+            def poll(self):
+                return None
+
+        def fake_popen(argv, **kw):
+            self.spawned.append(argv)
+            self.answers[START_PORT] = OURS      # it comes up after the spawn
+            return FakeProc()
+
+        dev_console.subprocess.Popen = fake_popen
+        dev_console.probe_health = lambda host, port, timeout=2.5: self.answers.get(port)
+        dev_console._pid_alive = lambda pid: pid in self.alive
+
+    def tearDown(self):
+        (
+            dev_console.RUNTIME_DIR, dev_console.LOGS_DIR, dev_console.PID_FILE,
+            dev_console.subprocess.Popen, dev_console.probe_health, dev_console._pid_alive,
+        ) = self._orig
+        self._tmp.cleanup()
+
+    def _run(self, port=START_PORT):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = dev_console.cmd_start(
+                argparse.Namespace(host="127.0.0.1", port=port, timeout=5.0, idle_timeout=900)
+            )
+        return rc, out.getvalue() + err.getvalue()
+
+    def test_console_on_another_port_is_not_called_unresponsive(self):
+        dev_console.write_pidfile({"pid": 1100, "host": "127.0.0.1", "port": OTHER_PORT})
+        self.alive.add(1100)
+        self.answers[OTHER_PORT] = OURS
+        rc, msg = self._run()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.spawned, [], "must not start a second console")
+        self.assertNotIn("did not answer", msg, "the false diagnosis came back")
+        self.assertIn(str(OTHER_PORT), msg, "it must name the port the console is on")
+
+    def test_same_port_already_running(self):
+        dev_console.write_pidfile({"pid": 1100, "host": "127.0.0.1", "port": START_PORT})
+        self.alive.add(1100)
+        self.answers[START_PORT] = OURS
+        rc, msg = self._run()
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.spawned, [])
+        self.assertIn("already running", msg)
+
+    def test_pid_alive_but_identity_unproven(self):
+        dev_console.write_pidfile({"pid": 1100, "host": "127.0.0.1", "port": START_PORT})
+        self.alive.add(1100)
+        self.answers[START_PORT] = STRANGER
+        rc, msg = self._run()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.spawned, [])
+        self.assertIn("does not answer as", msg)
+
+    def test_stale_pid_is_cleared_and_it_starts(self):
+        dev_console.write_pidfile({"pid": 1100, "host": "127.0.0.1", "port": START_PORT})
+        rc, msg = self._run()
+        self.assertEqual(rc, 0, msg)
+        self.assertEqual(len(self.spawned), 1)
+        self.assertEqual(dev_console.read_pidfile()["pid"], 999)
+
+    def test_hand_edited_pidfile_does_not_crash_start(self):
+        dev_console.write_pidfile({"pid": "not-a-number", "host": "127.0.0.1", "port": START_PORT})
+        rc, msg = self._run()
+        self.assertEqual(rc, 0, msg)
+
+    def test_port_serving_a_console_we_did_not_start(self):
+        self.answers[START_PORT] = OURS
+        rc, msg = self._run()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.spawned, [])
+        self.assertIn("did not start it", msg)
+
+    def test_port_taken_by_a_stranger(self):
+        self.answers[START_PORT] = STRANGER
+        rc, msg = self._run()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.spawned, [])
+        self.assertIn("another service", msg)
 
 
 if __name__ == "__main__":
