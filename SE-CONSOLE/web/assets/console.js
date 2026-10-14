@@ -465,6 +465,27 @@
     });
   }
 
+  // ------------------------------------------------------------ lifecycle
+  // DESIGN-5C option A. The console stops itself once nobody has asked it for
+  // anything for a while, so the operator needs no "stop" button: closing this
+  // page is enough. This ping is the cheap GET /api/heartbeat -- no SE read, no
+  // subprocess -- and it is what tells the server a client is still here.
+  //
+  // Deliberate caveat (declared in DESIGN-5C 5/A, not hidden here): browsers
+  // throttle timers in background tabs, so the ping can slow down while the tab
+  // stays open. That is why the timeout the launcher uses is minutes, not
+  // seconds.
+  var HEARTBEAT_MS = 30000;
+  function startHeartbeat() {
+    function ping() {
+      // The server may be stopping right now; a failed ping is not an error.
+      fetch("/api/heartbeat", { headers: { "Accept": "application/json" } })
+        .catch(function () {});
+    }
+    ping();
+    setInterval(ping, HEARTBEAT_MS);
+  }
+
   // ------------------------------------------------------- record explorer
   // Read-only disclosure over GET /api/record. It displays canonical bytes and
   // the engine's own AUTO-02 focus trace. There is deliberately no affordance
@@ -1639,5 +1660,6 @@
     go("overview");
     initTokenUI();
     renderFooterMeta();
+    startHeartbeat();
   });
 })();
