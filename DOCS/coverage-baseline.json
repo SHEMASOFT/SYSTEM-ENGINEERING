@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-10-14T15:22:38Z",
+  "created_at": "2026-10-14T21:36:05Z",
   "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
   "minimums": {
     "reference": 30
@@ -97,7 +97,7 @@
       },
       {
         "path": "DOCS/reference/installation.md",
-        "hash": "6120bd2cbf07b8e7"
+        "hash": "74380e2f62c771cd"
       },
       {
         "path": "DOCS/reference/lifecycle.md",
@@ -137,7 +137,7 @@
       },
       {
         "path": "DOCS/reference/se-installer.md",
-        "hash": "c3e9c121d8044a6b"
+        "hash": "72f55d39f37580c6"
       },
       {
         "path": "DOCS/reference/skills/SKILL_AUTHORING.md",

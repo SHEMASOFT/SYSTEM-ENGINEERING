@@ -28,6 +28,10 @@ interpreter that already runs `se`, and `jsonschema` (already present for
 Point it elsewhere with `SE_ROOT`; change the port with `SE_CONSOLE_PORT`.
 The console defaults `SE_ROOT` to the repository root when vendored.
 
+Run this way the console stays up until you stop it: `--idle-timeout SECONDS` is
+the server's own flag and defaults to `0` (never stop). The helper below is what
+arms it.
+
 ### Start / stop with one click (optional)
 
 `scripts/dev_console.py` is a small local helper for the operator: bring the
@@ -49,6 +53,31 @@ Double-clickable shortcuts live next to it:
 - Windows: `scripts\Start SE Console.cmd`, `scripts\Stop SE Console.cmd`
   (point a Desktop shortcut at either one)
 - macOS: `scripts\Start SE Console.command`, `scripts\Stop SE Console.command`
+
+Installing SE with `se-installer install --shortcuts` (or ticking the box in
+`se-installer tui`) creates that Desktop shortcut for you: **one**, which starts
+the console. It is start-only on purpose -- the console stops itself, so a Stop
+shortcut would have nothing to do.
+
+#### It stops when you close the browser
+
+`start` and `restart` arm the console's **idle timeout**: 15 minutes with no
+client asking for anything, and the console shuts itself down. Closing the tab is
+therefore enough; nothing of yours stays running behind the desktop.
+
+| How | Effect |
+|---|---|
+| `start` (default) | `--idle-timeout 900` -- stop after 15 min with no client |
+| `--idle-timeout 0` | never stop on its own; only `stop` takes it down |
+| `--idle-timeout SECONDS` | any other value |
+| `SE_CONSOLE_IDLE_TIMEOUT` | environment override of the default |
+
+The timer stays **disarmed until the first client connects**, so a console nobody
+opens never stops by itself. `status` reports what the process was started with:
+`idle_timeout=15 min`, `idle_timeout=off`, or `unknown` when the console was not
+started by this helper -- including one started before the option existed. Run
+directly with `python -m console.server` the timeout is `off`; the helper is what
+arms it.
 
 The helper proves a running console by its `/api/health` signature
 (`console=se-console`, `mode=read-only`), never by a bare PID, and refuses to
