@@ -89,3 +89,8 @@ DOCS/internal/
 # from the SE-CONSOLE directory. Kept locally as evidence; never committed.
 # A curated selection of captures gets published separately when needed.
 SE-CONSOLE/artifacts/
+
+# SE-CONSOLE local dev lifecycle state, written by scripts/dev_console.py:
+# the PID file and the server log for the operator-started console. Dev-tool
+# state, not part of the component; never committed.
+SE-CONSOLE/.runtime/
