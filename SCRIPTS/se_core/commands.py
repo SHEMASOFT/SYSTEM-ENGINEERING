@@ -4370,10 +4370,13 @@ def cmd_orchestrate(args) -> int:
             print(f"FAIL: workflow execution failed: {exc}")
             return 1
 
+        # A dry-run is an intentional, successful plan: it is not a failure.
+        succeeded = result.get("status") in ("COMPLETED", "DRY_RUN")
+
         if wants_json(args):
             from .reporting import render_json
             print(render_json(result))
-            return 0
+            return 0 if succeeded else 1
 
         # Human-readable output
         print(f"Execution: {result['execution_id']}")
@@ -4385,7 +4388,7 @@ def cmd_orchestrate(args) -> int:
             print(f"Execution order: {' -> '.join(result['execution_order'])}")
         if result.get("error"):
             print(f"Error: {result['error']}")
-        return 0 if result.get("status") == "COMPLETED" else 1
+        return 0 if succeeded else 1
 
     elif args.orchestrate_command == "list":
         if not args.project:
@@ -4402,19 +4405,35 @@ def cmd_orchestrate(args) -> int:
             print("No workflows found")
             return 0
 
-        workflows = list(workflows_dir.glob("*.json"))
-        if not workflows:
-            print("No workflows found")
-            return 0
+        import json
 
-        print(f"Workflows in {project_path.name}:")
-        for wf in sorted(workflows):
+        found = []
+        skipped = []
+        for candidate in sorted(workflows_dir.glob("*.json")):
             try:
-                import json
-                data = json.loads(wf.read_text())
-                print(f"  {data['workflow_id']}: {data['name']} (v{data['version']}) - {data['status']}")
+                data = json.loads(candidate.read_text())
             except Exception:
-                print(f"  {wf.stem}: (invalid)")
+                data = None
+            if not isinstance(data, dict) or not data.get("workflow_id"):
+                # Workflow components (nodes.json, edges.json, gates.json, ...) are
+                # not workflows: report them once instead of inventing broken ones.
+                skipped.append(candidate.name)
+                continue
+            found.append(data)
+
+        if not found:
+            print("No workflows found")
+        else:
+            print(f"Workflows in {project_path.name}:")
+            for data in found:
+                try:
+                    print(f"  {data['workflow_id']}: {data['name']} "
+                          f"(v{data['version']}) - {data['status']}")
+                except Exception:
+                    print(f"  {data.get('workflow_id')}: (invalid)")
+
+        if skipped:
+            print(f"  (ignored {len(skipped)} non-workflow json: {', '.join(sorted(skipped))})")
         return 0
 
     else:

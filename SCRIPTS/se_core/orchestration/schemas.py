@@ -1,5 +1,7 @@
 """Workflow schemas for SYSTEM-ENGINEERING orchestration."""
 
+from typing import Any, Dict
+
 from ..schemas import load_schemas
 from ..paths import repo_root
 
