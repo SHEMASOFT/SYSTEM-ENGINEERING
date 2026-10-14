@@ -81,6 +81,10 @@ class InstallationPlan:
     dry_run: bool = False
     force_reinstall: bool = False
     skip_verification: bool = False
+    # Install-time desktop shortcut for the SE Console (DESIGN-5C phase 4).
+    # Opt-in, and only ever one: it writes to the operator's Desktop, so it is
+    # not something an install should do behind their back.
+    create_shortcuts: bool = False
     # State
     created_at: str = ""
     completed_at: Optional[str] = None

@@ -48,6 +48,18 @@ def create_parser() -> argparse.ArgumentParser:
         "--skip-verification", action="store_true",
         help="Skip post-install verification"
     )
+    # Opt-in, and mutually exclusive so the intent is never ambiguous. Default is
+    # off: the shortcut writes to the operator's Desktop.
+    shortcut_group = install_parser.add_mutually_exclusive_group()
+    shortcut_group.add_argument(
+        "--shortcuts", dest="shortcuts", action="store_true",
+        help="Create a desktop shortcut for the SE Console (one shortcut; it starts the console)"
+    )
+    shortcut_group.add_argument(
+        "--no-shortcuts", dest="shortcuts", action="store_false",
+        help="Do not create any desktop shortcut (default)"
+    )
+    install_parser.set_defaults(shortcuts=False)
     install_parser.add_argument(
         "--json", action="store_true",
         help="Output JSON result"
@@ -269,6 +281,20 @@ def cmd_doctor(args) -> int:
     return 0 if len(issues) == 0 else 1
 
 
+def _print_shortcut(data, out) -> None:
+    """Report the desktop shortcut, when the plan asked for one."""
+    if data is None:
+        return
+    if data.get("created"):
+        print(f"  [OK] Acceso directo: {data['path']}", file=out)
+    elif data.get("skipped"):
+        print(f"  [SKIP] Acceso directo: {data.get('reason', '')}", file=out)
+    elif data.get("dry_run") and not data.get("error"):
+        print(f"  [PLAN] Acceso directo: {data['path']} (dry run: no se crea)", file=out)
+    else:
+        print(f"  [FAIL] Acceso directo: {data.get('error') or 'no se pudo crear'}", file=out)
+
+
 def cmd_install(args) -> int:
     from .orchestrator import InstallerOrchestrator
     from .models import InstallationPlan
@@ -279,6 +305,9 @@ def cmd_install(args) -> int:
     plan.dry_run = args.dry_run
     plan.force_reinstall = args.force
     plan.skip_verification = args.skip_verification
+    # `is True`, not truthiness: an opt-in that writes to the operator's Desktop
+    # has to be an explicit yes. Nothing else may switch it on by accident.
+    plan.create_shortcuts = getattr(args, "shortcuts", False) is True
 
     orchestrator = InstallerOrchestrator(plan)
 
@@ -313,6 +342,8 @@ def cmd_install(args) -> int:
                 print("[DONE] Instalación completada exitosamente", file=out)
             else:
                 print("[FAIL] Instalación completada con errores", file=out)
+        elif event == "shortcut":
+            _print_shortcut(data, out)
 
     orchestrator = InstallerOrchestrator(
         plan=plan,
@@ -333,6 +364,7 @@ def cmd_install(args) -> int:
         print(f"  [OK] Exitos: {summary['success']}")
         print(f"  [FAIL] Fallos: {summary['failed']}")
         print(f"  [SKIP] Omitidos (no seleccionados): {summary['skipped']}")
+        _print_shortcut(summary.get("shortcut"), sys.stdout)
 
     return 0 if success else 1
 

@@ -36,6 +36,11 @@ from .runtime_config_generator import (
     RuntimeConfigGenerator, RuntimeConfig,
     get_runtime_config_generator
 )
+from .shortcuts import (
+    Shortcut, ShortcutError, ShortcutResult,
+    console_scripts_dir, create_shortcut, desktop_dir,
+    install_console_shortcut, plan_shortcut,
+)
 
 __all__ = [
     # Core models
@@ -66,4 +71,8 @@ __all__ = [
     # Runtime Config Generator
     "RuntimeConfigGenerator", "RuntimeConfig",
     "get_runtime_config_generator",
+    # Desktop shortcut (DESIGN-5C phase 4)
+    "Shortcut", "ShortcutError", "ShortcutResult",
+    "console_scripts_dir", "create_shortcut", "desktop_dir",
+    "install_console_shortcut", "plan_shortcut",
 ]
