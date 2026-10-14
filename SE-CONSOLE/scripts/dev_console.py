@@ -68,6 +68,12 @@ POLL = 0.25
 SIGNATURE_CONSOLE = "se-console"
 SIGNATURE_MODE = "read-only"
 
+#: Windows-only: 0 on other platforms, where the flag does not exist and
+#: ``creationflags`` must stay 0. Keeps an auxiliary console child (``taskkill``,
+#: which is itself a console app) from flashing a window when the helper runs
+#: without a console of its own.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+
 
 # ---------------------------------------------------------------------------
 # rooting
@@ -231,8 +237,14 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     kwargs: dict[str, Any] = {}
     if _is_windows():
+        # CREATE_NO_WINDOW, NOT DETACHED_PROCESS. A detached server has no
+        # console at all, and Windows then gives EVERY child console process its
+        # own new console window -- `se` is a console app, so `/api/system` (2
+        # calls) and `/api/gates` (9 calls) would each pop a window on the
+        # operator's desktop. A hidden console keeps the server and all of its
+        # children invisible. CREATE_NEW_PROCESS_GROUP detaches it from Ctrl+C.
         kwargs["creationflags"] = (
-            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
         )
     else:
         kwargs["start_new_session"] = True
@@ -298,6 +310,7 @@ def _terminate(pid: int) -> None:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             check=False,
+            creationflags=NO_WINDOW,
         )
         return
     try:
