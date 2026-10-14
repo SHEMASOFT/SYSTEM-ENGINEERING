@@ -40,6 +40,12 @@ Conventions:
   explicitly requested. `context` reconstructs minimum context (`--scope
   identity|work|authority|trace|deep`, optional `--focus <ID>`); the B1 commands remain a
   serialization surface and perform no reconstruction.
+- Outside the contract, the CLI also exposes support subcommands: `install`, `sync`,
+  `uninstall` and `adapter` manage the tool itself and its generated artifacts, while
+  `adopt`, `ceremony`, `coverage`, `har`, `intelligence`, `memory`, `resume`, `run`, X`skill`
+  and `status` are documented support. `TESTS/test_cli_contract_boundary.py` pins that
+  boundary: adding a subcommand means choosing between the contract (a governed change:
+  ADR + `VERSION` bump, per ADR-0020) and this support list.
 
 ## Lifecycle control
 
