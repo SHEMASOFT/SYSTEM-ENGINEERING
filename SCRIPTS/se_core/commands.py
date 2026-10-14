@@ -4576,32 +4576,46 @@ def cmd_health(args) -> int:
             check_errors.append(f"capability policy: {error}")
 
     # Review
-    findings = []
-    from .cli import main as cli_main
+    #
+    # `se review` exits 1 when it FINDS something, so a non-zero exit code
+    # cannot tell "the review found problems" apart from "the review could not
+    # run". Call the command function directly instead of going through
+    # cli.main(), whose top-level guard turns any exception into
+    # "FAIL: unexpected error: ..." + exit 1 and would hide the difference.
+    from .cli import build_parser
     import io, contextlib
+    findings = []
+    review_error = None
+    review_warnings = []
+    review_args = build_parser().parse_args(["review", "--project", str(project), "--json"])
     buffer = io.StringIO()
     try:
         with contextlib.redirect_stdout(buffer):
-            code = cli_main(["review", "--project", str(project)])
-    except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 1
-    out = buffer.getvalue()
-    if code != 0:
-        findings.append(out.strip())
-    elif "no findings" not in out.lower():
-        for line in out.strip().split('\n'):
-            if line.strip():
-                findings.append(line.strip())
+            review_args.func(review_args)
+    except Exception as exc:  # the review did not complete: that is an error
+        review_error = f"{type(exc).__name__}: {exc}"
+    else:
+        try:
+            review_report = json.loads(buffer.getvalue())
+        except ValueError:
+            review_report = None
+        if review_report is None:
+            review_error = "review produced no machine-readable report"
+        else:
+            findings = list(review_report.get("details", {}).get("findings", []))
+            review_warnings = list(review_report.get("warnings", []))
 
     # Determine health status (for both JSON and human output)
     doctor_summary = doctor_report["summary"]
-    has_failures = len(failures) > 0 or doctor_report["summary"]["FAIL"] > 0
+    has_failures = len(failures) > 0 or doctor_report["summary"]["FAIL"] > 0 or review_error is not None
     has_warnings = len(info_warnings) > 0 or doctor_report["summary"]["WARN"] > 0
 
-    # Determine overall health status (used by both JSON and human output)
-    if any(r["status"] == "FAIL" for r in doctor_report["results"]) or len(failures) > 0:
+    # Determine overall health status (used by both JSON and human output).
+    # A review that could not complete is a failure: the check never ran, so it
+    # must not be reported as green (nor as a mere finding).
+    if has_failures:
         overall_status = "FAIL"
-    elif doctor_report["summary"]["WARN"] > 0 or info_warnings:
+    elif has_warnings:
         overall_status = "WARN"
     else:
         overall_status = "PASS"
@@ -4621,6 +4635,10 @@ def cmd_health(args) -> int:
         
         # Add validation failures as conflicts
         conflicts.extend(failures)
+
+        # A review that could not complete is an error, never a finding.
+        if review_error:
+            conflicts.append(f"review: review could not complete ({review_error})")
         
         # Add info warnings as warnings
         info_warnings = _doc_delta_warnings(root) + _doc_dangling_skill_refs(root) + _doc_dangling_adr_refs(root)
@@ -4628,7 +4646,7 @@ def cmd_health(args) -> int:
         
         envelope = build_envelope(
             "health",
-            "FAIL" if any(r["status"] == "FAIL" for r in doctor_report["results"]) or len(failures) > 0 else ("WARN" if doctor_report["summary"]["WARN"] > 0 or info_warnings else "PASS"),
+            overall_status,
             scope="identity",
             provenance={
                 "doctor": "SCRIPTS/se_core/doctor.py",
@@ -4643,11 +4661,12 @@ def cmd_health(args) -> int:
                 "doctor": {"summary": doctor_report["summary"], "checks": doctor_report["results"]},
                 "validate": {"failures": failures, "warnings": info_warnings},
                 "capabilities": {"registry_errors": registry_errors, "check_errors": check_errors},
+                "review": {"error": review_error, "findings": findings, "warnings": review_warnings},
             },
             source_root=str(root),
         )
         print(render_json(envelope))
-        return 0 if not failures and doctor_report["ok"] else 1
+        return 0 if overall_status in ("PASS", "WARN") else 1
     
     # Human-readable output
     print("Health Check Summary")
@@ -4680,18 +4699,12 @@ def cmd_health(args) -> int:
         print()
     
     print("Review:")
-    # Run review via cli_main (same pattern as above)
-    buffer = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(buffer):
-            code = cli_main(["review", "--project", str(project)])
-    except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 1
-    out = buffer.getvalue()
-    if "no findings" in out.lower():
-        print("  PASS: no findings")
-    else:
+    if review_error:
+        print(f"  FAIL: review could not complete ({review_error})")
+    elif findings:
         print(f"  {len(findings)} finding(s)")
+    else:
+        print("  PASS: no findings")
     
     # Determine overall exit code
     if overall_status == "FAIL":
