@@ -38,17 +38,32 @@ def run_tool(
 
     Returns the ``CompletedProcess``, or ``None`` when the tool is not on PATH
     (callers must handle ``None`` instead of assuming a result).
+
+    Never raises. A tool that is on PATH but unusable is reported as a failed
+    run -- a non-zero ``returncode`` and the reason in ``stderr`` -- because
+    every caller branches on the result and ``check_installed`` is documented to
+    never raise. Two ways that happens in practice: the tool outlives
+    ``timeout`` (on Windows the rustup shims ``cargo``/``rustup`` run their own
+    update on first use, and CI saw ``cargo --version`` exceed 10s), or the
+    resolved path cannot be launched at all (``OSError`` / ``WinError 193`` on a
+    broken shim). ``124`` is the conventional exit code for a timeout.
     """
     exe = shutil.which(name)
     if not exe:
         return None
-    return subprocess.run(
-        [exe, *(args or [])],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        **kwargs,
-    )
+    argv = [exe, *(args or [])]
+    try:
+        return subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            **kwargs,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(argv, 124, "", f"timed out after {timeout}s")
+    except OSError as exc:
+        return subprocess.CompletedProcess(argv, 1, "", f"could not run {exe}: {exc}")
 
 
 class BaseInstaller(ABC):
