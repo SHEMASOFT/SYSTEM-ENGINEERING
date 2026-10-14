@@ -35,11 +35,12 @@
       "receipt_required": true
     }
   },
-  "spec_status_acceptable": ["APPROVED", "IMPLEMENTED", "ACCEPTED", "RELEASED"],
+  "spec_status_acceptable": ["APPROVED", "IMPLEMENTED"],
   "receipt_verdicts_acceptable": ["PASS", "PARTIAL"],
   "notes": [
     "spec_required: an SDD in sdds/ must reach a status in spec_status_acceptable.",
     "receipt_required: at least one RDD in rdds/ must carry a verdict in receipt_verdicts_acceptable.",
+    "Every value listed here must exist in the matching schema enum (SCHEMAS/sdd status, SCHEMAS/rdd verdict); TESTS/test_ceremony.py enforces it.",
     "The work mode is chosen from the profile (type/scale/risk + criticality + contract change), never by habit; see DOCS/reference/work-modes.md."
   ]
 }
