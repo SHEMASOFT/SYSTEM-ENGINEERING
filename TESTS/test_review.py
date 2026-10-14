@@ -11,6 +11,37 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
 
 
+def rdd(**over):
+    """A valid receipt whose `evidence` entries are objects, not ids."""
+    data = {
+        "schema_version": "1",
+        "rdd_id": "RDD-0001",
+        "project_id": "PRJ-TEST-001",
+        "title": "Review receipt",
+        "version": "1.0.0",
+        "status": "APPROVED",
+        "candidate": {
+            "kind": "worktree",
+            "ref": "HEAD",
+            "hash": "34a906c6694b405f948dc5f1010cd2e29ba0bddf",
+        },
+        "verdict": "PARTIAL",
+        "evidence": [
+            {
+                "id": "EVD-0001",
+                "claim": "Battery ran",
+                "result": "PASS",
+                "path": "artifacts/battery.log",
+            }
+        ],
+        "reviewer": "tester",
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-01T00:00:00Z",
+    }
+    data.update(over)
+    return data
+
+
 class ReviewTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -91,6 +122,25 @@ class ReviewTests(unittest.TestCase):
         code, out = support.run_cli("review", "--project", str(self.project))
         self.assertEqual(code, 0, out)
         self.assertIn("gap:", out)
+
+    def test_rdd_object_evidence_does_not_crash(self):
+        # Regression: an RDD's `evidence` entries are objects, not ids. They used to be
+        # fed to the id index, which raised `unhashable type: 'dict'` and made
+        # `se review` fail on every project whose profile requires a receipt.
+        support.write_json(self.project / "rdds" / "RDD-0001.json", rdd())
+        code, out = support.run_cli("review", "--project", str(self.project))
+        self.assertEqual(code, 0, out)
+        self.assertIn("REVIEW: no findings", out)
+
+    def test_string_references_are_still_checked(self):
+        # The object-entry guard must not blind the string path.
+        support.write_json(
+            self.project / "tasks" / "TASK-0001.json",
+            support.task(evidence=["EVD-9999"]),
+        )
+        code, out = support.run_cli("review", "--project", str(self.project))
+        self.assertEqual(code, 1, out)
+        self.assertIn("unresolved reference EVD-9999", out)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -503,6 +504,60 @@ def check_git_repo(root: Path):
     return "WARN", "no .git directory; repository not initialized"
 
 
+def _z_paths(raw: bytes) -> set:
+    """NUL-separated git output (``-z``) as a set of paths."""
+    return {part for part in raw.decode("utf-8", "replace").split("\0") if part}
+
+
+def _git_ignored_untracked(root: Path, rels) -> set:
+    """Paths that git ignores *and* does not track: local workspace, not published.
+
+    `.gitignore` is the repository's own answer to what this repository ships, so
+    that question is put to git instead of re-implementing pattern matching that
+    would drift from git's own rules. Both conditions are required, and the second
+    is not decoration: a path that is ignored but *tracked* was published with
+    `git add --force`, so it is shipped and a secret there stays reportable.
+
+    Fail-safe by construction. No git, not a repository, an unexpected exit code
+    or an OS error all exclude nothing, which keeps the previous behaviour -- a
+    reported hit -- instead of passing on a machine this check could not
+    interrogate.
+    """
+    rels = list(rels)
+    if not rels or not shutil.which("git"):
+        return set()
+    # git spells paths with forward slashes; Windows renders
+    # `path.relative_to(root)` with backslashes, so the comparison is done in
+    # git's own spelling rather than this platform's.
+    spelled = {rel: rel.replace("\\", "/") for rel in rels}
+    base = ["git", "-C", str(root)]
+    try:
+        ignored = subprocess.run(
+            base + ["check-ignore", "--stdin", "-z"],
+            input=("\0".join(spelled.values()) + "\0").encode("utf-8"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        tracked = subprocess.run(
+            base + ["ls-files", "-z", "--"] + list(spelled.values()),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except OSError:
+        return set()
+    if ignored.returncode not in (0, 1) or tracked.returncode != 0:
+        return set()
+    ignored_paths = _z_paths(ignored.stdout)
+    tracked_paths = _z_paths(tracked.stdout)
+    return {
+        rel
+        for rel, git_rel in spelled.items()
+        if git_rel in ignored_paths and git_rel not in tracked_paths
+    }
+
+
 def check_secrets(root: Path):
     hits = []
     skip_roots = project_skip_roots(root)
@@ -512,8 +567,25 @@ def check_secrets(root: Path):
             hits.append(str(path.relative_to(root)))
         elif name.startswith(SECRET_NAME_PREFIXES) and path.suffix.lower() not in PREFIX_SCAN_EXEMPT_SUFFIXES:
             hits.append(str(path.relative_to(root)))
+
+    # A secret in an ignored, untracked path is this machine's local workspace and
+    # not part of what the repository publishes: `.gitignore` is followed rather
+    # than second-guessed. The exclusion is disclosed with its count, so a real
+    # secret in an ignored path is never hidden -- it stops being reported as a
+    # defect of the published system and becomes a visible local condition.
+    local_only = _git_ignored_untracked(root, hits)
+    hits = [hit for hit in hits if hit not in local_only]
+
     if hits:
-        return "FAIL", f"possible secret files: {', '.join(hits[:5])}"
+        detail = f"possible secret files: {', '.join(hits[:5])}"
+        if local_only:
+            detail += f" (+{len(local_only)} gitignored local file(s) not published)"
+        return "FAIL", detail
+    if local_only:
+        return "PASS", (
+            "no published secret files "
+            f"({len(local_only)} gitignored local file(s) not published)"
+        )
     return "PASS", "no obvious secret files"
 
 

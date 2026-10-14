@@ -1972,9 +1972,23 @@ def _project_schema_map(schemas):
 
 
 def _collect_refs(data):
+    """Reference ids declared by a record.
+
+    Only string entries are references. Some reference *fields* hold objects
+    rather than ids -- an RDD's `evidence` entries are `{id, claim, result, path}`
+    records -- and such an entry can never be an id, so it is skipped instead of
+    being compared against the id index (which raised `unhashable type: 'dict'`
+    and made `se review` unusable on any project whose profile requires a
+    receipt). A non-list value is not a reference list either.
+    """
     refs = []
     for field in REFERENCE_FIELDS:
-        refs.extend(data.get(field, []) or [])
+        value = data.get(field)
+        if not isinstance(value, list):
+            continue
+        for item in value:
+            if isinstance(item, str) and item:
+                refs.append(item)
     return refs
 
 
