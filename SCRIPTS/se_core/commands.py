@@ -3884,12 +3884,28 @@ def cmd_status(args) -> int:
     if getattr(args, "deep", False):
         info_warnings = _doc_delta_warnings(root) + _doc_dangling_skill_refs(root) + _doc_dangling_adr_refs(root)
 
-    has_failures = len(failures) > 0 or (doctor_report and doctor_report["summary"]["FAIL"] > 0)
-    has_warnings = (doctor_report and doctor_report["summary"]["WARN"] > 0) or info_warnings
+    # Aggregate every check this command reports. Printing "Overall: PASS"
+    # above a list of failing gates would contradict the very output it
+    # summarises, and the exit code derived from the verdict would hide it too.
+    gate_failures = [g["gate"] for g in gate_results if g["status"] in {"FAIL", "ERROR", "UNKNOWN"}]
+    gate_pending = [g["gate"] for g in gate_results if g["status"] in {"WARN", "MANUAL"}]
 
-    if (doctor_report and any(r["status"] == "FAIL" for r in doctor_report["results"])) or len(failures) > 0:
+    has_failures = (
+        len(failures) > 0
+        or bool(gate_failures)
+        or bool(registry_errors)
+        or bool(check_errors)
+        or bool(doctor_report and doctor_report["summary"]["FAIL"] > 0)
+    )
+    has_warnings = (
+        bool(gate_pending)
+        or bool(info_warnings)
+        or bool(doctor_report and doctor_report["summary"]["WARN"] > 0)
+    )
+
+    if has_failures:
         overall_status = "FAIL"
-    elif (doctor_report and doctor_report["summary"]["WARN"] > 0) or info_warnings:
+    elif has_warnings:
         overall_status = "WARN"
     else:
         overall_status = "PASS"
