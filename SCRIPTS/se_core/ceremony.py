@@ -23,7 +23,7 @@ _DEFAULT_POLICY = {
     "by_scale": {},
     "by_risk": {},
     "by_criticality": {},
-    "spec_status_acceptable": ["APPROVED", "IMPLEMENTED", "ACCEPTED", "RELEASED"],
+    "spec_status_acceptable": ["APPROVED", "IMPLEMENTED"],
     "receipt_verdicts_acceptable": ["PASS", "PARTIAL"],
 }
 
