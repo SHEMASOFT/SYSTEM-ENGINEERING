@@ -24,6 +24,7 @@ end-to-end demo instead.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import http.client
 import json
@@ -40,9 +41,65 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONSOLE_ROOT = os.path.dirname(HERE)
-SE_ENGINE_SCRIPTS = os.path.join(
-    os.path.dirname(CONSOLE_ROOT), "SYSTEM-ENGINEERING", "SCRIPTS"
-)
+
+
+def _resolve_se_scripts() -> str:
+    """Locate the real `se` engine's SCRIPTS directory.
+
+    Two layouts are supported, and the console must be testable in whichever one
+    it ships in:
+
+    * vendored -- the console lives inside the SE repo (``<SE>/SE-CONSOLE``), so
+      the engine is ``<console-parent>/SCRIPTS``;
+    * sibling  -- the console is checked out next to ``SYSTEM-ENGINEERING``, so the
+      engine is ``<console-parent>/SYSTEM-ENGINEERING/SCRIPTS``.
+
+    ``SE_ENGINE_SCRIPTS`` overrides both. Hardcoding only the sibling layout made
+    this file un-runnable in the layout the console actually ships in.
+    """
+    override = os.environ.get("SE_ENGINE_SCRIPTS")
+    if override:
+        return override
+    parent = os.path.dirname(CONSOLE_ROOT)
+    candidates = [
+        os.path.join(parent, "SCRIPTS"),
+        os.path.join(parent, "SYSTEM-ENGINEERING", "SCRIPTS"),
+    ]
+    for candidate in candidates:
+        if os.path.isdir(os.path.join(candidate, "se_core")):
+            return candidate
+    return candidates[0]
+
+
+SE_ENGINE_SCRIPTS = _resolve_se_scripts()
+
+#: ``Path.home()`` reads HOME on POSIX and USERPROFILE on Windows. The suite fakes
+#: the home directory so the operator token is never written to the real one, so it
+#: must override whichever variable the running platform actually honours.
+HOME_VARS = ("HOME", "USERPROFILE")
+
+
+@contextlib.contextmanager
+def fake_home(path: str):
+    """Point the home directory at ``path`` for the duration of the block."""
+    saved = {name: os.environ.get(name) for name in HOME_VARS}
+    for name in HOME_VARS:
+        os.environ[name] = path
+    try:
+        yield
+    finally:
+        for name, previous in saved.items():
+            if previous is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = previous
+
+
+def _home_env(path: str) -> dict:
+    """``os.environ`` with every home variable pointing at ``path``."""
+    return {**os.environ, **{name: path for name in HOME_VARS}}
+
+
 ACTIONS_LOG = os.path.join(CONSOLE_ROOT, "artifacts", "actions.jsonl")
 
 PROJECT_REL = "PROJECTS/TESTPROJ"
@@ -85,7 +142,10 @@ SE_WRAPPER = (
 
 def _write_json(path: str, data: object) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
+    # newline="\n": byte-level assertions compare the file against
+    # json.dumps(...).encode("utf-8"). Text mode translates "\n" to os.linesep, so
+    # on Windows the same JSON would produce different bytes and fail the compare.
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(data, fh, indent=2)
 
 
@@ -158,24 +218,17 @@ def setUpModule() -> None:  # noqa: N802
     ROOT = os.path.join(TMP, "SE")
     make_fixture(ROOT)
 
-    # Generate the token in a throwaway HOME: production writes to
-    # Path.home()/.config/se-console/token, but a test suite must not create
-    # files in the operator's real home directory.
-    fake_home = os.path.join(TMP, "home")
-    old_home = os.environ.get("HOME")
-    os.environ["HOME"] = fake_home
-    try:
+    # Generate the token in a throwaway home: production writes to
+    # <home>/.config/se-console/token, but a test suite must not create files in
+    # the operator's real home directory.
+    fake_home_dir = os.path.join(TMP, "home")
+    with fake_home(fake_home_dir):
         TOKEN = auth.load_token()
-    finally:
-        if old_home is None:
-            os.environ.pop("HOME", None)
-        else:
-            os.environ["HOME"] = old_home
     if not TOKEN:
         raise RuntimeError("auth.load_token() produced no token")
 
     PORT = free_port(9050)
-    env = dict(os.environ, SE_ROOT=ROOT, SE_CONSOLE_PORT=str(PORT), HOME=fake_home)
+    env = dict(_home_env(fake_home_dir), SE_ROOT=ROOT, SE_CONSOLE_PORT=str(PORT))
     PROC = subprocess.Popen(
         [sys.executable, "-m", "console.server"],
         cwd=CONSOLE_ROOT,
@@ -350,19 +403,13 @@ class ConsoleTestCase(unittest.TestCase):
 class AuthTests(ConsoleTestCase):
     def setUp(self):
         super().setUp()
-        # `guard()` reads the token through auth.load_token(), which resolves
-        # Path.home(). Point HOME at the throwaway home for the duration of the
-        # test, otherwise the direct guard tests would CREATE a fresh token in
-        # the operator's real home -- exactly what this suite promises not to do.
-        self._old_home = os.environ.get("HOME")
-        os.environ["HOME"] = os.path.join(TMP, "home")
-        self.addCleanup(self._restore_home)
-
-    def _restore_home(self):
-        if self._old_home is None:
-            os.environ.pop("HOME", None)
-        else:
-            os.environ["HOME"] = self._old_home
+        # `guard()` reads the token through auth.load_token(), which resolves the
+        # home directory. Point it at the throwaway home for the duration of the
+        # test, otherwise the direct guard tests would CREATE a fresh token in the
+        # operator's real home -- exactly what this suite promises not to do.
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(fake_home(os.path.join(TMP, "home")))
 
     def test_token_file_is_created_0600_outside_the_repo(self):
         # The token is generated under the throwaway HOME by setUpModule, so the
@@ -375,8 +422,13 @@ class AuthTests(ConsoleTestCase):
         path = os.path.join(TMP, "home", ".config", "se-console", "token")
         self.assertFalse(path.startswith(CONSOLE_ROOT))
         self.assertTrue(os.path.isfile(path), path)
-        mode = os.stat(path).st_mode & 0o777
-        self.assertEqual(mode, 0o600, f"token file mode is {oct(mode)}, expected 0o600")
+        if os.name != "nt":
+            mode = os.stat(path).st_mode & 0o777
+            self.assertEqual(mode, 0o600, f"token file mode is {oct(mode)}, expected 0o600")
+        # On Windows os.open(..., 0o600) does not apply POSIX mode bits: the token
+        # inherits the profile ACL and st_mode reports 0o666. Declared gap, not a
+        # hidden one -- ACL hardening is a separate follow-up. The part this test
+        # can prove on every platform (outside the repository) is asserted above.
         self.assertEqual(len(TOKEN), 43)  # token_urlsafe(32) -> 43 chars
 
     def test_post_without_token_is_refused_and_se_not_invoked(self):
@@ -441,12 +493,15 @@ class AuthTests(ConsoleTestCase):
         self.assertEqual(status, 403, body)
         self.assert_se_not_invoked()
 
+    @unittest.skipIf(
+        os.name == "nt",
+        "chmod 000 does not make a file unreadable on Windows and os.geteuid "
+        "does not exist there; the premise needs POSIX permissions",
+    )
     def test_unreadable_token_file_fails_closed(self):
         # Fail-closed is the load-bearing property: an error must never be an
         # "allow".
-        old = os.environ.get("HOME")
-        os.environ["HOME"] = os.path.join(TMP, "no-such-home")
-        try:
+        with fake_home(os.path.join(TMP, "no-such-home")):
             path = auth.token_path()
             os.makedirs(path.parent, exist_ok=True)
             with open(path, "w", encoding="utf-8") as fh:
@@ -461,28 +516,16 @@ class AuthTests(ConsoleTestCase):
                 self.assertIsNotNone(reason, "unreadable token file must refuse")
             finally:
                 os.chmod(path, 0o600)
-        finally:
-            if old is None:
-                os.environ.pop("HOME", None)
-            else:
-                os.environ["HOME"] = old
 
     def test_missing_token_file_on_unwritable_home_fails_closed(self):
-        old = os.environ.get("HOME")
-        os.environ["HOME"] = os.path.join(TMP, "not-a-dir")
-        with open(os.environ["HOME"], "w", encoding="utf-8") as fh:
-            fh.write("a file, not a directory")
-        try:
+        with fake_home(os.path.join(TMP, "not-a-dir")):
+            with open(os.environ["HOME"], "w", encoding="utf-8") as fh:
+                fh.write("a file, not a directory")
             reason = auth.guard(
                 {TOKEN_HEADER: TOKEN}, method="POST", path="/api/action", port=PORT
             )
             self.assertIsNotNone(reason, "a token path that cannot be created must refuse")
             self.assertNotEqual(reason, "")
-        finally:
-            if old is None:
-                os.environ.pop("HOME", None)
-            else:
-                os.environ["HOME"] = old
 
 
 # --------------------------------------------------------------------------
