@@ -124,7 +124,16 @@ ul { margin: 0; padding: 0; list-style: none; }
 .brand-sub { color: var(--ink-3); font-size: var(--fs-12); }
 .brand-sub .dot { margin: 0 var(--sp-1); }
 
-.header-actions { display: flex; align-items: center; gap: var(--sp-2); }
+/* The actions cluster holds controls with a hard minimum width (the token input
+   declares 160px, the token hint is a long unbreakable path), so it must be
+   allowed to wrap on its own. The row above it wraps only as a unit, which means
+   on a narrow viewport the cluster lands alone on a line whose content is still
+   wider than the viewport, and the whole document gains a horizontal scrollbar
+   (measured: 412px of scroll width at a 375px viewport). */
+.header-actions {
+  display: flex; align-items: center; gap: var(--sp-2);
+  flex-wrap: wrap; min-width: 0;
+}
 
 .btn {
   font: inherit; font-size: var(--fs-13);
