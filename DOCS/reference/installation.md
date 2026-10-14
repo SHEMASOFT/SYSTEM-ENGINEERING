@@ -261,13 +261,18 @@ what state it's in, what it's made of, what its projects are, and what needs att
 
 ```bash
 cd SE-CONSOLE
-python -m console.server          # -> http://127.0.0.1:8777
+python scripts/dev_console.py start   # -> http://127.0.0.1:8777, in the background
+python scripts/dev_console.py status
+python scripts/dev_console.py stop    # clean shutdown
 ```
+
+`python -m console.server` runs the same console directly, in the foreground, with no
+idle timeout and no helper.
 
 - **Requirements:** Python + `jsonschema` (already used by `se doctor`); no Node, no build step
 - **Read-only by design:** writes answered 405; no DB, no cache, no manifest of its own
 - **Epistemic labels:** every value tagged `OBSERVED` (verbatim from `se`), `DERIVED` (computed), or `UNKNOWN` (never defaulted to green)
-- **Env overrides:** `SE_ROOT` (defaults to repo root when vendored), `SE_CONSOLE_PORT` (default 8777)
+- **Env overrides:** `SE_ROOT` (defaults to repo root when vendored), `SE_CONSOLE_PORT` (default 8777), `SE_CONSOLE_IDLE_TIMEOUT` (launcher's idle-timeout default)
 - **Docs:** `SE-CONSOLE/docs/README.md` · this guide
 
 ### Lifecycle with SE
@@ -275,6 +280,20 @@ python -m console.server          # -> http://127.0.0.1:8777
 The console ships inside the SYSTEM-ENGINEERING repository at `SE-CONSOLE/`. After cloning,
 it's ready to run. No separate install step. `se doctor` and `se validate` cover its
 dependencies (Python + `jsonschema`).
+
+The helper is a local convenience for the operator, not a service: no Docker, no systemd,
+no NSSM, no boot entry, and it writes only under `SE-CONSOLE/.runtime/` (gitignored).
+
+`start` and `restart` arm an **idle timeout** of 15 minutes (`--idle-timeout SECONDS`;
+`0` disables it). Once a client has connected, the console stops itself after that long
+with nothing asking it for anything, so closing the browser is by itself enough to bring
+it down. `status` reports `idle_timeout=15 min`, `off`, or `unknown` (a console not started
+by the helper). The timer stays disarmed until the first client connects, so a console
+nobody opens never stops on its own.
+
+Installing SE with `se-installer install --shortcuts` (or the checkbox in
+`se-installer tui`) creates **one** desktop shortcut that starts the console. There is no
+Stop shortcut: the console stops itself (DESIGN-5C D3).
 
 ### Engram (persistent memory)
 

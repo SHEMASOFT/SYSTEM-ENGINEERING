@@ -10,6 +10,7 @@ Instalador unificado para **System Engineering Master System (SE)**.
 - **Dependencias inteligentes**: Solo instala `node/npx` si se seleccionan MCPs que lo requieren
 - **Multi-plataforma**: Windows (winget/scoop/choco), macOS (brew), Linux (apt/dnf/pacman)
 - **Dry-run**: Valida y planifica sin instalar
+- **Atajo de escritorio opcional**: `--shortcuts` (o el checkbox de la TUI) crea un único acceso directo que arranca SE Console; sin esa opción no se toca el Escritorio
 - **Estado persistente**: Guarda progreso y permite reanudar
 - **Paridad con el registro**: el catálogo de componentes se verifica contra `CORE/capabilities/capabilities.json` (fuente de verdad única)
 
@@ -71,6 +72,7 @@ se-installer install --recommended     # Solo recomendados
 se-installer install --all             # Todo
 se-installer install -c context7 engram # Selección específica
 se-installer install --dry-run         # Solo planificar
+se-installer install --shortcuts       # Además, atajo en el Escritorio
 
 # Otros comandos
 se-installer list                      # Listar componentes
@@ -88,6 +90,45 @@ se-installer doctor                    # Health checks
 python -m se_installer.cli tui
 ```
 
+## Atajo de escritorio para SE Console (opcional)
+
+El instalador puede crear **un** acceso directo que arranca la consola. Es opt-in:
+por defecto no se crea nada, porque un instalador no debe escribir en el Escritorio
+de nadie sin que se lo pidan.
+
+```bash
+se-installer install --recommended --shortcuts      # crear el atajo
+se-installer install --recommended --no-shortcuts   # no crearlo (por defecto)
+```
+
+En la TUI el mismo efecto tiene el checkbox *"Crear acceso directo en el
+Escritorio (SE Console)"*. Reglas:
+
+- **Uno solo, y solo de arranque** (decisión D3 de `DESIGN-5C`): la consola se
+  apaga sola cuando dejas de usarla, así que un atajo de parada no tendría nada
+  que hacer.
+- Se crea **solo si SE Console forma parte de la instalación** y **solo si esa
+  instalación termina bien**. Un atajo hacia una consola que no se instaló, o
+  hacia una instalación que falló, sería un enlace que se rompe en silencio
+  semanas después.
+- Con `--dry-run` se informa del atajo que se crearía y no se crea ninguno.
+
+Por plataforma apunta al punto de entrada que la consola ya trae:
+
+| Plataforma | Archivo creado | Apunta a |
+|---|---|---|
+| Windows | `SE Console.lnk` | `SE-CONSOLE/scripts/Start SE Console.cmd` |
+| macOS | `SE Console.command` | `SE-CONSOLE/scripts/Start SE Console.command` |
+| Linux | `SE Console.desktop` | `SE-CONSOLE/scripts/dev_console.py start` |
+
+En Windows el Escritorio se pregunta al sistema
+(`[Environment]::GetFolderPath('Desktop')`) en vez de asumir
+`%USERPROFILE%\Desktop`, porque OneDrive lo reubica. En Linux el archivo se marca
+como confiable con `gio` cuando está disponible. En macOS es un envoltorio
+`.command` y no un enlace simbólico: el launcher de la consola empieza con
+`cd "$(dirname "$0")"`, que a través de un enlace en el Escritorio resolvería al
+propio Escritorio y no encontraría la consola.
+
 ## Requisitos
 
 - Python 3.10+
@@ -104,6 +145,7 @@ se_installer/
 ├── orchestrator.py               # Orquestador de instalación (topological sort)
 ├── cli.py                        # CLI: install, list, status, doctor, tui
 ├── tui.py                        # TUI interactivo (Textual)
+├── shortcuts.py                  # Atajo de escritorio (opt-in, DESIGN-5C fase 4)
 ├── state/                        # Persistencia de estado (JSON)
 ├── model_registry.py             # Modelos seleccionables por agente
 ├── mcp_registry.py               # Registro de MCPs con schemas de funciones

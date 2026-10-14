@@ -84,8 +84,17 @@ Optional: start the read-only web console over the system:
 
 ```bash
 cd SE-CONSOLE
-python -m console.server         # http://127.0.0.1:8777
+python scripts/dev_console.py start   # http://127.0.0.1:8777, in the background
+python scripts/dev_console.py status
+python scripts/dev_console.py stop    # clean shutdown
 ```
+
+`start` also arms a 15-minute idle timeout — close the browser and the console
+shuts itself down (`--idle-timeout 0` keeps it up until you stop it). If the
+installer created the desktop shortcut (`install --shortcuts`), that is the
+one-click way in. `python -m console.server` runs the same console directly, in
+the foreground and with no timeout. Details:
+[`SE-CONSOLE/docs/README.md`](SE-CONSOLE/docs/README.md).
 
 ---
 

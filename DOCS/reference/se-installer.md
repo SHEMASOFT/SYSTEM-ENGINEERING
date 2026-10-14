@@ -285,6 +285,9 @@ se-installer install --all
 # Dry run (plan only)
 se-installer install --dry-run --recommended --json
 
+# Also create the SE Console desktop shortcut (opt-in; one shortcut, start only)
+se-installer install --recommended --shortcuts
+
 # List all components
 se-installer list --json
 
@@ -308,11 +311,39 @@ se-installer install --recommended --runtimes opencode codex claude_code
 
 ---
 
+## Console Desktop Shortcut (opt-in)
+
+`se-installer install --shortcuts` creates **one** desktop shortcut that starts the SE
+Console. `--no-shortcuts` is the default and writes nothing to anybody's Desktop. The TUI
+asks the same question with one checkbox.
+
+- **One shortcut, start only** (DESIGN-5C D3). The console stops itself once nothing is
+  watching it, so a Stop shortcut would have nothing to do.
+- **Created only when `se_console` is part of the installation, and only after that
+  installation succeeds.** A shortcut to a console that was never installed — or to an
+  install that failed — breaks silently on the operator's Desktop weeks later.
+- **`--dry-run` reports the shortcut it would create and creates nothing.**
+
+| Platform | File | Points at |
+|---|---|---|
+| Windows | `SE Console.lnk` | `SE-CONSOLE/scripts/Start SE Console.cmd` |
+| macOS | `SE Console.command` | `SE-CONSOLE/scripts/Start SE Console.command` |
+| Linux | `SE Console.desktop` | `SE-CONSOLE/scripts/dev_console.py start` |
+
+Windows is asked where the Desktop is (`[Environment]::GetFolderPath('Desktop')`) instead
+of assuming `%USERPROFILE%\Desktop`, because OneDrive relocates it. Linux marks the
+`.desktop` file trusted through `gio` where available. macOS gets a wrapper `.command`
+rather than a symlink: the console's launcher begins with `cd "$(dirname "$0")"`, which
+through a Desktop symlink would resolve to the Desktop instead of the console.
+
+---
+
 ## TUI
 
 The Textual TUI (`se-installer tui`) provides:
 - Collapsible tree by category (Core, Memory, Documentation, File Operations, Browser, Web Scraping, Code Intelligence, Runtime)
 - Checkbox selection with dependency auto-resolution
+- Desktop shortcut opt-in (one checkbox: *Crear acceso directo en el Escritorio (SE Console)*)
 - Model selection per agent (shows free/paid, capabilities, cost)
 - MCP selection per runtime
 - Real-time progress bar during installation
