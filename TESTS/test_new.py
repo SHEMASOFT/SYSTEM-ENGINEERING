@@ -219,6 +219,32 @@ class NewRecordTests(unittest.TestCase):
         self.assertEqual(data["command"], "python -m unittest")
         self.assertEqual(data["description"], "txt")
 
+    def test_artifact_description_is_recorded(self):
+        """Same class as the evidence fix: `--description` is declared for every
+        `se new` kind and the artifact template has the field, yet the value was
+        dropped — the record kept the template placeholder instead."""
+        text = "Executable adopted by ART-0001: SCRIPTS/se_core/commands.py"
+        code, out = self.create(
+            "artifact", "--title", "Art", "--produced-by", "TASK-0001",
+            "--kind", "code", "--location", "SCRIPTS/se_core/commands.py",
+            "--description", text,
+        )
+        self.assertEqual(code, 0, out)
+        self.assert_created("artifact", out)
+        data = load_json(self.project / DIR["artifact"] / "ART-0001.json")
+        self.assertEqual(validate(data, self.schemas["artifact"]), [])
+        self.assertEqual(data["description"], text)
+        self.assertEqual(data["location"], "SCRIPTS/se_core/commands.py")
+
+    def test_artifact_without_description_keeps_template_default(self):
+        """Guard: with no flag the record must keep the template text (the fix
+        must not blank the field)."""
+        code, out = self.create("artifact", "--title", "Art", "--produced-by", "TASK-0001")
+        self.assertEqual(code, 0, out)
+        data = load_json(self.project / DIR["artifact"] / "ART-0001.json")
+        self.assertEqual(validate(data, self.schemas["artifact"]), [])
+        self.assertEqual(data["description"], "What this deliverable is.")
+
 
 if __name__ == "__main__":
     unittest.main()

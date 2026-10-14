@@ -2527,6 +2527,7 @@ def cmd_new(args) -> int:
             return 1
         overrides.update({
             "title": args.title or "(untitled artifact)",
+            "description": args.description or "What this deliverable is.",
             "kind": args.kind or "other",
             "status": args.status or "PLANNED",
             "location": args.location or "",
