@@ -1,7 +1,11 @@
 # SE-CONSOLE — 5B · Action Surface (Design)
 
-Status: **IMPLEMENTED** — 2026-10-07. Scope approved by the project owner; §8 phases 1–3 have
-landed, including the `web/` UI. `transition.attest` (v1.1) is **not** implemented.
+Status: **IMPLEMENTED** — 2026-10-07. Scope approved by the project owner; §8 phases 1–4 have
+landed, including the `web/` UI. `transition.attest` (phase 4) **is** implemented — it is an
+executable catalog entry, the A3 mapping offers it for `MANUAL` gate conditions, and the
+attention-mapping tests cover that offering. It was described here as "not implemented"
+until this reconciliation; the code and the tests treated it as live from the start. Its one
+declared gap is the absence of an end-to-end delegation test (see §8, phase 4).
 
 > UI scope note: the front end wires the surface (token in `sessionStorage`, an "Acciones"
 > column, `POST /api/action`). No browser is available in the build environment, so the UI
@@ -31,10 +35,12 @@ and it **records that it delegated**. `se` remains the only writer of SE state.
 |---|---|---|---|
 | 1 | `run.checkpoint` | `se run checkpoint` | progress / unblock |
 | 2 | `run.close` | `se run close` | decide the outcome |
+| 3 | `transition.attest` | `se transition --attest` | human gate decision (phase 4) |
 
 **Deliberately out of v1:** `new`, `update`, `init`, `plan`, `explore`, `release`, `execute`.
-**Deferred to v1.1:** `transition.attest` (`se transition --attest`) — the human gate
-decision. Higher impact (advances the lifecycle), so it lands after the chain is proven.
+**Phase 4 — `transition.attest`:** held back from the v1 cut because it advances the lifecycle
+(it lands after the chain is proven), then shipped. It is listed as action 3 above so that §9
+("no action outside the catalog in §2.1") stays true; §8 records the as-built state.
 
 ### 2.2 A3 — Intervention → action mapping
 
@@ -44,7 +50,7 @@ decision. Higher impact (advances the lifecycle), so it lands after the chain is
 | RUN `FAILED` | `run.checkpoint`, `run.close` |
 | RUN with a pending `recovery.handoff` | `run.checkpoint` |
 | RUN `RUNNING` (no intervention) | `run.checkpoint` |
-| Gate condition `MANUAL` | *(v1.1)* `transition.attest` |
+| Gate condition `MANUAL` | `transition.attest` |
 | integrity / review / discovery items | **none** — diagnosis, not actionable |
 
 **Rule:** no intervention point without a mapped action; no action without the
@@ -133,7 +139,13 @@ and leaves the artifact byte-identical.
 1. **SE enablers** — idempotency, audit coverage, expected revision (§4). Additive, no console change.
 2. **Console auth** — token, custom header, `Origin`/`Host` validation. Tightening only; adds no capability.
 3. **Console actions** — the POST surface + the A3 mapping. The new capability.
-4. **v1.1** — `transition.attest`.
+4. **v1.1** — `transition.attest`. **Landed.** The executable catalog entry
+   (`actions.py`, id `transition.attest`), the A3 mapping (`read_model.py`,
+   `MANUAL_ACTIONS`) and the argv contract (`se_cli.py`) are in the shipped tree, and the
+   attention-mapping tests assert the offering. Declared gap: there is **no end-to-end
+   delegation test** for it, unlike `run.checkpoint` / `run.close` in phase 3 — the test
+   fixture carries no gate policy, so it cannot drive a real `MANUAL` condition. Proving it
+   end-to-end needs a fixture with gate definitions.
 
 Each phase is independently verifiable and is committed as its own work unit.
 
