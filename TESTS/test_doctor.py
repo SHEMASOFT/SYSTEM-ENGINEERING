@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
@@ -14,6 +17,7 @@ import support  # noqa: E402
 from se_core.doctor import (  # noqa: E402
     check_baseline_ledger,
     check_root_hygiene,
+    check_secrets,
     check_self_containment,
     run_doctor,
 )
@@ -327,6 +331,105 @@ class SelfContainmentSurfaceTests(unittest.TestCase):
                 root = self._root_with("SYSTEM.json", body + "\n")
                 status, _ = check_self_containment(root)
                 self.assertEqual(status, "FAIL")
+
+class SecretScanTests(unittest.TestCase):
+    """The secret scan follows the repository's own answer to what it publishes.
+
+    `.gitignore` is what git ships, so the same file name means two different
+    things on either side of an ignore rule: a local workspace copy is not
+    published, while a tracked copy is -- even when a pattern matches it, because
+    `git add --force` is exactly how a published file ends up matching one.
+
+    Every case builds a throwaway repository, so the assertion covers the contract
+    instead of the contents of this checkout.
+    """
+
+    def _isolated_env(self, root):
+        """No user or system git configuration: a machine's global ignore rules
+        must not decide what these tests see."""
+        absent = str(root / "absent-gitconfig")
+        return mock.patch.dict(
+            os.environ, {"GIT_CONFIG_GLOBAL": absent, "GIT_CONFIG_SYSTEM": absent}
+        )
+
+    def _run_git(self, root, *args):
+        return subprocess.run(
+            ["git", "-C", str(root)] + list(args),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+
+    def _root(self, repo=True, gitignore=None, files=(), forced=()):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        for rel in list(files) + list(forced):
+            target = root / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("TOKEN=1\n", encoding="utf-8")
+        if gitignore is not None:
+            (root / ".gitignore").write_text(gitignore, encoding="utf-8")
+        if repo:
+            with self._isolated_env(root):
+                self._run_git(root, "init", "-q")
+                for rel in forced:
+                    self._run_git(root, "add", "--force", "--", rel)
+        return root
+
+    def test_ignored_local_env_is_not_a_published_secret(self):
+        """The exact shape of a local managed project: an ignored workspace whose
+        `.env` this repository never publishes."""
+        root = self._root(gitignore="PROJECTS/*\n", files=["PROJECTS/LOCAL/.env"])
+        support.write_json(root / "PROJECTS" / "LOCAL" / "PROJECT.json", support.manifest())
+
+        with self._isolated_env(root):
+            status, detail = check_secrets(root)
+
+        self.assertEqual(status, "PASS", detail)
+        self.assertIn("1 gitignored local file(s) not published", detail)
+
+    def test_unpublished_but_unignored_env_still_fails(self):
+        """Untracked is not the same as unpublished: a file git would add is a
+        defect of the published tree, so it is still reported."""
+        root = self._root(files=[".env"])
+
+        with self._isolated_env(root):
+            status, detail = check_secrets(root)
+
+        self.assertEqual(status, "FAIL", detail)
+        self.assertIn(".env", detail)
+
+    def test_forced_tracked_env_is_published_and_still_fails(self):
+        """A matching ignore rule must not disarm the scan: `git add --force`
+        publishes a file anyway, and then it is shipped."""
+        root = self._root(gitignore="*.env\n", forced=[".env"])
+
+        with self._isolated_env(root):
+            status, detail = check_secrets(root)
+
+        self.assertEqual(status, "FAIL", detail)
+
+    def test_missing_git_reports_instead_of_passing(self):
+        """Without git the check cannot know what is published, so it fails
+        closed on what it did find."""
+        root = self._root(gitignore="PROJECTS/*\n", files=["PROJECTS/LOCAL/.env"])
+        support.write_json(root / "PROJECTS" / "LOCAL" / "PROJECT.json", support.manifest())
+
+        with self._isolated_env(root), mock.patch("shutil.which", return_value=None):
+            status, detail = check_secrets(root)
+
+        self.assertEqual(status, "FAIL", detail)
+
+    def test_no_repository_reports_instead_of_passing(self):
+        """A directory outside version control publishes nothing, and cannot say
+        so on its own: the scan keeps reporting rather than assuming."""
+        root = self._root(repo=False, files=[".env"])
+
+        with self._isolated_env(root):
+            status, detail = check_secrets(root)
+
+        self.assertEqual(status, "FAIL", detail)
+
 
 if __name__ == "__main__":
     unittest.main()
