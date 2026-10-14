@@ -117,8 +117,32 @@ def api_provenance(_m: dict) -> tuple[int, dict[str, Any]]:
     return 200, read_model.build_provenance()
 
 
+def api_heartbeat(_m: dict) -> tuple[int, dict[str, Any]]:
+    """Liveness ping for the console's LIFECYCLE, not a governance read.
+
+    Added for DESIGN-5C (option A). The front end says "a client is still here"
+    on a timer, and the server stops itself when nobody has said so for a while
+    (`--idle-timeout`, off by default). The trigger is the ABSENCE of this call —
+    which is exactly why it survives a browser crash or a kill, where
+    `pagehide`/`sendBeacon` never fire at all.
+
+    It reads no SE state and spawns no subprocess, so it cannot become a second
+    cache of canonical data: there is nothing here to cache. And it is a GET,
+    like every other route — no exception to the read-only surface is added or
+    needed (DESIGN-5C §6).
+    """
+    return 200, {
+        "status": "OK",
+        "console": "se-console",
+        "version": read_model.CONSOLE_VERSION,
+        "purpose": "lifecycle heartbeat",
+        "generated_at": read_model._now(),
+    }
+
+
 ROUTES: dict[str, Callable[[dict], tuple[int, dict]]] = {
     "/api/health": api_health,
+    "/api/heartbeat": api_heartbeat,
     "/api/system": api_system,
     "/api/projects": api_projects,
     "/api/project": api_project_detail,
