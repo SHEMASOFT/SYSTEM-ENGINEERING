@@ -141,7 +141,14 @@ SKIP_DIRS = {".git", "__pycache__", ".workspaces", ".venv", "venv", "node_module
 # archive. It holds audits, reviews, evidence, checkpoints and initiative reports
 # kept locally for provenance; it is gitignored and not part of the published
 # system, so its (host-specific) content must not influence any check.
-SKIP_REL_DIRS = {"DOCS/internal"}
+#
+# The SE console's `artifacts/` tree is the same class of content: validation
+# reports and evidence snapshots the console generates for itself at runtime,
+# gitignored so they never ship. A checkout that ran the console would otherwise
+# reach a different verdict than one that never did, and a captured snapshot is
+# output rather than a reference a reader would follow. The rest of SE-CONSOLE
+# stays scanned, so this exclusion cannot widen silently.
+SKIP_REL_DIRS = {"DOCS/internal", "SE-CONSOLE/artifacts"}
 
 SECRET_NAME_PATTERNS = (".env", ".pem", ".key", ".p12", ".pfx", "id_rsa", "id_ed25519")
 SECRET_NAME_PREFIXES = ("credentials", "secrets", "tokens")
