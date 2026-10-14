@@ -12,13 +12,24 @@ GET-only remains the default. The single, named exception (DESIGN-5B §6) is
 `POST /api/action`, which is dispatched only for `api.POST_ROUTES` and only
 after `console/auth.py` has authorised the request; every other route answers
 405 + Allow to any mutating verb.
+
+Lifecycle (DESIGN-5C, option A): `--idle-timeout SECONDS` lets the console stop
+itself once a client that WAS connected has gone quiet. The timeout is OFF by
+default and stays DISARMED until the first request arrives, so a console started
+by hand -- or one nobody has opened yet -- never vanishes on its own. The stop is
+triggered by the ABSENCE of traffic rather than by an unload event, which is
+exactly why it also covers a browser crash or a kill, where no `pagehide` handler
+ever runs at all.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import api, audit, se_cli, se_reader
@@ -36,6 +47,81 @@ POST_METHODS = ("POST",)
 
 #: Cap on an action request body; the whole catalog payload is tiny.
 MAX_ACTION_BODY = 64 * 1024
+
+#: Seconds without a client before the console stops itself. 0 disables it.
+#: Off by default: a console started by hand must not vanish on its own.
+DEFAULT_IDLE_TIMEOUT = float(os.environ.get("SE_CONSOLE_IDLE_TIMEOUT", "0"))
+
+#: How often the watcher checks. Cheap: it compares two numbers.
+IDLE_POLL_SECONDS = 5.0
+
+
+class IdleWatch:
+    """Stop the console once a client that *was* here has gone away.
+
+    DESIGN-5C option A. Two deliberate properties, both load-bearing:
+
+    * **Disarmed until the first request.** A headless
+      `python -m console.server` that nobody has opened keeps its previous
+      behaviour forever: it cannot stop itself before a client ever arrived.
+      Only after someone has connected does "nobody is here" start to mean
+      anything.
+    * **Any request is activity**, not only `/api/heartbeat`, so the console does
+      not stop underneath an operator who is actually reading it.
+
+    The state is two scalars in memory. It is not a store of SE data, so it does
+    not contradict the console's "no database, no ledger, no cache" claim.
+    """
+
+    def __init__(self, timeout: float) -> None:
+        self.timeout = float(timeout)
+        self._lock = threading.Lock()
+        self._armed = False
+        self._last = time.monotonic()
+
+    def touch(self) -> None:
+        """Record that a client is here, and arm the watch."""
+        with self._lock:
+            self._armed = True
+            self._last = time.monotonic()
+
+    def armed(self) -> bool:
+        with self._lock:
+            return self._armed
+
+    def idle_for(self) -> float:
+        with self._lock:
+            return time.monotonic() - self._last if self._armed else 0.0
+
+    def expired(self) -> bool:
+        """True only when a client has been seen AND has since gone quiet."""
+        if self.timeout <= 0:
+            return False
+        return self.armed() and self.idle_for() >= self.timeout
+
+
+def start_idle_watch(httpd: ThreadingHTTPServer, watch: IdleWatch) -> None:
+    """Shut the server down from a daemon thread once the watch expires.
+
+    `shutdown()` must not be called from the thread running `serve_forever`, so
+    it is called from this one and the main thread then returns from
+    `serve_forever` normally -- the same clean path SIGINT takes.
+    """
+    if watch.timeout <= 0:
+        return
+
+    def _loop() -> None:
+        while True:
+            time.sleep(IDLE_POLL_SECONDS)
+            if watch.expired():
+                sys.stderr.write(
+                    f"[se-console] no client for {watch.timeout:g}s "
+                    f"(idle timeout); stopping\n"
+                )
+                httpd.shutdown()
+                return
+
+    threading.Thread(target=_loop, name="se-console-idle", daemon=True).start()
 
 
 def _allow_for(path: str) -> list[str]:
@@ -69,6 +155,16 @@ class ConsoleHandler(BaseHTTPRequestHandler):
     def _send_json(self, status: int, payload: object, *, head: bool = False) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2, default=str).encode("utf-8")
         self._send(status, body, "application/json; charset=utf-8", head=head)
+
+    def _touch(self) -> None:
+        """Tell the lifecycle watch that a client is still here (DESIGN-5C).
+
+        Called for EVERY served request, not only for `/api/heartbeat`, so the
+        console cannot stop underneath an operator who is reading it.
+        """
+        watch = getattr(self.server, "idle", None)
+        if watch is not None:
+            watch.touch()
 
     def _not_allowed(self, *, head: bool = False) -> None:
         path, _ = api.parse(self.path)
@@ -133,6 +229,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     # -- POST: the action surface ---------------------------------------
     def _handle_action(self, path: str) -> None:
+        self._touch()
         length_raw = self.headers.get("Content-Length")
         try:
             length = int(length_raw) if length_raw is not None else -1
@@ -180,6 +277,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     # -- dispatch --------------------------------------------------------
     def _handle(self, *, head: bool) -> None:
+        self._touch()
         path, query = api.parse(self.path)
 
         # POST-only surface: a GET here is 405 (with Allow: POST), not a 404
@@ -264,7 +362,25 @@ def preflight() -> int:
     return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m console.server",
+        description="SE-CONSOLE :: read-only HTTP console over SYSTEM-ENGINEERING.",
+    )
+    parser.add_argument(
+        "--idle-timeout",
+        type=float,
+        default=DEFAULT_IDLE_TIMEOUT,
+        metavar="SECONDS",
+        help=(
+            "stop the console after SECONDS with no request from any client "
+            "(0 = never, the default). The timer stays DISARMED until the first "
+            "request arrives, so a console nobody has opened never stops "
+            "itself. Env: SE_CONSOLE_IDLE_TIMEOUT."
+        ),
+    )
+    args = parser.parse_args(argv)
+
     rc = preflight()
     if rc != 0:
         return rc
@@ -272,14 +388,21 @@ def main() -> int:
     # re-run `se doctor` on every request (see console/audit.py).
     audit.start_background()
     httpd = ThreadingHTTPServer((BIND_HOST, BIND_PORT), ConsoleHandler)
+    # The handler reaches the watch through the server instance it already has.
+    httpd.idle = IdleWatch(args.idle_timeout)
     state = "OK" if se_cli.probe_se()["operational"] else "DEGRADED (se engine down)"
+    if args.idle_timeout > 0:
+        idle_note = f"idle timeout {args.idle_timeout:g}s once a client connects"
+    else:
+        idle_note = "no idle timeout"
     sys.stderr.write(
         f"[se-console] console on http://{BIND_HOST}:{BIND_PORT}  "
         f"(GET-only; POST /api/action is token-authenticated)  "
-        f"(se_root={se_reader.SE_ROOT})  health={state}\n"
+        f"(se_root={se_reader.SE_ROOT})  health={state}  ({idle_note})\n"
         f"[se-console] warming the shared audit pass (one `se doctor`, then "
         f"refreshed every {audit.DEFAULT_REFRESH_SECONDS}s)\n"
     )
+    start_idle_watch(httpd, httpd.idle)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
