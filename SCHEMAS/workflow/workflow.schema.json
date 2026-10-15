@@ -48,6 +48,11 @@
               "max_retries": { "type": "integer", "minimum": 0, "default": 0 },
               "backoff_seconds": { "type": "integer", "minimum": 1, "default": 5 }
             }
+          },
+          "max_context_tokens": {
+            "type": "integer",
+            "minimum": 256,
+            "description": "Optional per-node token budget for context. Overrides agent llm_config.max_tokens. 70% budget rule applies."
           }
         }
       }
