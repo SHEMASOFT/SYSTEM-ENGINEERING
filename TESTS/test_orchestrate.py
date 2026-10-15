@@ -200,3 +200,290 @@ class OrchestrateExecuteExitCodeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OrchestrationContextFilteringTests(unittest.TestCase):
+    """Tests for context filtering in _execute_node (token economy)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.project = support.make_project(self.root / "proj")
+        self.project_id = "PRJ-TEST-001"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write_workflow(self, workflow_id, nodes, edges=None, gates=None):
+        data = {
+            "schema_version": "1",
+            "workflow_id": workflow_id,
+            "project_id": self.project_id,
+            "name": "Test workflow",
+            "version": "1.0.0",
+            "status": "DRAFT",
+            "nodes": nodes,
+            "edges": edges or [],
+            "gates": gates or [],
+        }
+        support.write_json(self.project / "workflows" / f"{workflow_id}.json", data)
+
+    def _make_mock_result(self, status="COMPLETED", output=None, outputs=None):
+        """Create a mock AgentRunner.run result."""
+        return {
+            "status": status,
+            "output": output or {},
+            "outputs": outputs or {},
+        }
+
+    def _make_engine_with_mocked_project(self):
+        """Create engine with mocked _find_project_dir to return test project."""
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = OrchestrationEngine(root=self.root)
+        # Mock _find_project_dir to return our test project
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        return engine
+
+    def test_context_filtered_to_only_declared_keys(self):
+        """Node receives only context keys it declares via inputs.context:*."""
+        from se_core.agents.runner import AgentRunner
+        engine = self._make_engine_with_mocked_project()
+        
+        # Workflow with two nodes: first produces output, second consumes specific key
+        self._write_workflow("WF-0001", nodes=[
+            {
+                "node_id": "producer",
+                "agent": "analyst",
+                "action": "produce_data",
+                "inputs": {},
+                "outputs": {"result": "memory:producer_result"},
+            },
+            {
+                "node_id": "consumer",
+                "agent": "planner",
+                "action": "plan",
+                "inputs": {"data": "context:producer_result"},
+                "outputs": {},
+            },
+        ], edges=[{"from": "producer", "to": "consumer"}])
+
+        workflow = engine.load_workflow("WF-0001", self.project_id)
+
+        # Test _execute_node directly with mocked AgentRunner
+        mock_result = self._make_mock_result(outputs={"produced": "value"})
+        captured = {}
+        def mock_run(self, action, inputs, context, max_tokens=None):
+            captured["context"] = context
+            captured["action"] = action
+            captured["max_tokens"] = max_tokens
+            return mock_result
+
+        with mock.patch.object(AgentRunner, "run", mock_run):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                node1 = workflow["nodes"][0]
+                project_dir = self.project
+                context = {"workflow_id": "WF-0001", "project_id": self.project_id, "extra": "should_not_be_sent"}
+                engine._execute_node(node1, project_dir, context, workflow)
+
+        # Verify first node got empty context (no context: refs in inputs)
+        self.assertEqual(captured.get("context"), {}, 
+            "Node with no context: refs should receive empty context")
+        self.assertIsNone(captured.get("max_tokens"))
+
+    def test_context_includes_only_referenced_keys(self):
+        """Node with context: refs receives only those keys."""
+        from se_core.agents.runner import AgentRunner
+        engine = self._make_engine_with_mocked_project()
+        
+        self._write_workflow("WF-0002", nodes=[
+            {
+                "node_id": "consumer",
+                "agent": "planner",
+                "action": "plan",
+                "inputs": {
+                    "needed": "context:workflow_id",
+                    "also_needed": "context:project_id",
+                },
+                "outputs": {},
+            },
+        ])
+
+        workflow = engine.load_workflow("WF-0002", self.project_id)
+        node = workflow["nodes"][0]
+        project_dir = self.project
+        
+        # Full context with extra keys that should NOT be passed
+        full_context = {
+            "workflow_id": "WF-0002",
+            "project_id": self.project_id,
+            "project_name": "Test",
+            "project_data": workflow,
+            "previous_node_output": "large_data_that_should_not_be_sent",
+            "another_key": "more_data",
+        }
+
+        mock_result = self._make_mock_result()
+        captured = {}
+        def mock_run(self, action, inputs, context, max_tokens=None):
+            captured["context"] = context
+            captured["inputs"] = inputs
+            captured["max_tokens"] = max_tokens
+            return mock_result
+
+        with mock.patch.object(AgentRunner, "run", mock_run):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                engine._execute_node(node, project_dir, full_context, workflow)
+
+        # Verify only declared keys are in context
+        received_context = captured.get("context", {})
+        self.assertIn("workflow_id", received_context)
+        self.assertIn("project_id", received_context)
+        self.assertNotIn("project_name", received_context)
+        self.assertNotIn("project_data", received_context)
+        self.assertNotIn("previous_node_output", received_context)
+        self.assertNotIn("another_key", received_context)
+        self.assertEqual(len(received_context), 2)
+        self.assertIsNone(captured.get("max_tokens"))
+
+    def test_context_empty_when_no_context_refs(self):
+        """Node with no context: refs receives empty context."""
+        from se_core.agents.runner import AgentRunner
+        engine = self._make_engine_with_mocked_project()
+        
+        self._write_workflow("WF-0003", nodes=[
+            {
+                "node_id": "no-context",
+                "agent": "analyst",
+                "action": "analyze",
+                "inputs": {"param": "literal:fixed_value"},
+                "outputs": {},
+            },
+        ])
+
+        workflow = engine.load_workflow("WF-0003", self.project_id)
+        node = workflow["nodes"][0]
+        project_dir = self.project
+        
+        full_context = {"key1": "value1", "key2": "value2"}
+
+        mock_result = self._make_mock_result()
+        captured = {}
+        def mock_run(self, action, inputs, context, max_tokens=None):
+            captured["context"] = context
+            captured["max_tokens"] = max_tokens
+            return mock_result
+
+        with mock.patch.object(AgentRunner, "run", mock_run):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                engine._execute_node(node, project_dir, full_context, workflow)
+
+        self.assertEqual(captured.get("context"), {})
+        self.assertIsNone(captured.get("max_tokens"))
+
+    def test_memory_and_literal_inputs_still_work(self):
+        """Non-context inputs (memory:, literal:) still resolve correctly."""
+        from se_core.agents.runner import AgentRunner
+        engine = self._make_engine_with_mocked_project()
+        
+        self._write_workflow("WF-0004", nodes=[
+            {
+                "node_id": "mixed",
+                "agent": "analyst",
+                "action": "analyze",
+                "inputs": {
+                    "from_memory": "memory:some_mem",
+                    "from_literal": "literal:fixed",
+                    "from_context": "context:workflow_id",
+                },
+                "outputs": {},
+            },
+        ])
+
+        workflow = engine.load_workflow("WF-0004", self.project_id)
+        node = workflow["nodes"][0]
+        project_dir = self.project
+        
+        full_context = {"workflow_id": "WF-0004", "extra": "should_not_pass"}
+
+        mock_result = self._make_mock_result()
+        captured = {}
+        def mock_run(self, action, inputs, context, max_tokens=None):
+            captured["inputs"] = inputs
+            captured["context"] = context
+            captured["max_tokens"] = max_tokens
+            return mock_result
+
+        with mock.patch.object(AgentRunner, "run", mock_run):
+            # Mock memory_engine.get to return a value for the memory source
+            with mock.patch.object(engine.memory_engine, "get", 
+                                 return_value={"content": {"mem_key": "mem_value"}}):
+                engine._execute_node(node, project_dir, full_context, workflow)
+
+        inputs = captured.get("inputs", {})
+        self.assertEqual(inputs.get("from_literal"), "fixed")
+        self.assertEqual(inputs.get("from_context"), "WF-0004")
+        self.assertEqual(inputs.get("from_memory"), {"mem_key": "mem_value"})
+        # Context should only have workflow_id
+        self.assertEqual(captured.get("context"), {"workflow_id": "WF-0004"})
+        self.assertIsNone(captured.get("max_tokens"))
+
+    def test_context_accumulation_still_works_for_dependent_nodes(self):
+        """Context accumulates outputs for subsequent nodes that declare them."""
+        from se_core.agents.runner import AgentRunner
+        engine = self._make_engine_with_mocked_project()
+        
+        # Two nodes: producer -> consumer
+        # Producer outputs to context key "step1_result"
+        # Consumer declares it needs "context:step1_result"
+        self._write_workflow("WF-0005", nodes=[
+            {
+                "node_id": "producer",
+                "agent": "analyst",
+                "action": "produce",
+                "inputs": {},
+                "outputs": {"step1_result": "memory:producer_mem"},  # output mapping
+            },
+            {
+                "node_id": "consumer",
+                "agent": "planner",
+                "action": "consume",
+                "inputs": {"prev": "context:step1_result"},
+                "outputs": {},
+            },
+        ], edges=[{"from": "producer", "to": "consumer"}])
+
+        workflow = engine.load_workflow("WF-0005", self.project_id)
+        project_dir = self.project
+
+        # Simulate execution order
+        node_map = {n["node_id"]: n for n in workflow["nodes"]}
+        
+        # Track what each node receives
+        received_contexts = {}
+        
+        producer_result = self._make_mock_result(outputs={"step1_result": "produced_value"})
+        consumer_result = self._make_mock_result(outputs={})
+        
+        def make_mock_run(node_id, result):
+            def mock_run(self, action, inputs, context, max_tokens=None):
+                received_contexts[node_id] = context
+                return result
+            return mock_run
+
+        with mock.patch.object(AgentRunner, "run", make_mock_run("producer", producer_result)):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                engine._execute_node(node_map["producer"], project_dir, {}, workflow)
+
+        # After producer, context should have step1_result from its outputs
+        # The execute() method does: context.update(result.get("outputs", {}))
+        # So for the consumer, context should have step1_result
+        context_after_producer = {"step1_result": "produced_value"}
+
+        with mock.patch.object(AgentRunner, "run", make_mock_run("consumer", consumer_result)):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                engine._execute_node(node_map["consumer"], project_dir, context_after_producer, workflow)
+
+        # Consumer should receive step1_result in context
+        consumer_context = received_contexts.get("consumer", {})
+        self.assertIn("step1_result", consumer_context)
+        self.assertEqual(consumer_context["step1_result"], "produced_value")

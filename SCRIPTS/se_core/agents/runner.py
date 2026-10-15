@@ -6,14 +6,17 @@ Executes agent actions using configured LLM providers.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ..llm.factory import create_provider_from_config
 from ..llm.providers import LLMMessage, LLMProvider
 from ..paths import repo_root, load_json
 from ..schemas import load_schemas, validate
+
+logger = logging.getLogger(__name__)
 
 
 class AgentRunner:
@@ -175,34 +178,173 @@ class AgentRunner:
         action: str,
         inputs: Dict[str, Any],
         context: Dict[str, Any],
-    ) -> List:
-        """Build messages for LLM from action, inputs, and context."""
+        max_tokens: int = 4096,
+    ) -> Tuple[List, Dict[str, Any]]:
+        """Build messages for LLM from action, inputs, and context.
+        
+        If estimated prompt tokens exceed 70% of max_tokens, truncate context values
+        to fit within budget. Priority: inputs > context keys > long values.
+        
+        Opt-in summarization: values exceeding agent's context_max_inline (default 2000)
+        are replaced with a summary reference.
+        
+        Returns:
+            Tuple of (messages_list, telemetry_dict)
+        """
         from ..llm.providers import LLMMessage
+        
+        # Telemetry tracking
+        telemetry = {
+            "context_original_keys": list(context.keys()),
+            "context_original_count": len(context),
+            "keys_summarized": [],
+            "keys_truncated": [],
+            "keys_dropped": [],
+            "estimated_prompt_tokens": 0,
+            "context_budget_tokens": 0,
+            "max_tokens": max_tokens,
+        }
         
         system_prompt = self._get_system_prompt()
         
-        # Build user message with action, inputs, and context
-        user_content = f"""Action: {action}
-
-Inputs:
-{json.dumps(inputs, indent=2, ensure_ascii=False)}
-
-Context:
-{json.dumps(context, indent=2, ensure_ascii=False)}
-
-Execute this action and return results. Use available tools as needed.
+        # Opt-in summarization threshold (chars) - configurable per agent
+        context_max_inline = self.agent_config.get("context_max_inline", 2000)
+        
+        # Summarize large context values before token budget check
+        original_context_keys = set(context.keys())
+        context = self._summarize_large_context_values(context, context_max_inline, telemetry)
+        telemetry["keys_summarized"] = [k for k in context.keys() if k in original_context_keys and isinstance(context.get(k), dict) and "_summary" in context[k]]
+        
+        # Build base message parts
+        action_part = f"Action: {action}\n\n"
+        inputs_json = json.dumps(inputs, indent=2, ensure_ascii=False)
+        inputs_part = f"Inputs:\n{inputs_json}\n\n"
+        
+        # Static parts that are always included
+        static_suffix = """Execute this action and return results. Use available tools as needed.
 Return results as JSON with the following structure:
-{{
+{
   "status": "COMPLETED|FAILED",
-  "output": {{...}},
+  "output": {...},
   "evidence": [...],
   "artifacts": [...]
-}}"""
+}"""
         
+        # Estimate tokens: rough heuristic 4 chars ≈ 1 token
+        def estimate_tokens(text: str) -> int:
+            return len(text) // 4
+        
+        # Base tokens (system prompt + action + inputs + static suffix)
+        base_tokens = estimate_tokens(system_prompt) + estimate_tokens(action_part) + estimate_tokens(inputs_part) + estimate_tokens(static_suffix)
+        
+        # Budget for context: 70% of max_tokens minus base
+        context_budget = int(max_tokens * 0.7) - base_tokens
+        telemetry["context_budget_tokens"] = max(0, context_budget)
+        
+        # Serialize context
+        context_json = json.dumps(context, indent=2, ensure_ascii=False)
+        context_part = f"Context:\n{context_json}\n\n"
+        context_tokens = estimate_tokens(context_part)
+        
+        # If within budget, use as-is
+        if context_tokens <= context_budget or context_budget <= 0:
+            user_content = action_part + inputs_part + context_part + static_suffix
+            telemetry["estimated_prompt_tokens"] = base_tokens + context_tokens
+            return [
+                LLMMessage(role="system", content=system_prompt),
+                LLMMessage(role="user", content=user_content),
+            ], telemetry
+        
+        # Need to truncate context: prioritize keeping keys, truncate long values
+        # Strategy: truncate string values > 500 chars, then if still over budget, drop keys
+        truncated_context = {}
+        for k, v in context.items():
+            if isinstance(v, str) and len(v) > 500:
+                # Truncate long strings with indicator
+                truncated_context[k] = v[:500] + f"... [truncated {len(v) - 500} chars]"
+                telemetry["keys_truncated"].append(k)
+            else:
+                truncated_context[k] = v
+        
+        # Re-estimate
+        context_json = json.dumps(truncated_context, indent=2, ensure_ascii=False)
+        context_part = f"Context:\n{context_json}\n\n"
+        context_tokens = estimate_tokens(context_part)
+        
+        # If still over budget, drop least important keys (keep first N that fit)
+        if context_tokens > context_budget and context_budget > 0:
+            # Keep keys in order, drop from end until fits
+            keys = list(truncated_context.keys())
+            while keys and context_tokens > context_budget:
+                dropped_key = keys.pop()  # Remove last key
+                telemetry["keys_dropped"].append(dropped_key)
+                test_context = {k: truncated_context[k] for k in keys}
+                context_json = json.dumps(test_context, indent=2, ensure_ascii=False)
+                context_part = f"Context:\n{context_json}\n\n"
+                context_tokens = estimate_tokens(context_part)
+            truncated_context = {k: truncated_context[k] for k in keys}
+        
+        user_content = action_part + inputs_part + context_part + static_suffix
+        telemetry["estimated_prompt_tokens"] = base_tokens + context_tokens
         return [
             LLMMessage(role="system", content=system_prompt),
             LLMMessage(role="user", content=user_content),
-        ]
+        ], telemetry
+
+    def _summarize_large_context_values(
+        self,
+        context: Dict[str, Any],
+        max_inline: int,
+        telemetry: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Replace context values exceeding max_inline chars with a summary reference.
+        
+        The summary includes:
+        - _summary: human-readable description
+        - _full_key: the original context key for potential retrieval
+        - _type: original value type
+        - _size: original size in chars
+        
+        Agents can use tools to retrieve full content if needed.
+        """
+        if max_inline <= 0:
+            return context  # Disabled
+        
+        summarized = {}
+        for k, v in context.items():
+            # Serialize to estimate size
+            if isinstance(v, (str, dict, list)):
+                serialized = json.dumps(v, ensure_ascii=False)
+                size = len(serialized)
+            else:
+                serialized = str(v)
+                size = len(serialized)
+            
+            if size > max_inline:
+                # Create summary
+                if isinstance(v, dict):
+                    type_desc = f"dict with {len(v)} keys: {list(v.keys())[:5]}"
+                    if len(v) > 5:
+                        type_desc += f" ... (+{len(v) - 5} more)"
+                elif isinstance(v, list):
+                    type_desc = f"list of {len(v)} items"
+                    if len(v) > 0:
+                        type_desc += f", first: {str(v[0])[:50]}"
+                else:
+                    type_desc = f"str ({size} chars)"
+                
+                summarized[k] = {
+                    "_summary": f"Large {type_desc}, {size} chars",
+                    "_full_key": k,
+                    "_type": type(v).__name__,
+                    "_size": size,
+                }
+                if telemetry is not None:
+                    telemetry.setdefault("keys_summarized", []).append(k)
+            else:
+                summarized[k] = v
+        
+        return summarized
 
     def _get_system_prompt(self) -> str:
         """Get system prompt for this agent."""
@@ -251,25 +393,39 @@ Return results as JSON with the following structure:
             max_tokens: Override max tokens
             
         Returns:
-            Result dict with status, output, evidence, artifacts
+            Result dict with status, output, evidence, artifacts, and telemetry
         """
-        # Build messages
-        messages = self._build_messages(action, inputs, context)
+        # Get LLM config overrides
+        llm_config = self.agent_config.get("llm_config", {})
+        temperature = temperature if temperature is not None else llm_config.get("temperature", 0.3)
+        max_tokens = max_tokens or llm_config.get("max_tokens", 4096)
+        
+        # Build messages with token budget awareness
+        messages, telemetry = self._build_messages(action, inputs, context, max_tokens)
+        
+        # Log telemetry (context processing)
+        logger.debug(
+            "AgentRunner telemetry: agent=%s action=%s "
+            "original_keys=%d summarized=%d truncated=%d dropped=%d "
+            "est_prompt_tokens=%d budget=%d",
+            self.agent_name, action,
+            telemetry.get("context_original_count", 0),
+            len(telemetry.get("keys_summarized", [])),
+            len(telemetry.get("keys_truncated", [])),
+            len(telemetry.get("keys_dropped", [])),
+            telemetry.get("estimated_prompt_tokens", 0),
+            telemetry.get("context_budget_tokens", 0),
+        )
         
         # Merge tools
         all_tools = self.tools.copy()
         if tools:
             all_tools.extend(tools)
         
-        # Get LLM config overrides
-        llm_config = self.agent_config.get("llm_config", {})
-        temperature = temperature if temperature is not None else llm_config.get("temperature", 0.3)
-        max_tokens = max_tokens or llm_config.get("max_tokens", 4096)
-        
         # Call LLM
         try:
             response = self.llm_provider.chat(
-                messages=self._build_messages(action, inputs, context),
+                messages=messages,
                 tools=self.tools,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -279,6 +435,7 @@ Return results as JSON with the following structure:
                 "status": "FAILED",
                 "error": f"LLM call failed: {e}",
                 "output": {},
+                "telemetry": telemetry,
             }
         
         # Process tool calls if any
@@ -291,11 +448,34 @@ Return results as JSON with the following structure:
         except json.JSONDecodeError:
             output = {"raw_output": response.content}
         
+        # Combine telemetry with provider usage
+        usage = getattr(response, "usage", {}) or {}
+        full_telemetry = {
+            "context_processing": telemetry,
+            "provider_usage": {
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+            },
+            "finish_reason": getattr(response, "finish_reason", None),
+        }
+        
+        # Log provider usage
+        logger.info(
+            "AgentRunner usage: agent=%s action=%s "
+            "prompt_tokens=%d completion_tokens=%d total_tokens=%d",
+            self.agent_name, action,
+            usage.get("prompt_tokens", 0),
+            usage.get("completion_tokens", 0),
+            usage.get("total_tokens", 0),
+        )
+        
         return {
             "status": "COMPLETED",
             "output": output,
-            "usage": response.usage,
-            "finish_reason": response.finish_reason,
+            "usage": usage,
+            "finish_reason": getattr(response, "finish_reason", None),
+            "telemetry": full_telemetry,
         }
 
     def _execute_tool_calls(

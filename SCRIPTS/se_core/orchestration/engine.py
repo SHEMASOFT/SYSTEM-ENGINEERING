@@ -324,6 +324,18 @@ class OrchestrationEngine:
             else:
                 resolved_inputs[param] = source
 
+        # Filter context to only keys referenced by node inputs (context: prefix).
+        # This avoids sending the entire accumulated context to every LLM call.
+        context_keys = set()
+        for source in inputs.values():
+            if isinstance(source, str) and source.startswith("context:"):
+                context_keys.add(source[8:])  # Remove "context:" prefix
+
+        filtered_context = {k: v for k, v in context.items() if k in context_keys} if context_keys else {}
+
+        # Resolve max_tokens for this node: node.max_context_tokens > agent default > global default
+        max_tokens = node.get("max_context_tokens")
+
         # Create AgentRunner for the assigned agent
         project_dir = self._find_project_dir(workflow["project_id"])
         try:
@@ -334,11 +346,12 @@ class OrchestrationEngine:
         except Exception as e:
             return {"status": "FAILED", "error": f"Failed to create agent runner for {agent}: {e}"}
 
-        # Execute agent action
+        # Execute agent action with filtered context and optional max_tokens override
         result = runner.run(
             action=action,
             inputs=resolved_inputs,
-            context=context,
+            context=filtered_context,
+            max_tokens=max_tokens,
         )
 
         return result
