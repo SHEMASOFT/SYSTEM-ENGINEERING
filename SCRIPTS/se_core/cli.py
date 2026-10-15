@@ -661,6 +661,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_orch_execute.add_argument("--dry-run", action="store_true", help="Validate and plan only, don't execute")
 
+    p_orch_execute.add_argument("--native", action="store_true", help="Generate prompt for OpenCode-native execution via invoke tool")
+
     p_orch_execute.add_argument("--json", action="store_true", help="Emit machine-readable se.report/1 envelope")
 
     p_orch_execute.set_defaults(func=commands.cmd_orchestrate)

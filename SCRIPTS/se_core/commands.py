@@ -4360,8 +4360,25 @@ def cmd_orchestrate(args) -> int:
 
         dry_run = args.dry_run
         start_node = args.start_node if args.start_node else None
+        native = getattr(args, "native", False)
 
         engine = OrchestrationEngine(root=repo_root())
+
+        if native:
+            # Generate native execution prompt for OpenCode coordinator
+            try:
+                prompt = engine.generate_native_execution_prompt(
+                    workflow_id=args.workflow,
+                    project_id=project_id,
+                    execution_id=args.execution_id,
+                    start_node=start_node,
+                )
+                print(prompt)
+                return 0
+            except Exception as exc:
+                print(f"FAIL: failed to generate native prompt: {exc}")
+                return 1
+
         try:
             result = engine.execute(
                 workflow_id=args.workflow,

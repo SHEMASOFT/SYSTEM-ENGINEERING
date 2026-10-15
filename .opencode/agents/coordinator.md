@@ -1,5 +1,5 @@
 ---
-description: Orchestrate the lifecycle, route work to agents, enforce gates and traceability, and resolve the work mode for each change from the project profile.
+description: "SHEMA-AI Coordinador: Orchestrate the lifecycle, route work to agents, enforce gates and traceability, and resolve the work mode for each change from the project profile."
 mode: primary
 ---
 
