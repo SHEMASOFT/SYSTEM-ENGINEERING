@@ -1,6 +1,6 @@
 ---
 description: Apply a controlled, audited mutation to a record.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # update

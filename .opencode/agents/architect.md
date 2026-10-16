@@ -1,9 +1,10 @@
 ---
 description: Define the architecture and design that satisfies the requirements.
 mode: subagent
+name: Architect
 ---
 
-# architect
+# Architect
 
 - **id**: AG-0002
 - **version**: 1.0.0

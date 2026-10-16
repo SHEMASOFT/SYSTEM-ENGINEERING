@@ -1,6 +1,6 @@
 ---
 description: Restore a project from an archive bundle.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # restore

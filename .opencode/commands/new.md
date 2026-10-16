@@ -1,6 +1,6 @@
 ---
 description: Create a record from its template.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # new

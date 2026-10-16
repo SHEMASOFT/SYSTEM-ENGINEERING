@@ -1,6 +1,6 @@
 ---
 description: "Capability governance: registry, policy check and resolution."
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # capabilities

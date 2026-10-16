@@ -1,9 +1,10 @@
 ---
 description: Discover context, constraints, unknowns and existing state before planning.
 mode: subagent
+name: Explorer
 ---
 
-# explorer
+# Explorer
 
 - **id**: AG-0006
 - **version**: 1.0.0

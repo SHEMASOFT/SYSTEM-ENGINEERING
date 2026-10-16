@@ -677,6 +677,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_orch_list.set_defaults(func=commands.cmd_orchestrate)
 
+    # subagent
+    p_subagent = sub.add_parser("subagent", help="Execute a subagent with full token economy (reuses AgentRunner)")
+    p_subagent.add_argument("--project", required=True, help="Managed project workspace")
+    p_subagent.add_argument("--agent", required=True, help="Agent role (analyst, architect, planner, implementer, tester, reviewer, security, documentation, explorer, devops, visual)")
+    p_subagent.add_argument("--action", required=True, help="Action to execute (e.g., analyze_requirements, create_design, implement_task)")
+    p_subagent.add_argument("--inputs", default="{}", help="JSON inputs for the action")
+    p_subagent.add_argument("--context", default="{}", help="JSON context for the agent")
+    p_subagent.add_argument("--max-tokens", type=int, default=None, help="Override max tokens (default: agent config)")
+    p_subagent.add_argument("--temperature", type=float, default=None, help="Override temperature (default: agent config)")
+    p_subagent.add_argument("--json", action="store_true", help="Emit machine-readable JSON output")
+    p_subagent.set_defaults(func=commands.cmd_subagent)
+
     # intelligence
     p_intel = sub.add_parser("intelligence", help="Integration layer: skill discovery + memory + orchestration plan + gates (READ-ONLY)")
     p_intel.add_argument("--project", required=True, help="Managed project workspace")

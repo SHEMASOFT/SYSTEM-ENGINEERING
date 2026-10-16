@@ -1,9 +1,10 @@
 ---
 description: Decompose requirements into a traceable, unblocked plan of tasks.
 mode: subagent
+name: Planner
 ---
 
-# planner
+# Planner
 
 - **id**: AG-0008
 - **version**: 1.0.0

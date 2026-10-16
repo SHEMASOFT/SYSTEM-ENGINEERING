@@ -50,6 +50,7 @@ DECLARED_SUPPORT = frozenset(
         "run",  # runs a declared pipeline step
         "skill",  # lists and inspects available skills
         "status",  # reports session/tool status
+        "subagent",  # executes a subagent with full token economy (reuses AgentRunner)
         "sync",  # synchronises installed tool artifacts
         "uninstall",  # removes the tool's installed artifacts
     }

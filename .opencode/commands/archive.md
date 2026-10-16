@@ -1,6 +1,6 @@
 ---
 description: Create a verified archive bundle of the project.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # archive

@@ -1,6 +1,6 @@
 ---
 description: Validate schemas, agents, domains and an optional project.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # validate

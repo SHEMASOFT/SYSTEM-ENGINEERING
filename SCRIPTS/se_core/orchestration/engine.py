@@ -356,6 +356,40 @@ class OrchestrationEngine:
 
         return result
 
+    def build_native_subagent_input(
+        self,
+        node: Dict[str, Any],
+        context: Dict[str, Any],
+        resolved_inputs: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Build filtered input payload for native OpenCode `invoke` tool.
+        
+        This ensures the subagent receives only the context keys it declares
+        in its node inputs (context: prefix), consistent with the internal
+        AgentRunner path token economy (FASE 1).
+        
+        Args:
+            node: Workflow node definition
+            context: Accumulated execution context
+            resolved_inputs: Already-resolved input values
+            
+        Returns:
+            Dict with action, inputs, and filtered context for `invoke` tool
+        """
+        # Filter context to only keys referenced by node inputs (context: prefix)
+        context_keys = set()
+        for source in node.get("inputs", {}).values():
+            if isinstance(source, str) and source.startswith("context:"):
+                context_keys.add(source[8:])  # Remove "context:" prefix
+        
+        filtered_context = {k: v for k, v in context.items() if k in context_keys} if context_keys else {}
+        
+        return {
+            "action": node["action"],
+            "inputs": resolved_inputs,
+            "context": filtered_context,
+        }
+
     def _find_project_dir(self, project_id: str) -> Optional[Path]:
         for p in (repo_root() / "PROJECTS").glob("*"):
             if (p / "PROJECT.json").exists():
@@ -457,6 +491,15 @@ class OrchestrationEngine:
         )
 
         # Build the native execution prompt
+        # Use minimal context - workflow already listed in "Nodes to Execute" above
+        minimal_context = {
+            "workflow_id": workflow["workflow_id"],
+            "project_id": workflow["project_id"],
+            "project_name": workflow.get("name", ""),
+            # project_data intentionally omitted - workflow fully listed above
+        }
+
+        # Build the native execution prompt
         prompt_parts = [
             f"# Native Workflow Execution: {workflow_id}",
             f"",
@@ -497,35 +540,44 @@ class OrchestrationEngine:
             f"   - If node has a `gate`, call `se gate --gate <GATE_ID> --project <project_dir>`",
             f"   - If gate status != PASS -> report BLOCKED, stop execution",
             f"",
-            f"2. **Resolve inputs**:",
+            f"2. **Resolve inputs** (use the same logic as internal AgentRunner):",
             f"   - `context:key` -> from accumulated context below",
             f"   - `memory:id` -> call `se memory get <id> --project <project_id>`",
             f"   - `literal:value` -> use as-is",
             f"",
-            f"3. **Invoke subagent** via `invoke` tool:",
+            f"3. **Build filtered subagent input** (use engine helper):",
+            f"   ```python",
+            f"   # Available in OrchestrationEngine:",
+            f"   # subagent_input = engine.build_native_subagent_input(",
+            f"   #     node=node,",
+            f"   #     context=context,",
+            f"   #     resolved_inputs=resolved_inputs",
+            f"   # )",
+            f"   ```",
+            f"   This returns `{{\"action\", \"inputs\", \"context\"}}` with context",
+            f"   filtered to ONLY keys declared in node.inputs with `context:` prefix.",
+            f"   (Consistent with internal AgentRunner token economy - FASE 1)",
+            f"",
+            f"4. **Invoke subagent** via `invoke` tool:",
             f"   ```json",
             f"   {{",
             f"     \"tool\": \"invoke\",",
             f"     \"arguments\": {{",
             f"       \"agent\": \"{node['agent']}\",",
-            f"       \"input\": {{",
-            f"         \"action\": \"{node['action']}\",",
-            f"         \"inputs\": {{...resolved inputs...}},",
-            f"         \"context\": {{...filtered context...}}",
-            f"       }}",
+            f"       \"input\": subagent_input  # Use the helper result",
             f"     }}",
             f"   }}",
             f"   ```",
             f"",
-            f"4. **Capture outputs**:",
+            f"5. **Capture outputs**:",
             f"   - Subagent returns `outputs` dict -> merge into context",
             f"   - Update node status in your tracking",
             f"",
-            f"4. **Continue to next node**",
+            f"6. **Continue to next node**",
             f"",
             f"### Context Management",
             f"",
-            f"- Start with initial context: `{json.dumps(context, indent=2)}`",
+            f"- Start with initial context: `{json.dumps(minimal_context, indent=2)}`",
             f"- After each node, update context with node outputs",
             f"- Filter context for each subagent: only keys referenced in `inputs` with `context:` prefix",
             f"",

@@ -1,6 +1,6 @@
 ---
 description: "Manage deterministic multi-agent workflows (DAG + gates): create, execute, list."
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # orchestrate

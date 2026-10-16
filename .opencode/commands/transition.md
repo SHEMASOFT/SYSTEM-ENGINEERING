@@ -1,6 +1,6 @@
 ---
 description: Advance the project lifecycle through its gates.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # transition

@@ -2,9 +2,9 @@
   "schema_version": "1",
   "id": "AG-0003",
   "version": "1.0.0",
-  "role": "coordinator",
+  "role": "shema-ai-coordinador",
   "description": "SHEMA-AI Coordinador: Orchestrate the lifecycle, route work to agents, enforce gates and traceability, and resolve the work mode for each change from the project profile.",
-  "name": "coordinator",
+  "name": "shema-ai-coordinador",
   "purpose": "Orchestrate the lifecycle, route work to agents, enforce gates and traceability, and resolve the work mode (organic/spec/receipt) from the project profile.",
   "responsibilities": [
     "Maintain the project manifest and lifecycle state.",

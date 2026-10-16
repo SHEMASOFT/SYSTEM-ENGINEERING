@@ -1,9 +1,10 @@
 ---
 description: Produce and maintain clear, non-duplicated documentation and release notes.
 mode: subagent
+name: Documentation
 ---
 
-# documentation
+# Documentation
 
 - **id**: AG-0005
 - **version**: 1.0.0

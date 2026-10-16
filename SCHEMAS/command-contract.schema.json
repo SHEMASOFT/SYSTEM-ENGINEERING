@@ -25,10 +25,10 @@
           "description": { "type": "string", "minLength": 1 },
           "purpose": { "type": "string", "minLength": 1 },
           "agent": {
-            "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+            "enum": ["shema-ai-coordinador", "coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
           },
           "assigned_agent": {
-            "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+            "enum": ["shema-ai-coordinador", "coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
           },
           "execution_intent": {
             "enum": ["CREATE", "READ", "MUTATE", "CONTROL", "ANALYZE", "DEPLOY", "REPORT", "IMPLEMENT"]
@@ -38,7 +38,7 @@
           "outputs": { "type": "array", "items": { "type": "string" } },
           "gate": { "type": ["string", "null"], "pattern": "^(G[0-8]|varies)$" },
           "primary_agent": {
-            "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+            "enum": ["shema-ai-coordinador", "coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
           },
           "mutates": { "type": "boolean" },
           "implemented": { "type": "boolean" },

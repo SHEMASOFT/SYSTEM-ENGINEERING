@@ -1,9 +1,10 @@
 ---
 description: Prepare deployment, operations and rollback for authorized environments.
 mode: subagent
+name: Devops
 ---
 
-# devops
+# Devops
 
 - **id**: AG-0004
 - **version**: 1.0.0

@@ -13,7 +13,7 @@ from se_core.paths import load_json  # noqa: E402
 from se_core.schemas import validate  # noqa: E402
 
 EXPECTED_AGENTS = {
-    "coordinator", "explorer", "analyst", "architect", "planner", "implementer",
+    "shema-ai-coordinador", "explorer", "analyst", "architect", "planner", "implementer",
     "tester", "reviewer", "security", "documentation", "devops", "visual",
 }
 
@@ -54,7 +54,7 @@ class AgentTests(unittest.TestCase):
     def test_coordinator_declares_work_mode_selection(self):
         """The work-mode selection rule must be advertised by the coordinator contract
         (roadmap: work-mode skill + coordinator capability), not only by the policy files."""
-        coordinator = self.agents["coordinator"]
+        coordinator = self.agents["shema-ai-coordinador"]
         names = {cap["name"] for cap in coordinator["capabilities"]}
         self.assertIn("work_mode_selection", names)
         capability = next(c for c in coordinator["capabilities"] if c["name"] == "work_mode_selection")

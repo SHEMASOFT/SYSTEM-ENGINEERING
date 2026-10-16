@@ -1,9 +1,10 @@
 ---
 description: Implement authorized tasks and produce verifiable artifacts.
 mode: subagent
+name: Implementer
 ---
 
-# implementer
+# Implementer
 
 - **id**: AG-0007
 - **version**: 1.0.0

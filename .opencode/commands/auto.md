@@ -1,6 +1,6 @@
 ---
 description: "Deterministic decision engine: consumes health aggregation and emits a machine-readable next-action decision (se.auto/1)."
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # auto

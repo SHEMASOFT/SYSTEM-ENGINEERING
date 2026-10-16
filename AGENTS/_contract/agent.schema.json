@@ -23,11 +23,11 @@
     "id": { "type": "string", "pattern": "^AG-\\d{4}$" },
     "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
     "role": {
-      "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+      "enum": ["shema-ai-coordinador", "coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
     },
     "description": { "type": "string", "minLength": 1 },
     "name": {
-      "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+      "enum": ["shema-ai-coordinador", "coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
     },
     "purpose": { "type": "string", "minLength": 1 },
     "responsibilities": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },

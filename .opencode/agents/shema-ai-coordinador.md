@@ -1,9 +1,10 @@
 ---
 description: "SHEMA-AI Coordinador: Orchestrate the lifecycle, route work to agents, enforce gates and traceability, and resolve the work mode for each change from the project profile."
 mode: primary
+name: SHEMA-AI Coordinador
 ---
 
-# coordinator
+# SHEMA-AI Coordinador
 
 - **id**: AG-0003
 - **version**: 1.0.0

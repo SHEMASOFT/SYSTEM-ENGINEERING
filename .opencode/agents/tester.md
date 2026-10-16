@@ -1,9 +1,10 @@
 ---
 description: Verify that implementation satisfies requirements and collect evidence.
 mode: subagent
+name: Tester
 ---
 
-# tester
+# Tester
 
 - **id**: AG-0011
 - **version**: 1.0.0

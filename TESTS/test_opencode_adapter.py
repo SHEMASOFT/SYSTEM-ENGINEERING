@@ -23,7 +23,7 @@ from se_core.paths import load_json  # noqa: E402
 from se_core.schemas import validate  # noqa: E402
 
 EXPECTED_AGENTS = {
-    "coordinator", "explorer", "analyst", "architect", "planner", "implementer",
+    "shema-ai-coordinador", "explorer", "analyst", "architect", "planner", "implementer",
     "tester", "reviewer", "security", "documentation", "devops", "visual",
 }
 EXPECTED_COMMANDS = {
@@ -129,8 +129,16 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
             for role in EXPECTED_AGENTS:
                 text = (Path(tmp) / "agents" / f"{role}.md").read_text(encoding="utf-8")
                 self.assertTrue(text.startswith("---\n"), role)
-                self.assertIn("\n# " + role + "\n", text, role)
-                expected_mode = "mode: primary" if role == "coordinator" else "mode: subagent"
+                # Heading uses display name derived from description (before first colon) or role title-cased
+                lines = text.splitlines()
+                heading_line = next((l for l in lines if l.startswith("# ")), "")
+                self.assertTrue(heading_line.startswith("# "), f"{role}: missing heading")
+                expected_display = role.replace('-', ' ').title()
+                # For shema-ai-coordinador, description starts with "SHEMA-AI Coordinador:"
+                if role == "shema-ai-coordinador":
+                    expected_display = "SHEMA-AI Coordinador"
+                self.assertEqual(heading_line, f"# {expected_display}", f"{role}: heading mismatch")
+                expected_mode = "mode: primary" if role == "shema-ai-coordinador" else "mode: subagent"
                 for line in ("description:", expected_mode):
                     self.assertTrue(any(l.startswith(line) for l in text.splitlines()), f"{role}: {line}")
                 self.assertFalse(

@@ -1,9 +1,10 @@
 ---
 description: Analyze discovery output and formalize requirements, assumptions, constraints and risks.
 mode: subagent
+name: Analyst
 ---
 
-# analyst
+# Analyst
 
 - **id**: AG-0001
 - **version**: 1.0.0

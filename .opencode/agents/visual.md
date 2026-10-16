@@ -1,9 +1,10 @@
 ---
 description: Produce visual, media and design deliverables and their evidence.
 mode: subagent
+name: Visual
 ---
 
-# visual
+# Visual
 
 - **id**: AG-0012
 - **version**: 1.0.0

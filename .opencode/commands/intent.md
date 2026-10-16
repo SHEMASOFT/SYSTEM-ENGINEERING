@@ -1,6 +1,6 @@
 ---
 description: Normalize an explicit structured intent into a READ-ONLY se.intent/1 envelope.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # intent

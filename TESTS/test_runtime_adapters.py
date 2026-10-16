@@ -27,7 +27,7 @@ class ClaudeCodeAdapterTests(unittest.TestCase):
             paths = {f["path"] for f in result["files"]}
             self.assertIn(".mcp.json", paths)
             self.assertIn("CLAUDE.md", paths)
-            for role in ("coordinator", "planner", "implementer"):
+            for role in ("shema-ai-coordinador", "planner", "implementer"):
                 self.assertIn(f".claude/agents/{role}.md", paths)
             self.assertIn(".claude/commands/plan.md", paths)
             self.assertIn(".claude/skills/impl-tdd/SKILL.md", paths)
@@ -35,8 +35,8 @@ class ClaudeCodeAdapterTests(unittest.TestCase):
     def test_agent_frontmatter_has_name_and_description(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.render(tmp)
-            text = (Path(tmp) / ".claude/agents/coordinator.md").read_text(encoding="utf-8")
-            self.assertTrue(text.startswith("---\nname: coordinator\n"))
+            text = (Path(tmp) / ".claude/agents/shema-ai-coordinador.md").read_text(encoding="utf-8")
+            self.assertTrue(text.startswith("---\nname: shema-ai-coordinador\n"))
             self.assertIn("description:", text)
 
     def test_skills_are_byte_identical_to_canonical(self):
@@ -70,7 +70,7 @@ class CodexAdapterTests(unittest.TestCase):
             self.assertIn("AGENTS.md", paths)
             self.assertIn(".codex/config.toml", paths)
             self.assertIn(".codex/prompts/plan.md", paths)
-            self.assertIn(".codex/agents/coordinator.toml", paths)
+            self.assertIn(".codex/agents/shema-ai-coordinador.toml", paths)
 
     def test_config_toml_declares_mcp_servers_and_agents(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -78,13 +78,13 @@ class CodexAdapterTests(unittest.TestCase):
             config = (Path(tmp) / ".codex" / "config.toml").read_text(encoding="utf-8")
             for name in ("context7", "engram", "filesystem", "se-skill-server"):
                 self.assertIn(f"[mcp_servers.{name}]", config)
-            self.assertIn("[agents.coordinator]", config)
-            self.assertIn("config_file = \"agents/coordinator.toml\"", config)
+            self.assertIn("[agents.shema-ai-coordinador]", config)
+            self.assertIn("config_file = \"agents/shema-ai-coordinador.toml\"", config)
 
     def test_role_file_carries_developer_instructions(self):
         with tempfile.TemporaryDirectory() as tmp:
             runtimes.generate_codex(ROOT, Path(tmp))
-            role = (Path(tmp) / ".codex" / "agents" / "coordinator.toml").read_text(encoding="utf-8")
+            role = (Path(tmp) / ".codex" / "agents" / "shema-ai-coordinador.toml").read_text(encoding="utf-8")
             self.assertIn('developer_instructions = """', role)
             self.assertIn("Orchestrate", role)  # the coordinator purpose
 
