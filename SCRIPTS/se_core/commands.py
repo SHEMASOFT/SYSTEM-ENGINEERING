@@ -4080,7 +4080,7 @@ def cmd_skill(args) -> int:
 
 
 def cmd_memory(args) -> int:
-    """Memory operations: add, query, get, link, update, supersede."""
+    """Memory operations: add, query, get, search, index, link, update, supersede."""
     from .memory.engine import MemoryEngine
     from .paths import repo_root
 
@@ -4289,6 +4289,75 @@ def cmd_memory(args) -> int:
             print(f"FAIL: {e}")
             return 1
         print(f"PASS: superseded {args.memory_id} -> {args.new_id}")
+        return 0
+
+    elif args.memory_command == "search":
+        if not args.query or not args.query.strip():
+            print("FAIL: --query is required for memory search")
+            return 1
+
+        project_id = None
+        if args.project:
+            project_path = Path(args.project)
+            if not (project_path / "PROJECT.json").exists():
+                print(f"FAIL: no PROJECT.json in {project_path}")
+                return 1
+            from .artifacts import read_manifest
+            project_manifest = read_manifest(project_path)
+            project_id = project_manifest.get("project_id", project_path.name)
+
+        try:
+            result = engine.search(
+                args.query,
+                project_id=project_id,
+                types=args.type.split(",") if args.type else None,
+                limit=args.limit,
+                offset=args.offset,
+            )
+        except ValueError as e:
+            print(f"FAIL: {e}")
+            return 1
+
+        if wants_json(args):
+            from .reporting import render_json
+            print(render_json(result))
+            return 0
+
+        print(f"Memory Search: {result['query_id']}")
+        print(f"Query: {result['query']}")
+        if project_id:
+            print(f"Project: {project_id}")
+        print(f"Backend: {result['backend']} | Returned: {result['summary']['returned']}")
+        print()
+        for hit in result["hits"]:
+            print(f"  {hit['memory_id']} [{hit['type']}] {hit['created_at']} score={hit['score']}")
+            if hit.get("tags"):
+                print(f"    Tags: {', '.join(hit['tags'])}")
+            print(f"    {hit['snippet']}")
+            print()
+        return 0
+
+    elif args.memory_command == "index":
+        try:
+            result = engine.refresh_index(rebuild=args.rebuild)
+        except Exception as e:
+            print(f"FAIL: memory index failed: {e}")
+            return 1
+
+        if wants_json(args):
+            from .reporting import render_json
+            print(render_json(result))
+            return 0
+
+        if result["status"] == "unavailable":
+            print(f"WARN: {result['reason']}")
+            return 0
+
+        print(f"Index {result['status']}: {result['path']}")
+        print(
+            f"  inserted={result['inserted']} updated={result['updated']} "
+            f"deleted={result['deleted']} total={result['total']}"
+        )
         return 0
 
     else:

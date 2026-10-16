@@ -449,7 +449,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # memory
 
-    p_memory = sub.add_parser("memory", help="Memory operations: add, query, get, link, update, supersede")
+    p_memory = sub.add_parser("memory", help="Memory operations: add, query, get, search, index, link, update, supersede")
 
     p_memory_sub = p_memory.add_subparsers(dest="memory_command", required=True)
 
@@ -554,6 +554,34 @@ def build_parser() -> argparse.ArgumentParser:
     p_mem_supersede.add_argument("--project", required=True, help="Managed project workspace (memory IDs are project-scoped)")
 
     p_mem_supersede.set_defaults(func=commands.cmd_memory)
+
+
+
+    p_mem_search = p_memory_sub.add_parser("search", help="Lexical search over memory records (derived FTS5 index)")
+
+    p_mem_search.add_argument("--query", required=True, help="Search text (all terms must match)")
+
+    p_mem_search.add_argument("--project", default=None, help="Managed project workspace (optional for cross-project search)")
+
+    p_mem_search.add_argument("--type", default=None, help="Comma-separated memory types to filter")
+
+    p_mem_search.add_argument("--limit", type=int, default=10, help="Max results")
+
+    p_mem_search.add_argument("--offset", type=int, default=0, help="Offset for pagination")
+
+    p_mem_search.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
+
+    p_mem_search.set_defaults(func=commands.cmd_memory)
+
+
+
+    p_mem_index = p_memory_sub.add_parser("index", help="Build or refresh the derived search index")
+
+    p_mem_index.add_argument("--rebuild", action="store_true", help="Discard the index and rebuild it from the canonical records")
+
+    p_mem_index.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
+
+    p_mem_index.set_defaults(func=commands.cmd_memory)
 
 
 
