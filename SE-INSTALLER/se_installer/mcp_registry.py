@@ -34,16 +34,12 @@ class MCPCapability(str, Enum):
     BROWSER_SCREENSHOT = "browser_screenshot"
     BROWSER_CLICK = "browser_click"
     BROWSER_FORM = "browser_form"
-    MEMORY_READ = "memory_read"
-    MEMORY_WRITE = "memory_write"
-    MEMORY_SEARCH = "memory_search"
     CODE_INTELLIGENCE = "code_intelligence"
     BLAST_RADIUS = "blast_radius"
     GO_TO_DEFINITION = "go_to_definition"
     FILE_OPERATIONS = "file_operations"
     WEB_SCRAPING = "web_scraping"
     BROWSER_CONTROL = "browser_control"
-    MEMORY_PERSISTENCE = "memory_persistence"
 
 
 @dataclass
@@ -334,54 +330,6 @@ class MCPRegistry:
             category="Web Scraping",
             tags=["scraping", "crawling", "search"],
             requires=["node"],
-        )
-        
-        # Engram - Memoria persistente
-        self.mcps["engram"] = MCPServer(
-            id="engram",
-            name="Engram",
-            description="Memoria persistente cross-session para agentes",
-            transport=MCPTransport.STDIO,
-            command="engram",
-            args=["mcp", "--tools=agent"],
-            env={"ENGRAM_PROJECT": "{{project_id}}"},
-            capabilities=[
-                MCPCapability.MEMORY_READ,
-                MCPCapability.MEMORY_WRITE,
-                MCPCapability.MEMORY_SEARCH,
-                MCPCapability.MEMORY_PERSISTENCE,
-            ],
-            functions=[
-                MCPFunction(
-                    name="mem_save",
-                    description="Save observation to memory",
-                    parameters={
-                        "title": {"type": "string"},
-                        "content": {"type": "string"},
-                        "type": {"type": "string", "enum": ["bugfix", "decision", "architecture", "discovery", "pattern", "config", "preference"]},
-                        "scope": {"type": "string", "enum": ["project", "personal", "global"]},
-                        "topic_key": {"type": "string"},
-                    },
-                    required_params=["title", "content", "type"]
-                ),
-                MCPFunction(
-                    name="mem_search",
-                    description="Search memory",
-                    parameters={"query": {"type": "string"}, "project": {"type": "string"}},
-                    required_params=["query"]
-                ),
-                MCPFunction(
-                    name="mem_get",
-                    description="Get observation by ID",
-                    parameters={"id": {"type": "integer"}},
-                    required_params=["id"]
-                ),
-            ],
-            install_method="binary",
-            verification_command="engram --version",
-            homepage="https://github.com/Gentleman-Programming/engram",
-            category="Memory",
-            tags=["memory", "persistence", "cross-session"],
         )
         
         # CodeGraph - Code intelligence

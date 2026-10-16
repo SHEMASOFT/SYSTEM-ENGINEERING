@@ -3773,7 +3773,7 @@ def cmd_status(args) -> int:
       - gates: evaluated gate conditions (all or specific --gate)
       - capabilities: registry + policy check
       - health: aggregated overall status
-      - memory: Engram project observations count (if available)
+      - memory: internal memory record count (if any)
       - doctor: full check results (only with --doctor)
     """
     from .cli import main as cli_main

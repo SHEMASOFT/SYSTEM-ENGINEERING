@@ -76,12 +76,12 @@ class TestMCPRegistry:
 
     def test_builtin_mcps_loaded(self):
         registry = MCPRegistry()
-        assert len(registry.mcps) == 6
+        assert len(registry.mcps) == 5
 
     def test_mcp_ids(self):
         registry = MCPRegistry()
         ids = set(registry.mcps.keys())
-        assert ids == {"context7", "filesystem", "playwright", "firecrawl", "engram", "codegraph"}
+        assert ids == {"context7", "filesystem", "playwright", "firecrawl", "codegraph"}
 
     def test_mcp_capabilities(self):
         registry = MCPRegistry()
@@ -144,7 +144,7 @@ class TestAgentMCPBinding:
         impl_binding = binding.get_binding("implementer")
         assert impl_binding is not None
         assert "filesystem" in impl_binding.required_mcp_ids
-        assert "engram" in impl_binding.required_mcp_ids
+        assert "engram" not in impl_binding.required_mcp_ids
         assert impl_binding.preferred_model_id == "claude-3.5-sonnet"
 
     def test_analyst_binding(self):
@@ -154,7 +154,7 @@ class TestAgentMCPBinding:
         analyst = binding.get_binding("analyst")
         assert "context7" in analyst.required_mcp_ids
         assert "filesystem" in analyst.required_mcp_ids
-        assert "engram" in analyst.required_mcp_ids
+        assert "engram" not in analyst.required_mcp_ids
         assert analyst.preferred_model_id == "deepseek-r1-free"
 
     def test_get_available_mcps(self):
@@ -164,7 +164,7 @@ class TestAgentMCPBinding:
         mcps = binding.get_available_mcps("implementer")
         ids = {m.id for m in mcps}
         assert "filesystem" in ids
-        assert "engram" in ids
+        assert "engram" not in ids
         assert "codegraph" in ids
 
     def test_get_required_mcps(self):
@@ -173,7 +173,7 @@ class TestAgentMCPBinding:
         binding = AgentMCPRegistry(mcp_reg, model_reg)
         mcps = binding.get_required_mcps("implementer")
         ids = {m.id for m in mcps}
-        assert ids == {"filesystem", "engram"}
+        assert ids == {"filesystem"}
 
     def test_generate_agent_config(self):
         mcp_reg = MCPRegistry()
@@ -240,7 +240,7 @@ class TestRuntimeConfigGenerator:
         assert config.runtime_id == "opencode"
         assert config.model is not None
         assert "provider" in config.model
-        assert len(config.mcp_servers) >= 2  # filesystem + engram at minimum
+        assert len(config.mcp_servers) >= 2  # filesystem + codegraph at minimum
 
     def test_codex_config_generation(self):
         mcp_reg = MCPRegistry()
@@ -293,7 +293,7 @@ class TestRuntimeConfigGenerator:
         generator = RuntimeConfigGenerator(mcp_reg, model_reg, agent_reg)
 
         menu = generator.get_mcp_selection_menu("opencode")
-        assert len(menu) == 6
+        assert len(menu) == 5
         for item in menu:
             assert "id" in item
             assert "name" in item

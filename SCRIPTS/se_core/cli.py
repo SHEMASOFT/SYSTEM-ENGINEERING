@@ -339,7 +339,7 @@ def build_parser() -> argparse.ArgumentParser:
     install_group = p_install.add_mutually_exclusive_group()
     install_group.add_argument("--all", action="store_true", help="Register every MCP server (default)")
     install_group.add_argument("--with", dest="with_", default=None,
-                               help="Comma-separated list of MCP servers to register (e.g. engram,context7)")
+                               help="Comma-separated list of MCP servers to register (e.g. context7,filesystem)")
     p_install.add_argument("--no-register", dest="no_register", action="store_true",
                            help="Preflight and plan only; perform no registration")
     p_install.add_argument("--generate-adapter", dest="generate_adapter", action="store_true",

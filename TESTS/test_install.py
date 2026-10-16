@@ -43,17 +43,17 @@ class DetectOsTests(unittest.TestCase):
 
 
 class LoadMcpTemplatesTests(unittest.TestCase):
-    def test_loads_all_four_servers(self):
+    def test_loads_all_three_servers(self):
         templates = install.load_mcp_templates(support.REPO_ROOT)
         keys = [t["key"] for t in templates]
         self.assertEqual(
-            keys, ["context7", "engram", "filesystem", "skill-server"]
+            keys, ["context7", "filesystem", "skill-server"]
         )
 
     def test_template_records_expose_command_and_args(self):
         by_key = {t["key"]: t for t in install.load_mcp_templates(support.REPO_ROOT)}
-        self.assertTrue(by_key["engram"]["command"])
-        self.assertIsInstance(by_key["engram"]["args"], list)
+        self.assertTrue(by_key["context7"]["command"])
+        self.assertIsInstance(by_key["context7"]["args"], list)
         self.assertIsInstance(by_key["filesystem"]["env"], dict)
 
     def test_registered_name_can_differ_from_key(self):
@@ -74,24 +74,24 @@ class SelectServersTests(unittest.TestCase):
     def test_all_by_default(self):
         self.assertEqual(
             install.select_servers(self.templates),
-            ["context7", "engram", "filesystem", "skill-server"],
+            ["context7", "filesystem", "skill-server"],
         )
 
     def test_with_selects_subset(self):
         self.assertEqual(
-            install.select_servers(self.templates, with_list="engram,context7"),
-            ["context7", "engram"],
+            install.select_servers(self.templates, with_list="filesystem,context7"),
+            ["context7", "filesystem"],
         )
 
     def test_with_accepts_spaces(self):
         self.assertEqual(
-            install.select_servers(self.templates, with_list=" engram , filesystem "),
-            ["engram", "filesystem"],
+            install.select_servers(self.templates, with_list=" filesystem , skill-server "),
+            ["filesystem", "skill-server"],
         )
 
     def test_unknown_server_raises(self):
         with self.assertRaises(ValueError):
-            install.select_servers(self.templates, with_list="engram,nope")
+            install.select_servers(self.templates, with_list="filesystem,nope")
 
 
 class BuildPlanTests(unittest.TestCase):
@@ -118,7 +118,7 @@ class BuildPlanTests(unittest.TestCase):
         plan = self._plan()
         self.assertEqual(
             plan["servers"],
-            ["context7", "engram", "filesystem", "skill-server"],
+            ["context7", "filesystem", "skill-server"],
         )
 
     def test_global_scope_recorded(self):
@@ -154,7 +154,7 @@ class RenderPlanTests(unittest.TestCase):
 
     def test_render_lists_servers(self):
         text = install.render_plan(self._plan())
-        self.assertIn("engram", text)
+        self.assertIn("context7", text)
         self.assertIn("skill-server", text)
 
     def test_render_is_deterministic(self):
@@ -193,7 +193,7 @@ class CliInstallDryRunTests(unittest.TestCase):
     def test_all_and_with_are_mutually_exclusive(self):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
-            code, _ = support.run_cli("install", "--dry-run", "--all", "--with", "engram")
+            code, _ = support.run_cli("install", "--dry-run", "--all", "--with", "context7")
         self.assertEqual(code, 2)
 
 
@@ -218,7 +218,7 @@ class PreflightTests(unittest.TestCase):
         items = install.preflight_dependencies("linux", which=which, selected_servers=["context7", "filesystem"])
         self.assertEqual(
             [i["name"] for i in items],
-            ["python", "node", "opencode", "engram"],
+            ["python", "node", "opencode"],
         )
         for item in items:
             self.assertEqual(item["status"], "PASS", item)
@@ -227,10 +227,10 @@ class PreflightTests(unittest.TestCase):
     def test_node_skipped_when_not_needed(self):
         which = lambda name: "/usr/bin/" + name
         # Without context7/filesystem, node should be skipped
-        items = install.preflight_dependencies("linux", which=which, selected_servers=["engram", "se-skill-server"])
+        items = install.preflight_dependencies("linux", which=which, selected_servers=["skill-server"])
         self.assertEqual(
             [i["name"] for i in items],
-            ["python", "opencode", "engram"],
+            ["python", "opencode"],
         )
 
     def test_missing_reports_warn_with_detail_and_guidance(self):
@@ -315,7 +315,7 @@ class BuildRegistrationsTests(unittest.TestCase):
         return [
             {"name": name, "status": "WARN" if name in missing else "PASS",
              "detail": "x", "guidance": "g", "purpose": "p"}
-            for name in ("python", "node", "opencode", "engram", "codegraph")
+            for name in ("python", "node", "opencode", "codegraph")
         ]
 
     def _build(self, keys, **over):
@@ -328,11 +328,11 @@ class BuildRegistrationsTests(unittest.TestCase):
         return install.build_registrations([self.templates[k] for k in keys], **kwargs)
 
     def test_plain_local_command(self):
-        reg = self._build(["engram"])[0]
+        reg = self._build(["skill-server"])[0]
         self.assertEqual(
             reg["command"],
-            ["opencode", "mcp", "add", "--env", "ENGRAM_PROJECT=PRJ-X",
-             "engram", "--", "engram", "mcp", "--tools=agent"],
+            ["opencode", "mcp", "add", "se-skill-server", "--",
+             "python3", "/se/SCRIPTS/se_core/mcp/skill_server.py"],
         )
         self.assertEqual(reg["status"], "planned")
 
@@ -345,11 +345,25 @@ class BuildRegistrationsTests(unittest.TestCase):
         )
 
     def test_env_flag_uses_runtime_reference_and_sorts_keys(self):
-        reg = self._build(["skill-server"])[0]
+        # Synthetic template so the ordering of multiple env entries is pinned
+        # independently of any real server's env set.
+        template = {
+            "key": "synthetic", "name": "synthetic", "command": "tool",
+            "args": ["serve"],
+            "env": {"Z_LAST": "${Z_LAST}", "A_FIRST": "${A_FIRST}"},
+        }
+        kwargs = dict(
+            se_root="/se", project="/proj", project_id="PRJ-X",
+            interpreter="python3", scope="project", register=True,
+            preflight=self._preflight(),
+        )
+        [reg] = install.build_registrations([template], **kwargs)
         self.assertEqual(
             reg["command"],
-            ["opencode", "mcp", "add", "--env", "ENGRAM_PROJECT=PRJ-X",
-             "se-skill-server", "--", "python3", "/se/SCRIPTS/se_core/mcp/skill_server.py"],
+            ["opencode", "mcp", "add",
+             "--env", "A_FIRST={env:A_FIRST}",
+             "--env", "Z_LAST={env:Z_LAST}",
+             "synthetic", "--", "tool", "serve"],
         )
 
     def test_secret_env_ref_becomes_env_substitution(self):
@@ -362,7 +376,7 @@ class BuildRegistrationsTests(unittest.TestCase):
         self.assertEqual(reg["command"][reg["command"].index("--") + 1], "python")
 
     def test_global_scope_inserts_flag(self):
-        reg = self._build(["engram"], scope="global")[0]
+        reg = self._build(["filesystem"], scope="global")[0]
         self.assertEqual(reg["command"][:4], ["opencode", "mcp", "add", "--global"])
 
     def test_missing_dependency_skips_server(self):
@@ -372,7 +386,7 @@ class BuildRegistrationsTests(unittest.TestCase):
         self.assertIn("missing dependency: node", reg["reason"])
 
     def test_no_register_skips_everything(self):
-        regs = self._build(["engram", "context7"], register=False)
+        regs = self._build(["filesystem", "context7"], register=False)
         self.assertTrue(all(r["status"] == "skipped" for r in regs))
         self.assertTrue(all("--no-register" in r["reason"] for r in regs))
 
@@ -457,9 +471,9 @@ class AdapterSelectionTests(unittest.TestCase):
 
 class CliRegistrationTests(unittest.TestCase):
     def test_with_selects_subset_in_plan(self):
-        code, out = support.run_cli("install", "--with", "engram", "--dry-run")
+        code, out = support.run_cli("install", "--with", "skill-server", "--dry-run")
         self.assertEqual(code, 0, out)
-        self.assertIn("Servers to register (1): engram", out)
+        self.assertIn("Servers to register (1): skill-server", out)
 
     def test_no_register_writes_nothing_and_skips(self):
         with tempfile.TemporaryDirectory() as tmp:

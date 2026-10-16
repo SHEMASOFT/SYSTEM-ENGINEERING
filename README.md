@@ -20,7 +20,7 @@ without being coupled to them.
 | Problem | What SE does |
 |---|---|
 | Long sessions burn tokens re-explaining context | A **coordinator** orchestrates and delegates to specialized **subagents**; each runs in its own fresh context and returns only its result |
-| The model forgets decisions between sessions | **Engram** memory persists decisions, fixes and discoveries across sessions |
+| The model forgets decisions between sessions | **Built-in memory** persists decisions, fixes and discoveries across sessions |
 | Everything runs in one giant prompt | Roles, **commands** and **skills** are loaded on demand, not all at once |
 | "It works on my machine" process | A **lifecycle with gates** makes every transition explicit, gated and recorded |
 | Output nobody can audit | Evidence-based workflow: plans, artifacts and reports instead of claims |
@@ -132,26 +132,26 @@ and lifecycle commands (`se install`, `se sync`, `se update`, `se uninstall`).
 ## Persistent memory
 
 SE works without memory, but it is built to use one.
-**[Engram](https://github.com/Gentleman-Programming/engram)** is an optional,
-**third-party** MCP server that persists decisions, fixes and discoveries **across
-sessions**, so a new session starts from what the last one settled instead of
-re-deriving it.
+**Memory is built in**: one JSON record per memory inside the project, a
+derived search index under `.se/`, and an optional local reranker. There is
+nothing to install and nothing is downloaded.
 
-- **Not bundled.** SE neither ships Engram nor pins its executable path. Install it
-  (`brew install gentleman-programming/tap/engram`,
-  `go install github.com/Gentleman-Programming/engram/v3/cmd/engram@latest`, or a
-  prebuilt binary) and register it: `engram setup opencode`, or
-  `python SCRIPTS/se.py install --with engram`.
-- **A convention, not a black box.** While it is registered, the agent saves each
-  decision, bug fix, discovery and convention as it happens (`mem_save`), reads prior
-  work before starting (`mem_search` / `mem_context`) and closes every session with a
-  summary (`mem_session_summary`) — memory is bookkeeping, never the user-facing answer.
-- **Advisory, never a gate.** No gate passes or fails because of memory. The auditable
-  record stays in the project's artifacts, evidence and receipts; memory only makes the
-  *next* session cheaper.
+- **No external server.** Records live in the project
+  (`memories/MEM-XXXX.json`) and are read and written through `se memory`.
+  The index under `.se/` is a rebuildable cache, never a dependency: delete
+  it and search keeps working.
+- **A convention, not a black box.** At the start of a session the agent
+  states what it is about and `se intelligence --memory <topic>` injects the
+  matching records; it saves each decision, bug fix, discovery and convention
+  as it happens (`se memory add`) and closes every session with a summary
+  (`--type session`) — memory is bookkeeping, never the user-facing answer.
+- **Advisory, never a gate.** No gate passes or fails because of memory. The
+  auditable record stays in the project artifacts, evidence and receipts;
+  memory only makes the *next* session cheaper.
 
-Full install and registration steps:
-[`installation.md` §Engram (persistent memory)](DOCS/reference/installation.md).
+Storage model, commands, the optional semantic reranker and the
+session-start convention:
+[`DOCS/reference/memory.md`](DOCS/reference/memory.md).
 
 ---
 

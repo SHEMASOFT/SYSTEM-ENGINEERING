@@ -107,7 +107,7 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
             self.assertEqual(errors, [], f"{errors}")
             self.assertEqual(config["adapter_id"], "opencode")
             self.assertEqual(config["target"], "opencode")
-            self.assertEqual(len(config["output"]["artifacts"]), 49)
+            self.assertEqual(len(config["output"]["artifacts"]), 48)
 
     def test_capabilities_declared(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -161,7 +161,7 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = self.generate_to(Path(tmp))
             paths = {entry["path"] for entry in result["files"]}
-            self.assertEqual(len(paths), 49)
+            self.assertEqual(len(paths), 48)
             self.assertIn("adapter-manifest.json", paths)
             self.assertIn("AGENTS.md", paths)
 
@@ -188,7 +188,7 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
             self.assertEqual(result["status"], "PASS")
             self.assertTrue(result["dry_run"])
             self.assertEqual(list(Path(tmp).rglob("*")), [])
-            self.assertEqual(len(result["files"]), 49)
+            self.assertEqual(len(result["files"]), 48)
 
     def test_never_writes_into_projects(self):
         schemas = support.schemas()
@@ -207,9 +207,9 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = self.generate_to(Path(tmp))
             config = json.loads((Path(tmp) / "adapter-manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(len(config["output"]["generated_files"]), 48)
+            self.assertEqual(len(config["output"]["generated_files"]), 47)
             hashes = config["metadata"]["content_hashes"]
-            self.assertEqual(len(hashes), 48)
+            self.assertEqual(len(hashes), 47)
             for rel, digest in hashes.items():
                 content = (Path(tmp) / rel).read_bytes()
                 import hashlib

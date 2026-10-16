@@ -283,23 +283,24 @@ class CmdSyncTests(unittest.TestCase):
         self.assertEqual(self.runner.calls, [])
 
     def test_legacy_entry_is_never_duplicated_into_v2(self):
-        templates = install.load_mcp_templates(support.REPO_ROOT)
-        engram = next(t for t in templates if t["key"] == "engram")
+        # A SE-declared server that pre-exists in the legacy (V1) block and is
+        # not recorded in lifecycle state is reported as foreign and must never
+        # be copied into the V2 `mcp.servers` block.
         existing = {
-            "command": "engram",
-            "args": ["mcp", "--tools=agent"],
-            "env": {"ENGRAM_PROJECT": install.read_project_id(self.project)},
+            "command": "npx",
+            "args": ["-y", "@upstash/context7-mcp"],
+            "env": {"CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"},
         }
         support.write_json(
             self.project / "opencode.jsonc",
-            {"mcp": {"servers": {}}, "mcpServers": {"engram": existing}},
+            {"mcp": {"servers": {}}, "mcpServers": {"context7": existing}},
         )
         code, out = self._capture(lambda: self._run(dry_run=True))
         self.assertEqual(code, 0, out)
         self.assertIn("Foreign/pre-existing", out)
-        self.assertIn("engram", out)
+        self.assertIn("context7", out)
         parsed = mcpconfig.read_config(self.project / "opencode.jsonc")
-        self.assertNotIn("engram", parsed["mcp"]["servers"])
+        self.assertNotIn("context7", parsed["mcp"]["servers"])
 
     def test_corrupt_state_is_blocked(self):
         path = lc.state_path(self.project)

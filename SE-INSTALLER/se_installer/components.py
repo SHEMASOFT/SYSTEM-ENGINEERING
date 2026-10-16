@@ -54,31 +54,6 @@ def get_all_components() -> list:
     ))
 
     # ============================================
-    # MEMORY (required for full functionality)
-    # ============================================
-    components.append(InstallableComponent(
-        id="engram",
-        name="Engram",
-        description="Memoria persistente cross-session para SE",
-        component_type=ComponentType.MCP,
-        long_description=(
-            "Sistema de memoria persistente que sobrevive entre sesiones. Guarda decisiones, fixes, "
-            "discoveries, patrones y contexto de sesion. El orchestrator lo usa obligatoriamente: "
-            "mem_context al arrancar, mem_search para historial, mem_save para decisiones, "
-            "mem_session_summary al cerrar. Sin Engram, SE arranca 'en blanco' cada vez."
-        ),
-        requires=["se_core"],
-        supported_os=[OSType.WINDOWS, OSType.MACOS, OSType.LINUX],
-        install_method="binary",
-        verification_command="engram --version",
-        homepage="https://github.com/Gentleman-Programming/engram",
-        docs_url="https://github.com/Gentleman-Programming/engram#readme",
-        license="MIT/Apache-2.0",
-        recommended=True,
-        category="Memory",
-    ))
-
-    # ============================================
     # MCPs - Node-based (require node/npx)
     # ============================================
     components.append(InstallableComponent(

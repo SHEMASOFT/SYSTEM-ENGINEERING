@@ -130,9 +130,8 @@
       "commands/validate.md": "f1c9f6c2e5c8ce9e8c4d2cc8f9710dbb7bef54572775baa043c54d076518bdb8",
       "commands/verify.md": "d09a5746d996c582ae4d3fe1fa962dc218c9b0469b13b47ed5b4518477d6b318",
       "mcp/context7.json": "6b35e986530fb0250a1101865dab42e00767628bbc60b8480fb817c74c9aaea1",
-      "mcp/engram.json": "5f227d47876daa0bf9dc7c422c61d3b1a9c16e59add16b31b483f1a2817690b0",
       "mcp/filesystem.json": "e36993b6f3ddcfb59706ef82d3142a555551636b26c697549586962bfc9415e7",
-      "mcp/skill-server.json": "6e1af8e3a4c691b266869f2ecf26a1293fa88d93fb556ea1e6ee94548106d06f",
+      "mcp/skill-server.json": "110a2f9259c34e930de5d9bd3259e239f318e4e60a9667a5aa619ad8fed0abda",
       "skills/checkpoint-release/SKILL.md": "d9bc2407ad519a8f84b05a30a4fe5f77660a8856babd2aabe516ccca053ae2fa",
       "skills/dbg-systematic/SKILL.md": "742e8ce2bf48e276efa7361f2491ed0e864763ae74b059f4afdebd771c4cdef5",
       "skills/impl-tdd/SKILL.md": "a4d39e50c9f05a7dab081df0ccff9737b6b86d6d5aad424700b4cf2f3d25d8c8",
@@ -428,12 +427,6 @@
         "type": "mcp"
       },
       {
-        "description": "MCP engram configuration",
-        "format": "json",
-        "path": ".opencode/mcp/engram.json",
-        "type": "mcp"
-      },
-      {
         "description": "MCP filesystem configuration",
         "format": "json",
         "path": ".opencode/mcp/filesystem.json",
@@ -485,7 +478,6 @@
       "commands/validate.md",
       "commands/verify.md",
       "mcp/context7.json",
-      "mcp/engram.json",
       "mcp/filesystem.json",
       "mcp/skill-server.json",
       "skills/checkpoint-release/SKILL.md",

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-10-16T08:19:36Z",
+  "created_at": "2026-10-16T17:47:52Z",
   "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
   "minimums": {
     "reference": 30
@@ -101,7 +101,7 @@
       },
       {
         "path": "DOCS/reference/installation.md",
-        "hash": "74380e2f62c771cd"
+        "hash": "9e410d1f93db5d5b"
       },
       {
         "path": "DOCS/reference/lifecycle.md",
@@ -145,7 +145,7 @@
       },
       {
         "path": "DOCS/reference/se-installer.md",
-        "hash": "72f55d39f37580c6"
+        "hash": "e3ce60a36a25dc84"
       },
       {
         "path": "DOCS/reference/skills/SKILL_AUTHORING.md",
@@ -173,7 +173,7 @@
       },
       {
         "path": "DOCS/reference/workflows.md",
-        "hash": "3bd07672590882ab"
+        "hash": "f1e57e64cbf47f6e"
       },
       {
         "path": "DOCS/token-economy-native-invoke.md",

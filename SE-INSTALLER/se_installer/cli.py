@@ -251,7 +251,7 @@ def cmd_doctor(args) -> int:
 
                 installed, version = installer.check_installed()
                 if not installed:
-                    if comp.id in ("se_core", "opencode", "engram"):
+                    if comp.id in ("se_core", "opencode"):
                         issues.append(f"{comp.name} ({comp.id}) no instalado (requerido)")
                     else:
                         warnings.append(f"{comp.name} ({comp.id}) no instalado (opcional)")

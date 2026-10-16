@@ -49,13 +49,13 @@ class RoundTripTests(unittest.TestCase):
 
     def test_save_and_load_roundtrip(self):
         state = lc.new_state(se_version="0.1.0", os_name="linux", target=str(self.target))
-        lc.record_server(state, "engram", declared="abc123", source="TEMPLATES/mcp/engram.json.tmpl")
+        lc.record_server(state, "context7", declared="abc123", source="TEMPLATES/mcp/context7.json.tmpl")
         lc.save_state(state, self.target)
         self.assertTrue(lc.state_path(self.target).exists())
         loaded = lc.load_state(self.target)
         self.assertEqual(loaded["se_version"], "0.1.0")
-        self.assertIn("engram", loaded["servers"])
-        self.assertEqual(loaded["servers"]["engram"]["declared"], "abc123")
+        self.assertIn("context7", loaded["servers"])
+        self.assertEqual(loaded["servers"]["context7"]["declared"], "abc123")
 
     def test_load_state_missing_is_none(self):
         self.assertIsNone(lc.load_state(self.target))
@@ -91,28 +91,28 @@ class ServerAuditTests(unittest.TestCase):
 
     def test_record_server_adds_entry(self):
         lc.record_server(
-            self.state, "engram", declared="h1", source="TEMPLATES/mcp/engram.json.tmpl",
+            self.state, "context7", declared="h1", source="TEMPLATES/mcp/context7.json.tmpl",
             registered_at="2026-10-09T00:00:00Z",
         )
-        entry = self.state["servers"]["engram"]
+        entry = self.state["servers"]["context7"]
         self.assertEqual(entry["declared"], "h1")
-        self.assertEqual(entry["source"], "TEMPLATES/mcp/engram.json.tmpl")
+        self.assertEqual(entry["source"], "TEMPLATES/mcp/context7.json.tmpl")
         self.assertEqual(entry["scope"], "project")
         self.assertEqual(entry["registered_at"], "2026-10-09T00:00:00Z")
 
     def test_record_server_refreshes_existing(self):
-        lc.record_server(self.state, "engram", declared="h1", source="s1")
-        lc.record_server(self.state, "engram", declared="h2", source="s2")
-        self.assertEqual(self.state["servers"]["engram"]["declared"], "h2")
+        lc.record_server(self.state, "context7", declared="h1", source="s1")
+        lc.record_server(self.state, "context7", declared="h2", source="s2")
+        self.assertEqual(self.state["servers"]["context7"]["declared"], "h2")
 
     def test_remove_server_moves_to_audit(self):
-        lc.record_server(self.state, "engram", declared="h1", source="s1")
-        entry = lc.remove_server(self.state, "engram", removed_at="2026-10-09T00:00:00Z")
+        lc.record_server(self.state, "context7", declared="h1", source="s1")
+        entry = lc.remove_server(self.state, "context7", removed_at="2026-10-09T00:00:00Z")
         self.assertIsNotNone(entry)
-        self.assertEqual(entry["name"], "engram")
+        self.assertEqual(entry["name"], "context7")
         self.assertEqual(entry["removed_at"], "2026-10-09T00:00:00Z")
         self.assertEqual(entry["declared"], "h1")
-        self.assertNotIn("engram", self.state["servers"])
+        self.assertNotIn("context7", self.state["servers"])
         self.assertEqual(self.state["uninstalled"], [entry])
 
     def test_remove_server_unknown_returns_none(self):
@@ -122,23 +122,23 @@ class ServerAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp)
             state = lc.new_state(se_version="0.1.0", os_name="windows", target=str(target))
-            lc.record_server(state, "engram", declared="h1", source="s1")
-            lc.remove_server(state, "engram")
+            lc.record_server(state, "context7", declared="h1", source="s1")
+            lc.remove_server(state, "context7")
             lc.save_state(state, target)
             loaded = lc.load_state(target)
             self.assertEqual(len(loaded["uninstalled"]), 1)
-            self.assertEqual(loaded["uninstalled"][0]["name"], "engram")
+            self.assertEqual(loaded["uninstalled"][0]["name"], "context7")
 
 
 class SpecHashTests(unittest.TestCase):
     def test_canonical_regardless_of_key_order(self):
-        a = {"name": "engram", "command": ["engram", "mcp"], "environment": {"K": "V"}}
-        b = {"environment": {"K": "V"}, "command": ["engram", "mcp"], "name": "engram"}
+        a = {"name": "context7", "command": ["context7", "mcp"], "environment": {"K": "V"}}
+        b = {"environment": {"K": "V"}, "command": ["context7", "mcp"], "name": "context7"}
         self.assertEqual(lc.spec_hash(a), lc.spec_hash(b))
 
     def test_different_spec_different_hash(self):
-        a = {"name": "engram", "command": ["engram", "mcp"], "environment": {}}
-        b = {"name": "engram", "command": ["engram", "mcp", "extra"], "environment": {}}
+        a = {"name": "context7", "command": ["context7", "mcp"], "environment": {}}
+        b = {"name": "context7", "command": ["context7", "mcp", "extra"], "environment": {}}
         self.assertNotEqual(lc.spec_hash(a), lc.spec_hash(b))
 
     def test_hash_is_sha256_hex(self):

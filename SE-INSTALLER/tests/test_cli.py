@@ -66,7 +66,7 @@ class TestCmdList:
         captured = capsys.readouterr()
         assert exit_code == 0
         assert "SE Core" in captured.out
-        assert "Engram" in captured.out
+        assert "Context7" in captured.out
 
     def test_list_json_output(self, capsys):
         args = Mock(category=None, installed=False, json=True)

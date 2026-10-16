@@ -63,7 +63,7 @@ SKELETON = """{
 """
 
 FOREIGN_MARKER = "keep-me-verbatim-9f3a"
-SE_SERVERS = ["context7", "engram", "filesystem", "se-skill-server"]
+SE_SERVERS = ["context7", "filesystem", "se-skill-server"]
 
 
 class FakeResult:
@@ -256,7 +256,7 @@ class FakeOpencode:
 
 
 class LifecycleCycleTests(unittest.TestCase):
-    PRESENT = ("python", "python3", "node", "npx", "opencode", "engram")
+    PRESENT = ("python", "python3", "node", "npx", "opencode")
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -402,8 +402,8 @@ class LifecycleCycleTests(unittest.TestCase):
         self.assertEqual(lc.state_path(self.target).read_bytes(), state_before)
 
     def _phase_sync_changed_spec(self):
-        self._mutate_template("engram", lambda d: d["args"].append("--verbose"))
-        new_spec = self._declared_spec("engram")
+        self._mutate_template("skill-server", lambda d: d["args"].append("--verbose"))
+        new_spec = self._declared_spec("se-skill-server")
         fake = FakeOpencode(self.config)
         code, out = self._capture(
             lambda: sync.cmd_sync(
@@ -413,11 +413,11 @@ class LifecycleCycleTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("SE-owned changed", out)
         self.assertEqual(len(fake.calls), 1)
-        self.assertIn("engram", fake.calls[0])
+        self.assertIn("se-skill-server", fake.calls[0])
 
         state = lc.load_state(self.target)
-        self.assertEqual(state["servers"]["engram"]["declared"], lc.spec_hash(new_spec))
-        entry = mcpconfig.read_config(self.config)["mcp"]["servers"]["engram"]
+        self.assertEqual(state["servers"]["se-skill-server"]["declared"], lc.spec_hash(new_spec))
+        entry = mcpconfig.read_config(self.config)["mcp"]["servers"]["se-skill-server"]
         self.assertEqual(entry["command"], new_spec["command"])
 
     def _phase_update_changed_spec(self):
