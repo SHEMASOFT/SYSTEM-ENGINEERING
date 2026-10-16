@@ -10,6 +10,11 @@ Deterministic integration of the three foundations:
 The layer is READ-ONLY: it aggregates existing facts and emits one
 ``se.report/1`` envelope. It never mutates project state. Execution stays the
 job of ``se execute`` / ``se orchestrate``.
+
+The one cache it may create is the derived memory index under the engine root's
+``.se/`` (see ``memory_context``): it is disposable, gitignored and rebuildable,
+and it holds nothing that is not already in the project's JSON. Project state
+itself is never written.
 """
 
 from __future__ import annotations
@@ -24,6 +29,21 @@ from ..orchestration.engine import OrchestrationEngine
 from ..paths import now_utc, repo_root
 from ..schemas import load_schemas, validate
 from ..skills.discovery import discover_skills
+
+
+def _one_or_mixed(values: List[str]) -> Optional[str]:
+    """A single reported value, ``"mixed"`` when they disagree, ``None`` if none.
+
+    Reporting which backend and reranker answered is part of the answer: a
+    session must be able to tell "no memories matched" from "no search engine
+    was available", and the two are indistinguishable from an empty hit list.
+    """
+    distinct = sorted({value for value in values if value})
+    if not distinct:
+        return None
+    if len(distinct) == 1:
+        return distinct[0]
+    return "mixed"
 
 
 class IntelligenceEngine:
@@ -49,6 +69,8 @@ class IntelligenceEngine:
         workflow_id: Optional[str] = None,
         execute: bool = False,
         author: Optional[str] = None,
+        memory_topics: Optional[List[str]] = None,
+        memory_limit: int = 10,
     ) -> Dict[str, Any]:
         """Run the intelligence pipeline for a project (read-only)."""
         project_dir = self._find_project_dir(project_id)
@@ -75,22 +97,12 @@ class IntelligenceEngine:
             for c in discovery.get("candidates", [])
         ]
 
-        # 2. Memory context (recent project knowledge).
-        memory = MemoryEngine(root=self.root).query(project_id=project_id, limit=20)
-        memories = memory.get("memories", [])
-        recent = [
-            {
-                "memory_id": m.get("memory_id", ""),
-                "type": m.get("type", ""),
-                "title": (m.get("content") or {}).get("title", ""),
-            }
-            for m in memories
-        ]
-        memory_context = {
-            "total": memory.get("summary", {}).get("total", len(memories)),
-            "by_type": memory.get("summary", {}).get("by_type", {}),
-            "recent": recent,
-        }
+        # 2. Memory context (recent project knowledge + what the session is about).
+        memory_context = self.memory_context(
+            project_id,
+            topics=memory_topics,
+            relevance_limit=memory_limit,
+        )
 
         # 3. Gate evaluation (all gates informative + actionable frontier).
         gate_results: Dict[str, str] = {}
@@ -147,6 +159,101 @@ class IntelligenceEngine:
             raise ValueError(f"Intelligence result validation failed: {errors}")
 
         return result
+
+    def memory_context(
+        self,
+        project_id: str,
+        topics: Optional[List[str]] = None,
+        recent_limit: int = 20,
+        relevance_limit: int = 10,
+    ) -> Dict[str, Any]:
+        """What the project already knows, shaped for injection into a session.
+
+        Two signals, deliberately separate rather than merged into one list:
+
+        * ``recent`` is what was learned last, regardless of the session's
+          subject. It answers "where were we", and it is what the pipeline has
+          always reported.
+        * ``relevance`` is what matches the topics the caller is about to work
+          on. It answers "what do we already know about *this*", and it is empty
+          unless the caller states topics, so a run with no subject behaves
+          exactly as before.
+
+        Only the derived index cache under ``.se/`` may be created or refreshed
+        here, exactly as ``se memory search`` does; nothing under the project is
+        written.
+
+        Each topic is one query with the same AND semantics as ``se memory
+        search``, and the merged list keeps the order the topics were given with
+        the best-ranked hits of each topic first. Scores are backend-relative
+        and are therefore never compared *across* topics. The merged list is
+        capped at ``relevance_limit`` so the injected context stays bounded no
+        matter how many topics are asked for.
+
+        ``topics`` entries that carry no searchable term are dropped from
+        ``queries`` rather than failing the run: a session must still start when
+        a topic was phrased in a way nothing can be matched from.
+        """
+        memory = MemoryEngine(root=self.root)
+        listing = memory.query(project_id=project_id, limit=recent_limit)
+        memories = listing.get("memories", [])
+        recent = [
+            {
+                "memory_id": m.get("memory_id", ""),
+                "type": m.get("type", ""),
+                "title": (m.get("content") or {}).get("title", ""),
+            }
+            for m in memories
+        ]
+
+        queries: List[str] = []
+        hits: List[Dict[str, Any]] = []
+        backends: List[str] = []
+        rerankers: List[str] = []
+        seen: set = set()
+
+        for topic in topics or []:
+            text = (topic or "").strip()
+            if not text:
+                continue
+            try:
+                found = memory.search(text, project_id=project_id, limit=relevance_limit)
+            except ValueError:
+                # No searchable term in this topic: it is reported by not being
+                # in `queries`, and the rest of the session start still happens.
+                continue
+            queries.append(text)
+            backends.append(found.get("backend", "unknown"))
+            reranker = (found.get("reranker") or {}).get("backend")
+            if reranker:
+                rerankers.append(reranker)
+            for hit in found.get("hits", []):
+                key = (hit.get("project_id"), hit.get("memory_id"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                hits.append(
+                    {
+                        "memory_id": hit.get("memory_id", ""),
+                        "type": hit.get("type", ""),
+                        "score": hit.get("score", 0.0),
+                        "snippet": hit.get("snippet", ""),
+                    }
+                )
+
+        relevance = {
+            "queries": queries,
+            "hits": hits[:relevance_limit],
+            "backend": _one_or_mixed(backends),
+            "reranker": _one_or_mixed(rerankers),
+        }
+
+        return {
+            "total": listing.get("summary", {}).get("total", len(memories)),
+            "by_type": listing.get("summary", {}).get("by_type", {}),
+            "recent": recent,
+            "relevance": relevance,
+        }
 
     @staticmethod
     def _actionable_gate(applicable, gate_results, lifecycle):

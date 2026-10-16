@@ -459,7 +459,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_add.add_argument("--project", required=True, help="Managed project workspace")
 
-    p_mem_add.add_argument("--type", required=True, help="Memory type (decision, architecture, discovery, constraint, capability, verification, checkpoint, relationship)")
+    p_mem_add.add_argument("--type", required=True, help="Memory type (decision, architecture, discovery, constraint, capability, verification, checkpoint, relationship, session, prompt)")
 
     p_mem_add.add_argument("--content", required=True, help="Memory content as JSON")
 
@@ -764,6 +764,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_intel.add_argument("--capability", action="append", help="Capability to match (repeatable; inferred if omitted)")
     p_intel.add_argument("--workflow", default=None, help="Workflow ID (WF-XXXX) to plan (dry-run)")
     p_intel.add_argument("--by", default=None, help="Requesting actor")
+    p_intel.add_argument("--memory", dest="memory", action="append", default=None, help="Topic this session is about; adds matching memories to the context (repeatable)")
+    p_intel.add_argument("--memory-limit", dest="memory_limit", type=int, default=10, help="Maximum memories injected by --memory (default: 10)")
     p_intel.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
     p_intel.set_defaults(func=commands.cmd_intelligence)
 

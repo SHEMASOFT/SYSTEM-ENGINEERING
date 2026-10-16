@@ -33,14 +33,18 @@
     "TESTS/test_memory_index.py",
     "TESTS/test_memory_dedupe.py",
     "SCRIPTS/se_core/memory/embeddings.py",
-    "TESTS/test_memory_embeddings.py"
+    "TESTS/test_memory_embeddings.py",
+    "SCHEMAS/intelligence/result.schema.json",
+    "TESTS/test_intelligence_memory.py",
+    "DOCS/reference/memory.md",
+    "DOCS/README.md"
   ],
   "status": "ACCEPTED",
   "supersedes": null,
   "superseded_by": null,
   "author": "shema-ai-coordinador",
   "created_at": "2026-10-16T00:00:00Z",
-  "updated_at": "2026-10-16T08:10:00Z",
+  "updated_at": "2026-10-16T08:41:00Z",
   "related_tasks": [],
   "related_requirements": [],
   "metadata": {
@@ -62,7 +66,7 @@
       "storage": "JSON canonical (ADR-0003) + derived rebuildable SQLite+FTS5 index",
       "index": "one derived index per engine root at .se/memory/index.db (gitignored, disposable, never a source of truth; dropping the file is a valid recovery), rather than one index per project: a cross-project search stays a single query, there is one file to rebuild or drop, and no master-system cache is written into a managed project workspace. Staying current is stat-only: the inventory is (project_id, memory_id) -> mtime_ns:size and only new or changed records are parsed, so a refresh never re-reads unchanged JSON. Search requires every term (AND) and returns compact hits; scores are backend-relative (bm25 negated, or term frequency on the scan fallback), so they compare within one result set only. An unusable index file is dropped and rebuilt once, then search falls back to the pure-Python scan",
       "semantic": "semantic retrieval is an optional reranker, not a retriever: recall stays entirely lexical (FTS5 or the pure-Python scan fallback) and embeddings only reorder a bounded window of lexical candidates, so a model can promote a memory but can never surface one the lexical pass did not return. The model is a word-vector text file placed at .se/models/word-vectors.vec or named by SE_MEMORY_EMBEDDINGS; nothing is downloaded and nothing leaves the process (per-query cost is arithmetic only). The reference path is pure Python and always works; numpy is an optional accelerator that changes how large a model fits in memory, not the ranking, and a model too large for the dependency-free path is refused with the fix named rather than exhausting the machine. An explicitly configured but unusable model path is an error, while an absent model is not: rerank=None uses a model if installed, rerank=True fails loudly, rerank=False disables it, and every search reports the choice and reason. Ordering is reciprocal rank fusion of the lexical and semantic rankings (not score arithmetic) because lexical scores are backend-relative and not comparable; the fused score becomes score, the backend score is preserved as lexical_score and the measured similarity as semantic_score. Candidate text is taken from what the lexical pass already holds (the index stores it), so reranking does no record parsing, and the candidate window is both the cost bound and the claim boundary.",
-      "injection": "reuse read-only se intelligence memory_context plus a documented session-start convention",
+      "injection": "memory reaches a session through the existing read-only intelligence pipeline (se intelligence), not a new service: --memory TOPIC adds a relevance block to memory_context beside the totals, types and most recent memories it already reported, so a run without topics is unchanged. Each topic is one query with the same AND semantics as se memory search, results are merged in the order the topics were given, deduplicated, and capped (--memory-limit, default 10) so injected context stays bounded. The block reports the backend and reranker that answered, because an empty hit list must not be indistinguishable from no search engine at all. Read-only is preserved for project state; the only thing a run may touch is the disposable index cache under .se/, exactly as se memory search does. The convention is documented in DOCS/reference/memory.md, including persisting a session summary (type=session) and prompts (type=prompt) at the end of a session so the next start is warmer.",
       "addressing": "memory IDs are project-scoped: single-record operations (get/update/link/supersede) require an explicit project scope, and cross-project listing is query; an unscoped single-record lookup resolves to nothing rather than guessing a project",
       "dedupe_lifecycle": "topic_key is an explicit upsert key, not identity: a save repeating an active topic_key in the same project revises that record in place and grows revision_count, so a family of related saves stays one memory. Exact dedupe is opt-in (add(dedupe=True) / --dedupe), because identical text can still be two genuinely distinct records and a plain add must never silently swallow one; when opted in, an identical content hash in the same project and type updates duplicate_count/last_seen_at instead of creating a copy. state is a real lifecycle, not a label: deprecated is a soft delete that keeps the file and keeps the record out of query and search unless asked for by name (query --state deprecated, search include_deprecated), and a deprecated record neither captures a topic_key nor satisfies exact dedupe. The derived index carries state and its format is versioned (INDEX_SCHEMA_VERSION), so a column change discards and rebuilds the file instead of mixing two layouts"
     },

@@ -28,6 +28,7 @@ Start here to understand, install and operate SYSTEM ENGINEERING.
 | Document | What it explains |
 |---|---|
 | [`reference/commands.md`](reference/commands.md) | The command surface (`init`, `plan`, `gate`, `orchestrate`, ...) |
+| [`reference/memory.md`](reference/memory.md) | Memory: storage, commands, semantic reranker, session-start injection |
 | [`reference/workflows.md`](reference/workflows.md) | Multi-agent workflows: DAGs, gates, context passing |
 | [`reference/work-modes.md`](reference/work-modes.md) | organic / spec / receipt: when the agent must apply each one |
 | [`reference/adapters.md`](reference/adapters.md) | Runtime adapters: OpenCode, Claude Code, Codex |

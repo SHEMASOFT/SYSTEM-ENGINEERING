@@ -4699,6 +4699,7 @@ def cmd_intelligence(args) -> int:
 
     capabilities = args.capability if args.capability else None
     workflow_id = args.workflow if args.workflow else None
+    memory_topics = args.memory if getattr(args, "memory", None) else None
 
     try:
         result = IntelligenceEngine(root=repo_root()).run(
@@ -4706,6 +4707,8 @@ def cmd_intelligence(args) -> int:
             capabilities=capabilities,
             workflow_id=workflow_id,
             author=args.by,
+            memory_topics=memory_topics,
+            memory_limit=getattr(args, "memory_limit", 10),
         )
     except Exception as exc:
         print(f"FAIL: intelligence run failed: {exc}")
@@ -4731,6 +4734,15 @@ def cmd_intelligence(args) -> int:
     print()
     mc = result["memory_context"]
     print(f"Memory: {mc['total']} observations ({', '.join(f'{k}={v}' for k, v in mc['by_type'].items()) or 'none'})")
+    relevance = mc.get("relevance") or {}
+    if relevance.get("queries"):
+        backend = relevance.get("backend") or "unknown"
+        reranker = relevance.get("reranker") or "none"
+        print(f"Relevant: {len(relevance.get('hits', []))} match(es) for {len(relevance['queries'])} topic(s) [backend={backend}, reranker={reranker}]")
+        for hit in relevance.get("hits", []):
+            print(f"  {hit['memory_id']} [{hit['type']}] score={hit['score']}")
+            if hit.get("snippet"):
+                print(f"    {hit['snippet']}")
     print()
     print("Gates:")
     for gate_id, status in result["gates"].items():

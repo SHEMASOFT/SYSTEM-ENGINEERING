@@ -28,7 +28,7 @@
     "memory_context": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["total", "by_type", "recent"],
+      "required": ["total", "by_type", "recent", "relevance"],
       "properties": {
         "total": { "type": "integer", "minimum": 0 },
         "by_type": { "type": "object" },
@@ -42,6 +42,37 @@
               "memory_id": { "type": "string" },
               "type": { "type": "string" },
               "title": { "type": "string" }
+            }
+          }
+        },
+        "relevance": {
+          "description": "What matches the topics the session stated: empty queries and hits when none were given.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["queries", "hits", "backend", "reranker"],
+          "properties": {
+            "queries": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "hits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["memory_id", "type", "score"],
+                "properties": {
+                  "memory_id": { "type": "string" },
+                  "type": { "type": "string" },
+                  "score": { "type": "number" },
+                  "snippet": { "type": "string" }
+                }
+              }
+            },
+            "backend": {
+              "description": "Lexical backend that answered, 'mixed' if the topics disagreed, null if none was searched.",
+              "type": ["string", "null"]
+            },
+            "reranker": {
+              "description": "Embedding reranker that was applied, 'mixed' if the topics disagreed, null if none.",
+              "type": ["string", "null"]
             }
           }
         }

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-10-16T07:54:46Z",
+  "created_at": "2026-10-16T08:19:36Z",
   "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
   "minimums": {
     "reference": 30
@@ -9,7 +9,7 @@
     "reference": [
       {
         "path": "DOCS/README.md",
-        "hash": "8b6ae9748b7eb867"
+        "hash": "bafb4e0ce0719cfb"
       },
       {
         "path": "DOCS/reference/adapters.md",
@@ -106,6 +106,10 @@
       {
         "path": "DOCS/reference/lifecycle.md",
         "hash": "d8b21ef3531744c2"
+      },
+      {
+        "path": "DOCS/reference/memory.md",
+        "hash": "751c6024b3eb0878"
       },
       {
         "path": "DOCS/reference/opencode-adapter.md",
