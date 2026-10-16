@@ -1,0 +1,42 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0026",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-10-16",
+  "context": "Workflow execution (OrchestrationEngine.execute) is deterministic and node-by-node, but it was purely in-memory: if a node failed, or the process died, the whole run had to be restarted from the first node. For long, multi-agent workflows (analysis -> design -> plan -> implement -> test) that is expensive and wasteful, re-running work that already produced verified outputs.",
+  "problem": "How should the engine persist enough execution state to resume an interrupted workflow without re-running nodes that already completed, while keeping the deterministic model, the existing workflow contract and the artifact store unchanged?",
+  "options_considered": [
+    { "option": "Keep execution in-memory and always restart from the first node", "pros": ["No new state to store or validate", "Simplest possible engine"], "cons": ["Re-runs completed work on every failure", "No audit trail of partial progress"] },
+    { "option": "Persist a checkpoint file after every node under <project>/.workflows/checkpoints/", "pros": ["Durable progress with no external dependency", "Atomic JSON writes reuse the existing write path", "Resume is a plain read: no new runtime service"], "cons": ["Extra write per node", "Unbounded growth without a retention policy", "Local-disk only (no distributed readers)"] },
+    { "option": "Store execution state in an external database or object store", "pros": ["Multi-node visibility", "Central retention"], "cons": ["New infrastructure dependency", "Breaks the file-per-artifact storage decision (ADR-0003)", "Overkill for a local-first reference implementation"] }
+  ],
+  "decision": "The engine persists one WorkflowCheckpoint (SCHEMAS/checkpoint/checkpoint.schema.json) after every node under <project>/.workflows/checkpoints/CP-NNNN.json, written atomically. A checkpoint records the resume cursor (completed_nodes), the audit trail (node_results for COMPLETED/FAILED nodes only), the evaluated gate_results, the accumulated context and a status of IN_PROGRESS | COMPLETED | FAILED. `se orchestrate execute --resume-from CP-XXXX` restores that state: completed nodes are skipped, upstream outputs are restored into the context, and execution continues at the first unfinished node. `se orchestrate checkpoint list|clean|delete` manages the store. Checkpoint ids are monotonic per project; listing is ordered by created_at with the checkpoint number as a deterministic tiebreaker.",
+  "reason": "A node-local checkpoint is the smallest mechanism that satisfies the requirement: it needs no new service, reuses the atomic JSON write path already trusted for artifacts, and keeps the engine deterministic (the same resumed run continues the same execution order). Filtering node_results to nodes that actually finished keeps the record honest: a checkpoint never implies that a node whose outcome is unknown has completed, so a resume can never skip work that did not provably happen. Optional retention (cleanup_old) bounds growth without making the core path depend on it.",
+  "consequences": "Interrupted runs can be resumed with `--resume-from` instead of restarted; a failed node leaves a FAILED checkpoint documenting exactly how far the run got. New surface: `--resume-from` on `orchestrate execute` and the nested `orchestrate checkpoint` command group, plus the checkpoint schema (registered in SCHEMAS/index.json). No migration: existing workflows validate and run unchanged, and the checkpoint store is created lazily. Known limits are explicit: the store is local-disk only, cleanup is manual (no scheduled retention policy), and two concurrent writers of the same project can race on the next checkpoint id (mitigated by atomic writes and documented as a limitation, not solved).",
+  "affected_components": [
+    "SCHEMAS/checkpoint/checkpoint.schema.json",
+    "SCHEMAS/index.json",
+    "SCRIPTS/se_core/orchestration/checkpoint.py",
+    "SCRIPTS/se_core/orchestration/engine.py",
+    "SCRIPTS/se_core/cli.py",
+    "SCRIPTS/se_core/commands.py",
+    "TESTS/test_orchestrate_checkpoint.py"
+  ],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-10-16T00:00:00Z",
+  "updated_at": "2026-10-16T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "WORKFLOW-CHECKPOINT-RECOVERY",
+    "depends_on_adr": ["ADR-0003"],
+    "references": [
+      "SCHEMAS/checkpoint/checkpoint.schema.json",
+      "DOCS/reference/checkpoint-recovery.md"
+    ]
+  }
+}

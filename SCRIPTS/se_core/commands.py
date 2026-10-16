@@ -6445,4 +6445,45 @@ def cmd_restore(args) -> int:
 
         return 0
 
+
+def cmd_orchestrate_checkpoint(args) -> int:
+    """Manage workflow checkpoints: list, clean, delete."""
+    from .orchestration.checkpoint import CheckpointManager
+
+    project_path = Path(args.project)
+    if not (project_path / "PROJECT.json").exists():
+        print(f"FAIL: no PROJECT.json in {project_path}")
+        return 1
+
+    checkpoint_manager = CheckpointManager(project_path)
+    workflow_id = getattr(args, "workflow", None)
+
+    if args.checkpoint_command == "list":
+        checkpoints = checkpoint_manager.list_checkpoints(workflow_id=workflow_id)
+        if not checkpoints:
+            print("No checkpoints found")
+            return 0
+        for cp in checkpoints:
+            print(
+                f"{cp['checkpoint_id']}  {cp['workflow_id']}  {cp['execution_id']}  "
+                f"{cp['created_at']}  {cp['status']}"
+            )
+        return 0
+
+    if args.checkpoint_command == "clean":
+        deleted = checkpoint_manager.cleanup_old(keep=args.keep, workflow_id=workflow_id)
+        print(f"Deleted {deleted} old checkpoints")
+        return 0
+
+    if args.checkpoint_command == "delete":
+        if checkpoint_manager.delete(args.checkpoint):
+            print(f"Deleted checkpoint {args.checkpoint}")
+        else:
+            print(f"Checkpoint {args.checkpoint} not found")
+        return 0
+
+    print(f"FAIL: unknown checkpoint command: {args.checkpoint_command}")
+    return 1
+
+
 import hashlib

@@ -663,11 +663,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_orch_execute.add_argument("--native", action="store_true", help="Generate prompt for OpenCode-native execution via invoke tool")
 
+    p_orch_execute.add_argument("--resume-from", default=None, help="Resume execution from checkpoint ID (CP-XXXX)")
+
     p_orch_execute.add_argument("--json", action="store_true", help="Emit machine-readable se.report/1 envelope")
 
     p_orch_execute.set_defaults(func=commands.cmd_orchestrate)
 
 
+
+    p_orch_checkpoint = p_orchestrate_sub.add_parser("checkpoint", help="Manage workflow checkpoints")
+    p_orch_checkpoint_sub = p_orch_checkpoint.add_subparsers(dest="checkpoint_command", required=True)
+    p_cp_list = p_orch_checkpoint_sub.add_parser("list", help="List checkpoints")
+    p_cp_list.add_argument("--project", required=True, help="Managed project workspace")
+    p_cp_list.add_argument("--workflow", default=None, help="Filter by workflow ID")
+    p_cp_list.add_argument("--json", action="store_true", help="Emit machine-readable se.report/1 envelope")
+    p_cp_list.set_defaults(func=commands.cmd_orchestrate_checkpoint)
+
+    p_cp_clean = p_orch_checkpoint_sub.add_parser("clean", help="Clean old checkpoints")
+    p_cp_clean.add_argument("--project", required=True, help="Managed project workspace")
+    p_cp_clean.add_argument("--workflow", default=None, help="Filter by workflow ID")
+    p_cp_clean.add_argument("--keep", type=int, default=10, help="Number of checkpoints to keep")
+    p_cp_clean.set_defaults(func=commands.cmd_orchestrate_checkpoint)
+
+    p_cp_delete = p_orch_checkpoint_sub.add_parser("delete", help="Delete a checkpoint")
+    p_cp_delete.add_argument("--project", required=True, help="Managed project workspace")
+    p_cp_delete.add_argument("--checkpoint", required=True, help="Checkpoint ID (CP-XXXX)")
+    p_cp_delete.set_defaults(func=commands.cmd_orchestrate_checkpoint)
 
     p_orch_list = p_orchestrate_sub.add_parser("list", help="List workflows in a project")
 
