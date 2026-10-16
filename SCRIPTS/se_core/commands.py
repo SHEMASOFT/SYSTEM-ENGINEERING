@@ -4215,7 +4215,26 @@ def cmd_memory(args) -> int:
             print("FAIL: --memory-id and --related-id are required for memory link")
             return 1
 
-        result = engine.link(args.memory_id, args.related_id, args.relation or "related")
+        project_id = None
+        if args.project:
+            project_path = Path(args.project)
+            if not (project_path / "PROJECT.json").exists():
+                print(f"FAIL: no PROJECT.json in {project_path}")
+                return 1
+            from .artifacts import read_manifest
+            project_manifest = read_manifest(project_path)
+            project_id = project_manifest.get("project_id", project_path.name)
+
+        try:
+            result = engine.link(
+                args.memory_id,
+                args.related_id,
+                args.relation or "related",
+                project_id=project_id,
+            )
+        except ValueError as e:
+            print(f"FAIL: {e}")
+            return 1
         print(f"PASS: linked {args.memory_id} -> {args.related_id} ({result['relation']})")
         return 0
 
@@ -4241,7 +4260,11 @@ def cmd_memory(args) -> int:
             project_manifest = read_manifest(project_path)
             project_id = project_manifest.get("project_id", project_path.name)
 
-        result = engine.update(args.memory_id, project_id, updates)
+        try:
+            engine.update(args.memory_id, project_id, updates)
+        except ValueError as e:
+            print(f"FAIL: {e}")
+            return 1
         print(f"PASS: updated {args.memory_id}")
         return 0
 
@@ -4250,15 +4273,21 @@ def cmd_memory(args) -> int:
             print("FAIL: --memory-id and --new-id are required for supersede")
             return 1
 
-        project_path = Path(args.project)
-        if not (project_path / "PROJECT.json").exists():
-            print(f"FAIL: no PROJECT.json in {project_path}")
-            return 1
-        from .artifacts import read_manifest
-        project_manifest = read_manifest(project_path)
-        project_id = project_manifest.get("project_id", project_path.name)
+        project_id = None
+        if args.project:
+            project_path = Path(args.project)
+            if not (project_path / "PROJECT.json").exists():
+                print(f"FAIL: no PROJECT.json in {project_path}")
+                return 1
+            from .artifacts import read_manifest
+            project_manifest = read_manifest(project_path)
+            project_id = project_manifest.get("project_id", project_path.name)
 
-        result = engine.supersede(args.memory_id, args.new_id, project_id)
+        try:
+            engine.supersede(args.memory_id, args.new_id, project_id)
+        except ValueError as e:
+            print(f"FAIL: {e}")
+            return 1
         print(f"PASS: superseded {args.memory_id} -> {args.new_id}")
         return 0
 

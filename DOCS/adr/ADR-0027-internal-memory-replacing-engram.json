@@ -1,0 +1,67 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0027",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-10-16",
+  "context": "Memory in SYSTEM-ENGINEERING is split between an in-repo engine and an external service. In-repo: SCRIPTS/se_core/memory/engine.py (MemoryEngine) stores records as JSON under a memories/ directory and declares the local file the source of truth; its _persist_to_engram() is an empty stub, so the engine never actually talks to Engram. External: Engram, a third-party Go binary (SQLite + FTS5, MCP stdio) that persists memory across sessions for the agent, and is registered as an optional MCP server (TEMPLATES/mcp/engram.json.tmpl, .opencode/mcp/engram.json), installed optionally (SCRIPTS/se_core/install.py), and assigned to agents in DOCS/reference/se-installer.md. The internal engine is incomplete: link/update/supersede are stubs that return success without persisting, query is a linear scan of every JSON file with no index or text search, there are no session or prompt records, no duplicate/conflict detection, and nothing feeds the project's memory into the agent at session start. The project decided to remove Engram entirely, keep only its ideas, and implement memory itself with semantic retrieval, optimising for performance and cost.",
+  "problem": "How should SYSTEM-ENGINEERING replace an external MCP memory service with its own memory capability that supports semantic retrieval, sessions and prompts, duplicate/conflict handling and agent-facing context injection, while preserving ADR-0003 (file-per-artifact JSON storage), the existing memory schema and the deterministic, dependency-light reference implementation?",
+  "options_considered": [
+    { "option": "Keep Engram as the memory dependency and only finish the internal engine's stubs", "pros": ["No new search/index code", "Cross-session recall works today"], "cons": ["Keeps a third-party binary, install step and MCP surface the project explicitly wants gone", "Two sources of truth (Engram SQLite vs project JSON)", "Semantic ranking is not under the project's control"] },
+    { "option": "Port Engram's design as-is: a Go binary with SQLite+FTS5 as the source of truth", "pros": ["Proven design", "Fast FTS5 search out of the box"], "cons": ["Adds a compiled binary and a non-Python runtime to a Python reference implementation", "SQLite-as-truth conflicts with ADR-0003 file-per-artifact storage", "Duplicates a whole product to keep a fraction of it"] },
+    { "option": "Implement in-repo: JSON remains canonical (ADR-0003), plus a derived, rebuildable SQLite+FTS5 index for fast lexical search and an optional local embedding backend for semantic rerank, with one extended memory schema and agent context via the existing read-only intelligence pipeline", "pros": ["Preserves ADR-0003: the derived index can be deleted and rebuilt, never a source of truth", "No external service, no per-query cost (local embeddings), lexical path is stdlib-only", "One record schema and one query path; degrades gracefully to lexical where FTS5 or the embedding model is unavailable", "Reuses the existing se intelligence memory_context seam instead of inventing a new injection mechanism"], "cons": ["More code than finishing the stubs", "A derived index must be kept in sync and rebuilt when missing or corrupt", "Semantic search needs an optional dependency (numpy-based static embeddings) and a one-time model download"] }
+  ],
+  "decision": "Remove Engram completely (installer, MCP templates, .opencode config, documentation, agent tool matrices and the assistant runtime registration) and implement memory natively. Canonical storage stays file-per-artifact JSON (ADR-0003). A derived, disposable SQLite+FTS5 index is added for fast lexical retrieval and is rebuildable from the JSON at any time; when FTS5 is unavailable the engine falls back to a pure-Python scan so the reference implementation keeps working. Semantic retrieval is provided by an optional local embedding backend (static, numpy-based sentence embeddings, model cached under .se/models/) used as a reranker over lexical candidates; it is an opt-in extra, has no network or per-query cost, and its absence degrades to lexical ranking. The memory_record schema is extended minimally (new types 'session' and 'prompt', optional fields topic_key, revision_count, duplicate_count, last_seen_at, deleted_at, review_after, state) rather than adding parallel schemas, so there is a single store and a single query path. Ingesting the ideas taken from Engram: topic_key upserts (family/description, lowercase kebab-case, max two levels) with revision_count; exact dedupe by hash+project+scope+type+title with duplicate_count/last_seen_at; soft delete with optional hard delete; per-type review_after prompting a needs_review state; progressive disclosure (search returns compact hits, then full content by id); and explicit relation verdicts (related/compatible/scoped/conflicts_with/supersedes/not_conflict). Agent context injection reuses the existing read-only se intelligence pipeline, whose result already carries memory_context, plus a documented session-start convention.",
+  "reason": "The internal engine is already the declared source of truth and already survives without Engram, so the cheapest correct move is to finish it rather than depend on a product the project has decided to drop. Keeping JSON canonical satisfies ADR-0003 and makes the whole search layer disposable: a corrupt or missing index is never data loss, only a rebuild. A stdlib-only lexical path guarantees the reference implementation never breaks on a machine without FTS5 or numpy, while an optional local embedding backend adds semantics without network calls or per-query spend, which is what performance and cost control demand. A single extended record schema avoids parallel stores and duplicate query code, and reusing the intelligence pipeline's memory_context avoids adding a second injection mechanism. Engram's ideas are worth keeping; its stack and its service are not.",
+  "consequences": "Engram disappears from the installer, MCP templates, .opencode configuration, agent capability matrices and documentation; the assistant runtime registration is removed by the operator, not by this repo. The memory_record schema changes (new type values and optional fields), which is a contract change: SCHEMAS/index.json consumers and the adapter must be regenerated and se validate must pass. A new derived index (SQLite+FTS5) and its rebuild path are added under a project-local, gitignored location; the optional semantic extra adds numpy plus a cached model artefact and is never required. Sessions and prompts become first-class records, enabling cross-session summaries and prompt history without Engram. Documentation under DOCS/reference that is tracked by content hash must be updated through the governed se coverage rebase. Known limits stay explicit: no cloud sync, no cross-machine replication, and the semantic backend is opt-in.",
+  "affected_components": [
+    "SCHEMAS/memory/record.schema.json",
+    "SCHEMAS/index.json",
+    "SCRIPTS/se_core/memory/engine.py",
+    "SCRIPTS/se_core/commands.py",
+    "SCRIPTS/se_core/cli.py",
+    "SCRIPTS/se_core/intelligence/engine.py",
+    "SCRIPTS/se_core/install.py",
+    "TEMPLATES/mcp/engram.json.tmpl",
+    ".opencode/mcp/engram.json",
+    "DOCS/reference/se-installer.md",
+    "DOCS/reference/installation.md",
+    "DOCS/reference/architecture.md",
+    "README.md",
+    "TESTS/test_memory.py"
+  ],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "shema-ai-coordinador",
+  "created_at": "2026-10-16T00:00:00Z",
+  "updated_at": "2026-10-16T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "INTERNAL-MEMORY-REPLACING-ENGRAM",
+    "depends_on_adr": ["ADR-0003"],
+    "replaces_external": "engram (third-party MCP memory server)",
+    "ideas_taken_from_engram": [
+      "SQLite + FTS5 lexical index",
+      "topic_key upserts with revision_count",
+      "exact dedupe with duplicate_count/last_seen_at",
+      "soft delete with optional hard delete",
+      "per-type review_after and needs_review state",
+      "progressive disclosure (search -> timeline -> full content)",
+      "explicit relation verdicts between memories",
+      "session summaries with a fixed section shape"
+    ],
+    "decisions_taken_here": {
+      "records_shape": "one extended memory_record schema, no parallel stores",
+      "storage": "JSON canonical (ADR-0003) + derived rebuildable SQLite+FTS5 index",
+      "semantic": "optional local numpy-based embeddings as a reranker, lexical fallback always available",
+      "injection": "reuse read-only se intelligence memory_context plus a documented session-start convention",
+      "addressing": "memory IDs are project-scoped: single-record operations (get/update/link/supersede) require an explicit project scope, and cross-project listing is query; an unscoped single-record lookup resolves to nothing rather than guessing a project"
+    },
+    "open_questions": [
+      "Add a release-time check that the derived index rebuilds deterministically?",
+      "Should the assistant runtime registration removal be scripted in se uninstall as well?"
+    ]
+  }
+}

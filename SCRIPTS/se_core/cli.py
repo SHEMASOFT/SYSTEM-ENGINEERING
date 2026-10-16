@@ -525,6 +525,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_link.add_argument("--related-id", required=True, help="Related memory ID")
 
+    p_mem_link.add_argument("--project", required=True, help="Managed project workspace (memory IDs are project-scoped)")
+
     p_mem_link.add_argument("--relation", default="related", choices=["related", "supersedes", "superseded_by"], help="Relation type")
 
     p_mem_link.set_defaults(func=commands.cmd_memory)
@@ -535,7 +537,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_update.add_argument("--memory-id", required=True, help="Memory ID to update")
 
-    p_mem_update.add_argument("--project", default=None, help="Managed project workspace")
+    p_mem_update.add_argument("--project", required=True, help="Managed project workspace (memory IDs are project-scoped)")
 
     p_mem_update.add_argument("--updates", required=True, help="Updates as JSON")
 
@@ -549,7 +551,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_supersede.add_argument("--new-id", required=True, help="New memory ID that supersedes")
 
-    p_mem_supersede.add_argument("--project", required=True, help="Managed project workspace")
+    p_mem_supersede.add_argument("--project", required=True, help="Managed project workspace (memory IDs are project-scoped)")
 
     p_mem_supersede.set_defaults(func=commands.cmd_memory)
 
