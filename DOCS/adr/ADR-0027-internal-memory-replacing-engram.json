@@ -30,14 +30,15 @@
     "DOCS/reference/architecture.md",
     "README.md",
     "TESTS/test_memory.py",
-    "TESTS/test_memory_index.py"
+    "TESTS/test_memory_index.py",
+    "TESTS/test_memory_dedupe.py"
   ],
   "status": "ACCEPTED",
   "supersedes": null,
   "superseded_by": null,
   "author": "shema-ai-coordinador",
   "created_at": "2026-10-16T00:00:00Z",
-  "updated_at": "2026-10-16T05:55:52Z",
+  "updated_at": "2026-10-16T06:29:31Z",
   "related_tasks": [],
   "related_requirements": [],
   "metadata": {
@@ -60,11 +61,13 @@
       "index": "one derived index per engine root at .se/memory/index.db (gitignored, disposable, never a source of truth; dropping the file is a valid recovery), rather than one index per project: a cross-project search stays a single query, there is one file to rebuild or drop, and no master-system cache is written into a managed project workspace. Staying current is stat-only: the inventory is (project_id, memory_id) -> mtime_ns:size and only new or changed records are parsed, so a refresh never re-reads unchanged JSON. Search requires every term (AND) and returns compact hits; scores are backend-relative (bm25 negated, or term frequency on the scan fallback), so they compare within one result set only. An unusable index file is dropped and rebuilt once, then search falls back to the pure-Python scan",
       "semantic": "optional local numpy-based embeddings as a reranker, lexical fallback always available",
       "injection": "reuse read-only se intelligence memory_context plus a documented session-start convention",
-      "addressing": "memory IDs are project-scoped: single-record operations (get/update/link/supersede) require an explicit project scope, and cross-project listing is query; an unscoped single-record lookup resolves to nothing rather than guessing a project"
+      "addressing": "memory IDs are project-scoped: single-record operations (get/update/link/supersede) require an explicit project scope, and cross-project listing is query; an unscoped single-record lookup resolves to nothing rather than guessing a project",
+      "dedupe_lifecycle": "topic_key is an explicit upsert key, not identity: a save repeating an active topic_key in the same project revises that record in place and grows revision_count, so a family of related saves stays one memory. Exact dedupe is opt-in (add(dedupe=True) / --dedupe), because identical text can still be two genuinely distinct records and a plain add must never silently swallow one; when opted in, an identical content hash in the same project and type updates duplicate_count/last_seen_at instead of creating a copy. state is a real lifecycle, not a label: deprecated is a soft delete that keeps the file and keeps the record out of query and search unless asked for by name (query --state deprecated, search include_deprecated), and a deprecated record neither captures a topic_key nor satisfies exact dedupe. The derived index carries state and its format is versioned (INDEX_SCHEMA_VERSION), so a column change discards and rebuilds the file instead of mixing two layouts"
     },
     "open_questions": [
       "Add a release-time (doctor) check that the derived index reindexes deterministically? Rebuild determinism is already covered by TESTS/test_memory_index.py; what remains open is whether the doctor itself should verify it.",
-      "Should the assistant runtime registration removal be scripted in se uninstall as well?"
+      "Should the assistant runtime registration removal be scripted in se uninstall as well?",
+      "No hard delete exists yet: deprecated hides a record but keeps it on disk. Is hiding enough, or does the project want a governed purge that records evidence of what it removed?"
     ]
   }
 }

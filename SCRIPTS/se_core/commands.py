@@ -4125,8 +4125,23 @@ def cmd_memory(args) -> int:
                 related_memories=args.related.split(",") if args.related else None,
                 supersedes=args.supersedes,
                 source="cli",
+                topic_key=args.topic_key,
+                review_after=args.review_after,
+                state=args.state or "active",
+                dedupe=bool(args.dedupe),
             )
-            print(f"PASS: created {result['memory_id']}")
+            if result["status"] == "revised":
+                print(
+                    f"PASS: revised {result['memory_id']} "
+                    f"(revision {result['revision_count']})"
+                )
+            elif result["status"] == "deduplicated":
+                print(
+                    f"PASS: deduplicated into {result['memory_id']} "
+                    f"(seen {result['duplicate_count'] + 1}x)"
+                )
+            else:
+                print(f"PASS: created {result['memory_id']}")
             return 0
         except Exception as exc:
             print(f"FAIL: memory add failed: {exc}")
@@ -4151,6 +4166,7 @@ def cmd_memory(args) -> int:
             since=args.since,
             until=args.until,
             tags_mode=args.tags_mode,
+            state=args.state,
             limit=args.limit,
             offset=args.offset,
         )

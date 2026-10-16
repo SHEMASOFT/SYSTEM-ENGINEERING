@@ -7,6 +7,7 @@ Provides structured, queryable memory backed by canonical JSON records
 from __future__ import annotations
 
 import json
+import hashlib
 import random
 import re
 from collections import Counter
@@ -140,12 +141,75 @@ class MemoryEngine:
         supersedes: Optional[str] = None,
         source: str = "manual",
         metadata: Optional[Dict[str, Any]] = None,
+        topic_key: Optional[str] = None,
+        revision_count: int = 0,
+        duplicate_count: int = 0,
+        last_seen_at: Optional[str] = None,
+        review_after: Optional[str] = None,
+        state: str = "active",
+        dedupe: bool = False,
     ) -> Dict[str, Any]:
-        """Create a new memory record."""
+        """Create a new memory record.
+
+        Three shapes, chosen by the caller rather than guessed:
+
+        * plain ``add`` appends a new record, always;
+        * ``topic_key`` is an explicit upsert key: an existing active record in
+          the same project is revised in place and its ``revision_count`` grows;
+        * ``dedupe=True`` makes the call idempotent by content: an identical
+          ``content`` in the same project and type is treated as the same memory
+          and its ``duplicate_count``/``last_seen_at`` are updated instead of
+          creating a copy.
+        """
         # Validate project exists
         project_dir = self._find_project_dir(project_id)
         if not project_dir:
             raise ValueError(f"Project {project_id} not found")
+
+        # Dedupe: topic_key is an upsert key, not an identity
+        existing = None
+        if topic_key:
+            existing = self._find_by_topic_key(project_id, topic_key)
+            if existing:
+                # Revision: update in place, bump counters
+                existing.revision_count += 1
+                existing.content = content
+                existing.tags = tags or existing.tags
+                existing.updated_at = now_utc()
+                existing.last_seen_at = now_utc()
+                self._prepare_for_write(existing)
+                self._write_record(project_dir, existing)
+                return {
+                    "memory_id": existing.memory_id,
+                    "status": "revised",
+                    "revision_count": existing.revision_count,
+                }
+
+        # Exact dedupe: same content hash within same project+type. Opt-in, because
+        # identical text can still be two genuinely distinct records and `add` must
+        # not silently swallow one of them.
+        if dedupe:
+            content_hash = hashlib.sha256(
+                json.dumps(content, sort_keys=True).encode()
+            ).hexdigest()
+            for _dir, record in self._iter_records(project_id):
+                if record.type != type:
+                    continue
+                if record.state == "deprecated":
+                    continue
+                existing_hash = hashlib.sha256(
+                    json.dumps(record.content, sort_keys=True).encode()
+                ).hexdigest()
+                if existing_hash == content_hash:
+                    record.duplicate_count += 1
+                    record.last_seen_at = now_utc()
+                    self._prepare_for_write(record)
+                    self._write_record(project_dir, record)
+                    return {
+                        "memory_id": record.memory_id,
+                        "status": "deduplicated",
+                        "duplicate_count": record.duplicate_count,
+                    }
 
         # Generate ID
         memory_id = self._generate_memory_id(project_id)
@@ -160,12 +224,18 @@ class MemoryEngine:
             confidence=confidence,
             created_at=now_utc(),
             updated_at=now_utc(),
-            author=author,  # Fixed: was source, should be author
+            author=author,
             source=source,
             related_memories=related_memories or [],
             supersedes=None,
             superseded_by=None,
             metadata=metadata or {},
+            topic_key=topic_key,
+            revision_count=revision_count,
+            duplicate_count=duplicate_count,
+            last_seen_at=last_seen_at,
+            review_after=review_after,
+            state=state,
         )
 
         # Validate and persist atomically (LF, no half-written record).
@@ -182,14 +252,21 @@ class MemoryEngine:
         since: Optional[str] = None,
         until: Optional[str] = None,
         tags_mode: str = "any",
+        state: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> Dict[str, Any]:
-        """Query memories with filters."""
+        """Query memories with filters.
+
+        Deprecated records are soft-deleted: they stay on disk and out of the
+        results unless ``state="deprecated"`` asks for them by name.
+        """
         # The project memory files are the deterministic, auditable source of
         # truth (ADR-0003). The derived search index of ADR-0027 is a separate
         # concern and must not add latency or stderr noise to a plain query.
-        memories = self._scan_local_memories(project_id, types, tags, author, since, until, tags_mode)
+        memories = self._scan_local_memories(
+            project_id, types, tags, author, since, until, tags_mode, state
+        )
 
         # Apply pagination
         total = len(memories)
@@ -234,12 +311,14 @@ class MemoryEngine:
         types: Optional[List[str]] = None,
         limit: int = 10,
         offset: int = 0,
+        include_deprecated: bool = False,
     ) -> Dict[str, Any]:
         """Lexical search over memory records (ADR-0027).
 
         Uses the derived FTS5 index when it is available and falls back to a
         pure-Python scan otherwise, so a result never depends on a cache being
         present. Hits are compact: fetch a full record with :meth:`get`.
+        Deprecated (soft-deleted) records stay out unless asked for.
         """
         terms = tokenize(text)
         if not terms:
@@ -248,11 +327,21 @@ class MemoryEngine:
         index = MemoryIndex(self.root)
         revisions, paths = self._index_scope(project_id)
         hits = self._indexed_search(
-            index, revisions, paths, text, project_id, types, limit, offset
+            index,
+            revisions,
+            paths,
+            text,
+            project_id,
+            types,
+            limit,
+            offset,
+            include_deprecated,
         )
         backend = "fts5"
         if hits is None:
-            hits = self._lexical_search(text, project_id, types, limit, offset)
+            hits = self._lexical_search(
+                text, project_id, types, limit, offset, include_deprecated
+            )
             backend = "scan"
 
         by_type: Dict[str, int] = {}
@@ -287,6 +376,7 @@ class MemoryEngine:
         types: Optional[List[str]],
         limit: int,
         offset: int,
+        include_deprecated: bool = False,
     ) -> Optional[List[Dict[str, Any]]]:
         """Search through the derived index, or ``None`` to fall back to a scan.
 
@@ -301,7 +391,12 @@ class MemoryEngine:
             try:
                 index.sync(revisions, load)
                 return index.search(
-                    text, project_id=project_id, types=types, limit=limit, offset=offset
+                    text,
+                    project_id=project_id,
+                    types=types,
+                    limit=limit,
+                    offset=offset,
+                    include_deprecated=include_deprecated,
                 )
             except INDEX_ERRORS:
                 if attempt == 1:
@@ -316,6 +411,7 @@ class MemoryEngine:
         types: Optional[List[str]],
         limit: int,
         offset: int,
+        include_deprecated: bool = False,
     ) -> List[Dict[str, Any]]:
         """Pure-Python fallback, used when FTS5 is missing or the index fails.
 
@@ -328,6 +424,8 @@ class MemoryEngine:
 
         for _project_dir, record in self._iter_records(project_id):
             if types and record.type not in types:
+                continue
+            if not include_deprecated and record.state == "deprecated":
                 continue
             haystack = flatten_content(record.content) + " " + " ".join(record.tags)
             counts = Counter(tokenize(haystack))
@@ -348,6 +446,7 @@ class MemoryEngine:
                 "project_id": record.project_id,
                 "type": record.type,
                 "created_at": record.created_at,
+                "state": record.state,
                 "tags": list(record.tags),
                 "score": round(score, 6),
                 "snippet": self._snippet(haystack, terms),
@@ -506,6 +605,20 @@ class MemoryEngine:
                     return p
         return None
 
+    def _find_by_topic_key(self, project_id: str, topic_key: str) -> Optional["MemoryRecord"]:
+        """Find the most recent active record with the given topic_key in a project."""
+        project_dir = self._find_project_dir(project_id)
+        if not project_dir:
+            return None
+        matches = []
+        for _dir, record in self._iter_records(project_id):
+            if record.topic_key == topic_key and record.state != "deprecated":
+                matches.append(record)
+        if not matches:
+            return None
+        matches.sort(key=lambda r: r.updated_at, reverse=True)
+        return matches[0]
+
     def _generate_memory_id(self, project_id: str) -> str:
         """Generate MEM-XXXX ID."""
         project_dir = self._find_project_dir(project_id)
@@ -629,12 +742,18 @@ class MemoryEngine:
         since: Optional[str],
         until: Optional[str],
         tags_mode: str,
+        state: Optional[str] = None,
     ) -> List:
         """Scan local memory files with filters."""
         memories = []
 
         for _project_dir, record in self._iter_records(project_id):
             if types and record.type not in types:
+                continue
+            if state:
+                if record.state != state:
+                    continue
+            elif record.state == "deprecated":
                 continue
             if author and record.author != author:
                 continue

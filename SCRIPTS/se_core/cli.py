@@ -473,6 +473,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_add.add_argument("--supersedes", default=None, help="Memory ID this supersedes")
 
+    p_mem_add.add_argument("--topic-key", default=None, help="Family key: an existing record with this key is revised in place instead of duplicated")
+
+    p_mem_add.add_argument("--review-after", default=None, help="ISO date after which this memory should be reviewed")
+
+    p_mem_add.add_argument("--state", default="active", choices=["active", "archived", "needs_review", "deprecated"], help="Lifecycle state")
+
+    p_mem_add.add_argument("--dedupe", action="store_true", help="Idempotent by content: an identical record is counted, not copied")
+
     p_mem_add.add_argument("--by", default=None, help="Author")
 
     p_mem_add.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
@@ -496,6 +504,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_mem_query.add_argument("--until", default=None, help="Filter by created before (ISO date)")
 
     p_mem_query.add_argument("--tags-mode", choices=["any", "all"], default="any", help="Tag match mode")
+
+    p_mem_query.add_argument("--state", default=None, choices=["active", "archived", "needs_review", "deprecated"], help="Filter by lifecycle state (default: all except deprecated)")
 
     p_mem_query.add_argument("--limit", type=int, default=50, help="Max results")
 
