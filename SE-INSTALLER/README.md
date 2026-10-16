@@ -19,7 +19,6 @@ Instalador unificado para **System Engineering Master System (SE)**.
 ### Core (requeridos)
 - **SE Core** — Esquemas, lifecycle, agents, commands, CLI
 - **SE Console** — Consola web local-first read-only (puerto 8777)
-- **Engram** — Memoria persistente cross-session
 
 ### MCPs (seleccionables)
 | MCP | Descripción | Requiere |
@@ -70,7 +69,7 @@ se-installer tui
 # O CLI directo
 se-installer install --recommended     # Solo recomendados
 se-installer install --all             # Todo
-se-installer install -c context7 engram # Selección específica
+se-installer install -c context7 filesystem # Selección específica
 se-installer install --dry-run         # Solo planificar
 se-installer install --shortcuts       # Además, atajo en el Escritorio
 
@@ -165,7 +164,7 @@ se_installer/
 se-installer install --recommended
 
 # Todo menos CodeGraph
-se-installer install -c se_core se_console engram context7 filesystem opencode
+se-installer install -c se_core se_console context7 filesystem opencode
 
 # Solo verificar qué hay instalado
 se-installer status

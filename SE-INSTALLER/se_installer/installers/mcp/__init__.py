@@ -123,105 +123,6 @@ class SequentialThinkingInstaller(BaseInstaller):
         )
 
 
-class EngramInstaller(BaseInstaller):
-    """Engram - Persistent memory MCP."""
-    
-    def check_installed(self) -> tuple[bool, Optional[str]]:
-        result = run_tool("engram", ["--version"], timeout=10)
-        if result and result.returncode == 0:
-            return True, result.stdout.strip()
-        return False, None
-    
-    def install(self) -> InstallResult:
-        self.component.status = InstallStatus.INSTALLING
-        
-        os_type = self._detect_os()
-        
-        if os_type == OSType.WINDOWS:
-            return self._install_windows()
-        elif os_type == OSType.MACOS:
-            return self._install_macos()
-        else:
-            return self._install_linux()
-    
-    def _install_windows(self) -> InstallResult:
-        # Try winget first
-        result = run_tool(
-            "winget",
-            ["install", "--id", "GentlemanProgramming.Engram", "--silent",
-             "--accept-source-agreements", "--accept-package-agreements"],
-            timeout=300,
-        )
-        if result and result.returncode == 0:
-            return self._post_install()
-        
-        # Fallback: download binary
-        import urllib.request
-        url = "https://github.com/Gentleman-Programming/engram/releases/latest/download/engram-windows-amd64.exe"
-        dest = Path.home() / ".local" / "bin" / "engram.exe"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        
-        try:
-            import urllib.request
-            urllib.request.urlretrieve(url, dest)
-            # Add to PATH
-            import os
-            os.environ["PATH"] = str(dest.parent) + os.pathsep + os.environ.get("PATH", "")
-        except Exception as e:
-            return InstallResult(success=False, error=f"Download failed: {e}")
-        
-        return self._post_install()
-    
-    def _install_macos(self) -> InstallResult:
-        # Try Homebrew
-        if shutil.which("brew"):
-            result = run_tool("brew", ["install", "gentleman-programming/tap/engram"], timeout=300)
-            if result and result.returncode == 0:
-                return self._post_install()
-        
-        # Fallback: go install
-        if shutil.which("go"):
-            result = run_tool(
-                "go",
-                ["install", "github.com/Gentleman-Programming/engram/v3/cmd/engram@latest"],
-                timeout=300,
-            )
-            if result and result.returncode == 0:
-                return self._post_install()
-        
-        return InstallResult(success=False, error="No installation method available. Install Homebrew or Go.")
-    
-    def _install_linux(self) -> InstallResult:
-        # Try Homebrew on Linux
-        if shutil.which("brew"):
-            result = run_tool("brew", ["install", "gentleman-programming/tap/engram"], timeout=300)
-            if result and result.returncode == 0:
-                return self._post_install()
-        
-        # Fallback: go install
-        if shutil.which("go"):
-            result = run_tool(
-                "go",
-                ["install", "github.com/Gentleman-Programming/engram/v3/cmd/engram@latest"],
-                timeout=300,
-            )
-            if result and result.returncode == 0:
-                return self._post_install()
-        
-        return InstallResult(success=False, error="No installation method available. Install Homebrew or Go.")
-    
-    def _post_install(self) -> InstallResult:
-        # Setup Engram for OpenCode
-        result = run_tool("engram", ["setup", "opencode"], timeout=60)
-        
-        if result and result.returncode == 0:
-            self.component.status = InstallStatus.SUCCESS
-            return InstallResult(success=True, version="latest", message="Engram installed and configured for OpenCode")
-        else:
-            err = result.stderr if result else "engram not found on PATH"
-            return InstallResult(success=False, error=f"Engram setup failed: {err}")
-
-
 class CodeGraphInstaller(BaseInstaller):
     """CodeGraph - Code intelligence MCP (optional)."""
     
@@ -453,7 +354,6 @@ MCP_INSTALLERS = {
     "playwright": PlaywrightInstaller,
     "firecrawl": FirecrawlInstaller,
     "sequential-thinking": SequentialThinkingInstaller,
-    "engram": EngramInstaller,
     "codegraph": CodeGraphInstaller,
     "rust": RustInstaller,
 }

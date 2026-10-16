@@ -28,6 +28,10 @@ Master System itself (`project_id: PRJ-SYSTEM-ENGINEERING`).
 | [ADR-0021](ADR-0021-plan-identity.json) | Plan identity (EPI-1) as a deterministic convention |
 | [ADR-0022](ADR-0022-readonly-aggregation-minimum-context.json) | Read-only aggregation surface + minimum-context/on-demand policy |
 | [ADR-0023](ADR-0023-auto-01-health-specification.json) | AUTO-01 Health specification for read-only health aggregation |
+| [ADR-0024](ADR-0024-intent-plan-envelopes.json) | Intent and plan envelopes |
+| [ADR-0025](ADR-0025-workflow-node-context-budget.json) | Per-node context budget in the workflow schema |
+| [ADR-0026](ADR-0026-workflow-checkpoint-recovery.json) | Workflow checkpoint recovery (`--resume-from`) |
+| [ADR-0027](ADR-0027-internal-memory-replacing-engram.json) | Internal memory replacing Engram (semantic, in-repo) |
 
 These files are also validated by the test suite as real DECISION artifacts, exercising the
 decision schema in practice.

@@ -293,8 +293,8 @@ class BackupConfigTests(unittest.TestCase):
             root = Path(tmp)
             path = root / "opencode.jsonc"
             path.write_text('{"a": 1}', encoding="utf-8")
-            backup = mcpconfig.backup_config(path, target=root, label="engram", timestamp="20261009T120000Z")
-            self.assertEqual(backup.name, "engram-20261009T120000Z.jsonc")
+            backup = mcpconfig.backup_config(path, target=root, label="context7", timestamp="20261009T120000Z")
+            self.assertEqual(backup.name, "context7-20261009T120000Z.jsonc")
             self.assertTrue(backup.exists())
             self.assertEqual(backup.read_text(encoding="utf-8"), '{"a": 1}')
 

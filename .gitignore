@@ -78,7 +78,9 @@ PROJECTS/*
 .local/
 
 # Memory records written by skills (runtime provenance; never committed)
-MEMORY/
+# Anchored to the repository root so it does not shadow source packages that
+# happen to be named "memory" (e.g. SCRIPTS/se_core/memory, SCHEMAS/memory).
+/MEMORY/
 
 # Internal working records (audits, reviews, evidence, checkpoints, initiatives):
 # kept locally for provenance, never published

@@ -3,8 +3,8 @@
 This module implements the setup pipeline behind the ``se install`` command:
 
 1. detect the host OS (``windows`` | ``linux`` | ``macos``);
-2. preflight external tools (python interpreter, the ``opencode`` CLI,
-   ``engram``) with per-OS guidance — no automatic installation in v1.
+2. preflight external tools (python interpreter, the ``opencode`` CLI) with
+   per-OS guidance — no automatic installation in v1.
    ``node``/``npx`` is only required when MCP servers that depend on it
    (``context7``, ``filesystem``) are selected;
 3. optionally run the unified SE installer (``se-installer``) via ``--bootstrap``
@@ -88,25 +88,11 @@ DEPENDENCIES = (
             "macos": "Install the OpenCode CLI: brew install sst/tap/opencode.",
         },
     },
-    {
-        "name": "engram",
-        "commands": ("engram",),
-        "purpose": "Persistent memory MCP.",
-        "guidance": {
-            "windows": "Install the Engram binary from "
-                       "https://github.com/Gentleman-Programming/engram (prebuilt release) "
-                       "and run: engram setup opencode.",
-            "linux": "brew install gentleman-programming/tap/engram (or "
-                     "go install github.com/Gentleman-Programming/engram/v3/cmd/engram@latest).",
-            "macos": "brew install gentleman-programming/tap/engram and run: engram setup opencode.",
-        },
-    },
 )
 
 #: MCP server key -> dependency name required to launch it (see :data:`DEPENDENCIES`).
 SERVER_DEPENDENCY = {
     "context7": "node",
-    "engram": "engram",
     "filesystem": "node",
     "skill-server": "python",
 }
@@ -433,7 +419,7 @@ def preflight_dependencies(
     probed when ``context7`` or ``filesystem`` are in the selected servers.
 
     ``probe`` is an optional ``command -> (ok, version, detail)`` callable
-    (see :func:`probe_command_version`). When provided, node/opencode/engram are
+    (see :func:`probe_command_version`). When provided, node/opencode are
     *executed* instead of only looked up, so a broken npm install (a stub whose
     postinstall never ran) or an OpenCode v1 binary is reported with a remedy
     instead of a false PASS. Tests leave it ``None`` to stay hermetic.
@@ -464,7 +450,7 @@ def preflight_dependencies(
         detail = found_command or f"not found (tried: {', '.join(dep['commands'])})"
         guidance = dep["guidance"][os_name]
 
-        if found_command and probe is not None and dep["name"] in ("node", "opencode", "engram"):
+        if found_command and probe is not None and dep["name"] in ("node", "opencode"):
             ok, version, probe_detail = probe(found_command)
             if dep["name"] == "opencode":
                 status, note, remedy = classify_opencode(

@@ -163,7 +163,6 @@ python3 SCRIPTS/se.py install --bootstrap   # run se-installer, then register
 
 | MCP | What it is for | Third party |
 |---|---|---|
-| `engram` | Persistent memory across sessions | yes |
 | `context7` | Up-to-date library documentation | yes |
 | `filesystem` | Read/write files under a root (MCP reference server) | yes |
 | `skill-server` | SE's own stdio skill server (SDD/ODD tools) | SE-owned |
@@ -188,14 +187,14 @@ python3 SCRIPTS/se.py install --bootstrap   # run se-installer, then register
 Examples:
 
 ```bash
-python3 SCRIPTS/se.py install --with engram,context7         # only these two
+python3 SCRIPTS/se.py install --with context7,filesystem      # only these two
 python3 SCRIPTS/se.py install --global                       # user config, not the project
 python3 SCRIPTS/se.py install --no-register --project PROJECTS/MyApp
 python3 SCRIPTS/se.py install --generate-adapter --project PROJECTS/MyApp
 ```
 
-A server whose external binary is missing (for example `engram` before Engram is
-installed) is **skipped** with per-OS install guidance; `se install` never installs
+A server whose external binary is missing (for example `context7` before its CLI is
+available) is **skipped** with per-OS install guidance; `se install` never installs
 third-party tools itself. The python interpreter name is resolved at registration time
 (`python3`, else `python`), and `se install` only registers a server when its dependency
 is present.
@@ -208,9 +207,10 @@ Registered servers land under `mcp.servers.<name>` in `opencode.json(c)`. A loca
 {
   "mcp": {
     "servers": {
-      "engram": {
+      "filesystem": {
         "type": "local",
-        "command": ["engram", "mcp"],
+        "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem",
+                    "/path/to/project"],
         "disabled": false
       }
     }
@@ -295,29 +295,22 @@ Installing SE with `se-installer install --shortcuts` (or the checkbox in
 `se-installer tui`) creates **one** desktop shortcut that starts the console. There is no
 Stop shortcut: the console stops itself (DESIGN-5C D3).
 
-### Engram (persistent memory)
+### Memory (built-in)
 
-Engram is an **independent, third-party tool** with its own repository:
-[`github.com/Gentleman-Programming/engram`](https://github.com/Gentleman-Programming/engram).
-SE neither bundles it nor pins its executable path. Install it, then either let Engram
-register itself (`engram setup opencode`, which also installs the session-tracking plugin)
-or let `se install` register its MCP entry.
+SE's persistent memory is **internal**: no third-party tool and no MCP server is
+required. Storage is JSON under `<root>/.se/memory/` with a derived, rebuildable
+SQLite/FTS5 index (`se memory index --rebuild`), and semantic search is an optional
+reranker over those results (`se memory index --embeddings <vec>` or
+`SE_MEMORY_EMBEDDINGS`) that never touches the network.
 
 ```bash
-# Homebrew (macOS / Linux)
-brew install gentleman-programming/tap/engram
-
-# or build the current v3 line from source:
-go install github.com/Gentleman-Programming/engram/v3/cmd/engram@latest
-
-# or download a prebuilt binary from the official Releases page.
+python3 SCRIPTS/se.py memory add --type decision --title "..." --body "..."
+python3 SCRIPTS/se.py memory search "topic keywords"
+python3 SCRIPTS/se.py intelligence --memory "topic"   # read-only context injection
 ```
 
-If you prefer to edit `opencode.json` by hand, use the V2 shape shown above:
-`mcp.servers.engram` with `disabled` — never the old `mcp.engram` with `enabled`.
-
 The variables to set for the registered servers (`SE_ROOT`, `SE_PROJECT_ROOT`,
-`ENGRAM_PROJECT`, `CONTEXT7_API_KEY`, ...) are listed under **Environment variables**
+`CONTEXT7_API_KEY`, ...) are listed under **Environment variables**
 below; `se install` prints the same list in its summary.
 
 > **Recommended wording for users:** *"For additional capabilities you may install these
@@ -364,7 +357,7 @@ python3 SCRIPTS/se.py intelligence --project PROJECTS/MyApp
 |---|---|
 | `SE_ROOT` | Canon repository root (referenced by generated MCP configs) |
 | `SE_PROJECT_ROOT` | Project root being adapted (referenced by generated MCP configs) |
-| `ENGRAM_PROJECT`, `CONTEXT7_API_KEY`, ... | Optional third-party MCP settings (Engram project name; API keys) |
+| `CONTEXT7_API_KEY`, ... | Optional third-party MCP settings (API keys) |
 
 ---
 

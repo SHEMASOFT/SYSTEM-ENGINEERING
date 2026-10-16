@@ -107,14 +107,16 @@ class TestCmdInstall:
             skip_verification=False, json=True,
             bootstrap=False, bootstrap_components=None, bootstrap_runtimes=None
         )
-        with patch('se_installer.cli.InstallerOrchestrator') as mock_orch_class:
+        # cmd_install imports InstallerOrchestrator from .orchestrator at call
+        # time, so the patch target is the source module, not se_installer.cli.
+        with patch('se_installer.orchestrator.InstallerOrchestrator') as mock_orch_class:
             mock_orch = Mock()
             # The real get_summary uses actual component data, mock the whole method
             mock_orch.get_summary.return_value = {
                 "total": 7, "success": 7, "failed": 0, "skipped": 6,
                 "components": [
                     {"id": "se_core", "name": "SE Core", "status": "success", "version": "dry-run", "error": None},
-                    {"id": "engram", "name": "Engram", "status": "success", "version": "dry-run", "error": None},
+                    {"id": "playwright", "name": "Playwright MCP", "status": "success", "version": "dry-run", "error": None},
                     {"id": "context7", "name": "Context7", "status": "success", "version": "dry-run", "error": None},
                     {"id": "filesystem", "name": "Filesystem MCP", "status": "success", "version": "dry-run", "error": None},
                     {"id": "node", "name": "Node.js / npx", "status": "success", "version": "dry-run", "error": None},

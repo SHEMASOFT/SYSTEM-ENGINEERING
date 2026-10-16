@@ -125,14 +125,14 @@ Gates are evaluated by the **coordinator** agent via `se gate`. See `DOCS/refere
 | Prefix | Example | Resolved from |
 |---|---|---|
 | `context:` | `context:requirements` | Previous node outputs (merged into execution context) |
-| `memory:` | `memory:analysis_result` | Engram memory (project-scoped) |
+| `memory:` | `memory:analysis_result` | SE internal memory (project-scoped) |
 | `literal:` | `literal:backend` | Static value (string after `literal:`) |
 | *(none)* | `requirements` | Treated as `context:requirements` |
 
 ### Resolution order
 
 1. `context:` — execution context (outputs from completed nodes)
-2. `memory:` — Engram persistent memory (`se memory get`)
+2. `memory:` — SE internal persistent memory (`se memory get`)
 3. `literal:` — static string
 4. bare key — falls back to `context:`
 
@@ -142,7 +142,7 @@ Gates are evaluated by the **coordinator** agent via `se gate`. See `DOCS/refere
 
 | Prefix | Example | Stored in |
 |---|---|---|
-| `memory:` | `memory:analysis_result` | Engram (persistent, project-scoped) |
+| `memory:` | `memory:analysis_result` | SE internal memory (persistent, project-scoped) |
 | `artifact:` | `artifact:implementation` | Project artifact store (`PROJECTS/<name>/artifacts/`) |
 | `evidence:` | `evidence:verification_result` | Evidence log (`PROJECTS/<name>/evidence/`) |
 | `context:` | `context:analysis` | Execution context only (ephemeral, next nodes) |
@@ -375,5 +375,5 @@ python SCRIPTS/se.py orchestrate execute --project PROJECTS/MyApp --workflow WF-
 
 - `se orchestrate --help` — CLI reference
 - `DOCS/reference/gates.md` — Gate definitions and evaluation
-- `DOCS/reference/memory.md` — Engram memory model
+- `DOCS/reference/memory.md` — SE internal memory model
 - `SCHEMAS/workflow/workflow.schema.json` — Authoritative schema

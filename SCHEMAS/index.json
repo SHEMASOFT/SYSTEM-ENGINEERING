@@ -24,6 +24,7 @@
     "skill_contract": "SCHEMAS/skill-contract.schema.json",
     "adapter_manifest": "SCHEMAS/adapter-manifest.schema.json",
     "capability": "SCHEMAS/capability/capability.schema.json",
+    "checkpoint": "SCHEMAS/checkpoint/checkpoint.schema.json",
     "installation_manifest": "SCHEMAS/installation-manifest.schema.json",
     "project_context": "SCHEMAS/project-context.schema.json",
     "auto": "SCHEMAS/auto.schema.json",

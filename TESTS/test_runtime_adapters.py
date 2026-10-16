@@ -53,7 +53,7 @@ class ClaudeCodeAdapterTests(unittest.TestCase):
             data = json.loads((Path(tmp) / ".mcp.json").read_text(encoding="utf-8"))
             self.assertEqual(
                 sorted(data["mcpServers"]),
-                ["context7", "engram", "filesystem", "se-skill-server"],
+                ["context7", "filesystem", "se-skill-server"],
             )
             text = json.dumps(data)
             # Portable by construction: no absolute host paths in the config.
@@ -76,7 +76,7 @@ class CodexAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             runtimes.generate_codex(ROOT, Path(tmp))
             config = (Path(tmp) / ".codex" / "config.toml").read_text(encoding="utf-8")
-            for name in ("context7", "engram", "filesystem", "se-skill-server"):
+            for name in ("context7", "filesystem", "se-skill-server"):
                 self.assertIn(f"[mcp_servers.{name}]", config)
             self.assertIn("[agents.shema-ai-coordinador]", config)
             self.assertIn("config_file = \"agents/shema-ai-coordinador.toml\"", config)

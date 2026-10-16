@@ -6,7 +6,7 @@ The **SE Installer** (`se-installer`) is a standalone package that provides an i
 
 - **SE Core** — schemas, lifecycle, agents, commands, CLI (`se.py`)
 - **SE Console** — local-first read-only web console (http://localhost:8777)
-- **MCPs** — Model Context Protocol servers (Context7, Filesystem, Sequential Thinking, Playwright, Firecrawl, Engram, CodeGraph)
+- **MCPs** — Model Context Protocol servers (Context7, Filesystem, Sequential Thinking, Playwright, Firecrawl, CodeGraph)
 - **Runtime Adapters** — OpenCode, Codex CLI, Claude Code
 - **User-selectable Models** — not tied to specific models; free tiers for OpenCode
 
@@ -41,7 +41,6 @@ se_installer/
 |----|------|------|----------|-------------|----------------|
 | `se_core` | SE Core | `se_core` | Core | ✅ | pip (vendored) |
 | `se_console` | SE Console | `se_console` | Core | ✅ | vendored |
-| `engram` | Engram | `mcp` | Memory | ✅ | binary (GitHub releases) |
 | `context7` | Context7 | `mcp` | Documentation | ✅ | npx |
 | `filesystem` | Filesystem MCP | `mcp` | File Operations | ✅ | npx |
 | `playwright` | Playwright MCP | `mcp` | Browser Automation | ❌ | npx + `playwright install chromium` |
@@ -132,7 +131,6 @@ Each MCP declares:
 | Filesystem | stdio | `npx -y @modelcontextprotocol/server-filesystem <root>` | `read_file`, `write_file`, `list_directory`, `search_files` | Node |
 | Playwright | stdio | `npx -y @playwright/mcp` | `navigate`, `click`, `screenshot`, `fill_form`, `evaluate` | Node, Chromium |
 | Firecrawl | stdio | `npx -y firecrawl-mcp` | `scrape`, `crawl`, `search` | Node, `FIRECRAWL_API_KEY` |
-| Engram | stdio | `engram mcp --tools=agent` | `mem_save`, `mem_search`, `mem_get` | binary |
 | CodeGraph | stdio | `codegraph-mcp` | `blast_radius`, `go_to_definition`, `find_references`, `impact_analysis` | Rust/cargo |
 
 ---
@@ -147,17 +145,17 @@ Each agent type declares:
 
 | Agent | Required MCPs | Preferred Model | Fallbacks |
 |-------|---------------|-----------------|-----------|
-| Analyst | context7, filesystem, engram | deepseek-r1-free | gpt-4o-mini, claude-3.5-haiku |
+| Analyst | context7, filesystem | deepseek-r1-free | gpt-4o-mini, claude-3.5-haiku |
 | Architect | context7, filesystem, codegraph | claude-3.5-sonnet | gpt-4o, deepseek-r1-free |
-| Implementer | filesystem, engram | claude-3.5-sonnet | gpt-4o, qwen-2.5-coder-free |
+| Implementer | filesystem | claude-3.5-sonnet | gpt-4o, qwen-2.5-coder-free |
 | Tester | filesystem, playwright | gpt-4o-mini | claude-3.5-haiku, deepseek-r1-free |
 | Reviewer | filesystem, codegraph | claude-3.5-sonnet | gpt-4o, deepseek-r1-free |
-| Planner | context7, filesystem, engram | claude-3.5-sonnet | gpt-4o, deepseek-r1-free |
-| Coordinator | engram, filesystem | claude-3.5-sonnet | gpt-4o, deepseek-r1-free |
+| Planner | context7, filesystem | claude-3.5-sonnet | gpt-4o, deepseek-r1-free |
+| Coordinator | filesystem | claude-3.5-sonnet | gpt-4o, deepseek-r1-free |
 | Explorer | filesystem, context7 | deepseek-r1-free | claude-3.5-sonnet, gpt-4o-mini |
 | Security | filesystem, codegraph | claude-3.5-sonnet | gpt-4o, deepseek-r1-free |
 | Documentation | context7, filesystem | gpt-4o-mini | claude-3.5-haiku, gemini-flash-free |
-| DevOps | filesystem, engram | gpt-4o-mini | claude-3.5-haiku, deepseek-r1-free |
+| DevOps | filesystem | gpt-4o-mini | claude-3.5-haiku, deepseek-r1-free |
 | Visual | playwright, filesystem | gpt-4o-mini | gemini-flash-free, claude-3.5-haiku |
 
 ### Usage
@@ -273,11 +271,11 @@ mcps = rcg.get_mcp_selection_menu("opencode")
 ## CLI Usage
 
 ```bash
-# Install recommended components (SE Core, Console, Engram, Context7, Filesystem, Node, OpenCode)
+# Install recommended components (SE Core, Console, Context7, Filesystem, Node, OpenCode)
 se-installer install --recommended
 
 # Install specific components
-se-installer install -c se_core se_console engram context7 filesystem opencode
+se-installer install -c se_core se_console context7 filesystem opencode
 
 # Install all components
 se-installer install --all
@@ -358,7 +356,7 @@ State persisted to `~/.se-installer/state.json`:
 {
   "plan": { ... },
   "components": [
-    { "id": "engram", "status": "success", "installed_version": "3.2.1", ... }
+    { "id": "context7", "status": "success", "installed_version": "latest", ... }
   ],
   "created_at": "2026-10-11T19:00:00Z",
   "completed_at": "2026-10-11T19:02:00Z"
@@ -430,5 +428,4 @@ python -m se_installer.cli doctor --json
 - [Model Context Protocol Spec](https://modelcontextprotocol.io)
 - [OpenCode Zen Free Models](https://opencode.ai/docs/zen)
 - [Context7 API](https://context7.com)
-- [Engram Memory](https://github.com/Gentleman-Programming/engram)
 - [CodeGraph](https://codegraph.dev)

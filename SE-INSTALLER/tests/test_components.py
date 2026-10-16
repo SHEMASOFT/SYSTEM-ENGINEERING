@@ -22,8 +22,6 @@ class TestComponentsCatalog:
         # Core
         assert "se_core" in ids
         assert "se_console" in ids
-        # Memory
-        assert "engram" in ids
         # MCPs
         assert "context7" in ids
         assert "filesystem" in ids
@@ -44,7 +42,6 @@ class TestComponentsCatalog:
 
         assert type_map["se_core"] == ComponentType.SE_CORE
         assert type_map["se_console"] == ComponentType.SE_CONSOLE
-        assert type_map["engram"] == ComponentType.MCP
         assert type_map["context7"] == ComponentType.MCP
         assert type_map["opencode"] == ComponentType.RUNTIME
 
@@ -71,7 +68,7 @@ class TestComponentsCatalog:
             assert "node" in comp_map[mcp_id].requires, f"{mcp_id} should require node"
 
         # These do NOT require node
-        for mcp_id in ["engram", "codegraph", "se_core", "se_console"]:
+        for mcp_id in ["codegraph", "se_core", "se_console"]:
             assert "node" not in comp_map[mcp_id].requires, f"{mcp_id} should not require node"
 
     def test_recommended_components(self):
@@ -81,7 +78,6 @@ class TestComponentsCatalog:
         # Core always recommended
         assert "se_core" in rec_ids
         assert "se_console" in rec_ids
-        assert "engram" in rec_ids
         assert "context7" in rec_ids
         assert "filesystem" in rec_ids
         assert "node" in rec_ids
@@ -102,7 +98,7 @@ class TestComponentsCatalog:
 
     def test_categories_present(self):
         by_cat = get_components_by_category()
-        expected_cats = {"Core", "Memory", "Documentation", "File Operations", "Browser Automation", "Web Scraping", "Code Intelligence", "Runtime"}
+        expected_cats = {"Core", "Documentation", "File Operations", "Browser Automation", "Web Scraping", "Code Intelligence", "Runtime"}
         assert expected_cats.issubset(set(by_cat.keys()))
 
     def test_no_duplicate_ids(self):

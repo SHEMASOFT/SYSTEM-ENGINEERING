@@ -3773,7 +3773,7 @@ def cmd_status(args) -> int:
       - gates: evaluated gate conditions (all or specific --gate)
       - capabilities: registry + policy check
       - health: aggregated overall status
-      - memory: Engram project observations count (if available)
+      - memory: internal memory record count (if any)
       - doctor: full check results (only with --doctor)
     """
     from .cli import main as cli_main
@@ -4080,7 +4080,7 @@ def cmd_skill(args) -> int:
 
 
 def cmd_memory(args) -> int:
-    """Memory operations: add, query, get, link, update, supersede."""
+    """Memory operations: add, query, get, search, index, link, update, supersede."""
     from .memory.engine import MemoryEngine
     from .paths import repo_root
 
@@ -4125,8 +4125,23 @@ def cmd_memory(args) -> int:
                 related_memories=args.related.split(",") if args.related else None,
                 supersedes=args.supersedes,
                 source="cli",
+                topic_key=args.topic_key,
+                review_after=args.review_after,
+                state=args.state or "active",
+                dedupe=bool(args.dedupe),
             )
-            print(f"PASS: created {result['memory_id']}")
+            if result["status"] == "revised":
+                print(
+                    f"PASS: revised {result['memory_id']} "
+                    f"(revision {result['revision_count']})"
+                )
+            elif result["status"] == "deduplicated":
+                print(
+                    f"PASS: deduplicated into {result['memory_id']} "
+                    f"(seen {result['duplicate_count'] + 1}x)"
+                )
+            else:
+                print(f"PASS: created {result['memory_id']}")
             return 0
         except Exception as exc:
             print(f"FAIL: memory add failed: {exc}")
@@ -4151,6 +4166,7 @@ def cmd_memory(args) -> int:
             since=args.since,
             until=args.until,
             tags_mode=args.tags_mode,
+            state=args.state,
             limit=args.limit,
             offset=args.offset,
         )
@@ -4215,7 +4231,26 @@ def cmd_memory(args) -> int:
             print("FAIL: --memory-id and --related-id are required for memory link")
             return 1
 
-        result = engine.link(args.memory_id, args.related_id, args.relation or "related")
+        project_id = None
+        if args.project:
+            project_path = Path(args.project)
+            if not (project_path / "PROJECT.json").exists():
+                print(f"FAIL: no PROJECT.json in {project_path}")
+                return 1
+            from .artifacts import read_manifest
+            project_manifest = read_manifest(project_path)
+            project_id = project_manifest.get("project_id", project_path.name)
+
+        try:
+            result = engine.link(
+                args.memory_id,
+                args.related_id,
+                args.relation or "related",
+                project_id=project_id,
+            )
+        except ValueError as e:
+            print(f"FAIL: {e}")
+            return 1
         print(f"PASS: linked {args.memory_id} -> {args.related_id} ({result['relation']})")
         return 0
 
@@ -4241,7 +4276,11 @@ def cmd_memory(args) -> int:
             project_manifest = read_manifest(project_path)
             project_id = project_manifest.get("project_id", project_path.name)
 
-        result = engine.update(args.memory_id, project_id, updates)
+        try:
+            engine.update(args.memory_id, project_id, updates)
+        except ValueError as e:
+            print(f"FAIL: {e}")
+            return 1
         print(f"PASS: updated {args.memory_id}")
         return 0
 
@@ -4250,16 +4289,106 @@ def cmd_memory(args) -> int:
             print("FAIL: --memory-id and --new-id are required for supersede")
             return 1
 
-        project_path = Path(args.project)
-        if not (project_path / "PROJECT.json").exists():
-            print(f"FAIL: no PROJECT.json in {project_path}")
-            return 1
-        from .artifacts import read_manifest
-        project_manifest = read_manifest(project_path)
-        project_id = project_manifest.get("project_id", project_path.name)
+        project_id = None
+        if args.project:
+            project_path = Path(args.project)
+            if not (project_path / "PROJECT.json").exists():
+                print(f"FAIL: no PROJECT.json in {project_path}")
+                return 1
+            from .artifacts import read_manifest
+            project_manifest = read_manifest(project_path)
+            project_id = project_manifest.get("project_id", project_path.name)
 
-        result = engine.supersede(args.memory_id, args.new_id, project_id)
+        try:
+            engine.supersede(args.memory_id, args.new_id, project_id)
+        except ValueError as e:
+            print(f"FAIL: {e}")
+            return 1
         print(f"PASS: superseded {args.memory_id} -> {args.new_id}")
+        return 0
+
+    elif args.memory_command == "search":
+        if not args.query or not args.query.strip():
+            print("FAIL: --query is required for memory search")
+            return 1
+
+        project_id = None
+        if args.project:
+            project_path = Path(args.project)
+            if not (project_path / "PROJECT.json").exists():
+                print(f"FAIL: no PROJECT.json in {project_path}")
+                return 1
+            from .artifacts import read_manifest
+            project_manifest = read_manifest(project_path)
+            project_id = project_manifest.get("project_id", project_path.name)
+
+        try:
+            result = engine.search(
+                args.query,
+                project_id=project_id,
+                types=args.type.split(",") if args.type else None,
+                limit=args.limit,
+                offset=args.offset,
+                rerank=args.semantic,
+                candidates=args.candidates,
+            )
+        except ValueError as e:
+            print(f"FAIL: {e}")
+            return 1
+
+        if wants_json(args):
+            from .reporting import render_json
+            print(render_json(result))
+            return 0
+
+        print(f"Memory Search: {result['query_id']}")
+        print(f"Query: {result['query']}")
+        if project_id:
+            print(f"Project: {project_id}")
+        print(f"Backend: {result['backend']} | Returned: {result['summary']['returned']}")
+        reranker = result["reranker"]
+        if reranker["used"]:
+            print(
+                f"Reranker: {reranker['backend']} {reranker['model']} "
+                f"(candidates={reranker['candidates']})"
+            )
+        else:
+            print(f"Reranker: none | {reranker['reason']}")
+        print()
+        for hit in result["hits"]:
+            print(f"  {hit['memory_id']} [{hit['type']}] {hit['created_at']} score={hit['score']}")
+            if "semantic_score" in hit:
+                print(
+                    f"    semantic={hit['semantic_score']} "
+                    f"lexical_score={hit['lexical_score']}"
+                )
+            if hit.get("tags"):
+                print(f"    Tags: {', '.join(hit['tags'])}")
+            print(f"    {hit['snippet']}")
+            print()
+        return 0
+
+    elif args.memory_command == "index":
+        try:
+            result = engine.refresh_index(rebuild=args.rebuild)
+        except Exception as e:
+            print(f"FAIL: memory index failed: {e}")
+            return 1
+
+        if wants_json(args):
+            from .reporting import render_json
+            print(render_json(result))
+            return 0
+
+        if result["status"] == "unavailable":
+            print(f"WARN: {result['reason']}")
+            return 0
+
+        print(f"Index {result['status']}: {result['path']}")
+        print(
+            f"  inserted={result['inserted']} updated={result['updated']} "
+            f"deleted={result['deleted']} total={result['total']}"
+        )
         return 0
 
     else:
@@ -4570,6 +4699,7 @@ def cmd_intelligence(args) -> int:
 
     capabilities = args.capability if args.capability else None
     workflow_id = args.workflow if args.workflow else None
+    memory_topics = args.memory if getattr(args, "memory", None) else None
 
     try:
         result = IntelligenceEngine(root=repo_root()).run(
@@ -4577,6 +4707,8 @@ def cmd_intelligence(args) -> int:
             capabilities=capabilities,
             workflow_id=workflow_id,
             author=args.by,
+            memory_topics=memory_topics,
+            memory_limit=getattr(args, "memory_limit", 10),
         )
     except Exception as exc:
         print(f"FAIL: intelligence run failed: {exc}")
@@ -4602,6 +4734,15 @@ def cmd_intelligence(args) -> int:
     print()
     mc = result["memory_context"]
     print(f"Memory: {mc['total']} observations ({', '.join(f'{k}={v}' for k, v in mc['by_type'].items()) or 'none'})")
+    relevance = mc.get("relevance") or {}
+    if relevance.get("queries"):
+        backend = relevance.get("backend") or "unknown"
+        reranker = relevance.get("reranker") or "none"
+        print(f"Relevant: {len(relevance.get('hits', []))} match(es) for {len(relevance['queries'])} topic(s) [backend={backend}, reranker={reranker}]")
+        for hit in relevance.get("hits", []):
+            print(f"  {hit['memory_id']} [{hit['type']}] score={hit['score']}")
+            if hit.get("snippet"):
+                print(f"    {hit['snippet']}")
     print()
     print("Gates:")
     for gate_id, status in result["gates"].items():
@@ -6444,5 +6585,46 @@ def cmd_restore(args) -> int:
             print(render_json(envelope))
 
         return 0
+
+
+def cmd_orchestrate_checkpoint(args) -> int:
+    """Manage workflow checkpoints: list, clean, delete."""
+    from .orchestration.checkpoint import CheckpointManager
+
+    project_path = Path(args.project)
+    if not (project_path / "PROJECT.json").exists():
+        print(f"FAIL: no PROJECT.json in {project_path}")
+        return 1
+
+    checkpoint_manager = CheckpointManager(project_path)
+    workflow_id = getattr(args, "workflow", None)
+
+    if args.checkpoint_command == "list":
+        checkpoints = checkpoint_manager.list_checkpoints(workflow_id=workflow_id)
+        if not checkpoints:
+            print("No checkpoints found")
+            return 0
+        for cp in checkpoints:
+            print(
+                f"{cp['checkpoint_id']}  {cp['workflow_id']}  {cp['execution_id']}  "
+                f"{cp['created_at']}  {cp['status']}"
+            )
+        return 0
+
+    if args.checkpoint_command == "clean":
+        deleted = checkpoint_manager.cleanup_old(keep=args.keep, workflow_id=workflow_id)
+        print(f"Deleted {deleted} old checkpoints")
+        return 0
+
+    if args.checkpoint_command == "delete":
+        if checkpoint_manager.delete(args.checkpoint):
+            print(f"Deleted checkpoint {args.checkpoint}")
+        else:
+            print(f"Checkpoint {args.checkpoint} not found")
+        return 0
+
+    print(f"FAIL: unknown checkpoint command: {args.checkpoint_command}")
+    return 1
+
 
 import hashlib

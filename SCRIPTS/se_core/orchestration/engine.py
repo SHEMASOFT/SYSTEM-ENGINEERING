@@ -25,6 +25,7 @@ from ..artifacts import read_manifest
 from ..memory.engine import MemoryEngine
 from ..agents.runner import AgentRunner
 from .schemas import load_workflow_schema, load_execution_schema
+from .checkpoint import CheckpointManager
 
 
 @dataclass
@@ -44,6 +45,20 @@ class NodeState:
             self.outputs = {}
         if self.gate_results is None:
             self.gate_results = {}
+
+
+def _checkpoint_node_snapshot(node_states: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Return only the nodes that actually ran (COMPLETED/FAILED).
+
+    PENDING and RUNNING nodes are intentionally excluded: a checkpoint records
+    work that provably finished, so a resume never re-does or skips a node whose
+    outcome is unknown.
+    """
+    return {
+        node_id: dict(state)
+        for node_id, state in node_states.items()
+        if state.get("status") in ("COMPLETED", "FAILED")
+    }
 
 
 class OrchestrationEngine:
@@ -109,6 +124,7 @@ class OrchestrationEngine:
         execution_id: Optional[str] = None,
         dry_run: bool = False,
         start_node: Optional[str] = None,
+        resume_from_checkpoint: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Execute a workflow deterministically.
 
@@ -118,6 +134,7 @@ class OrchestrationEngine:
             execution_id: Optional execution ID (auto-generated if not provided)
             dry_run: If True, only validate and plan, don't execute
             start_node: Optional node to start from (for resume)
+            resume_from_checkpoint: Optional checkpoint ID to resume from
 
         Returns:
             Execution result with status and node states
@@ -133,39 +150,41 @@ class OrchestrationEngine:
         project_dir = self._find_project_dir(workflow["project_id"])
         project_data = read_manifest(project_dir)
 
-        # Build execution context
-        context = {
-            "workflow_id": workflow["workflow_id"],
-            "project_id": workflow["project_id"],
-            "project_name": workflow.get("name", ""),
-            "project_data": workflow,
-        }
+        # Initialize checkpoint manager (persistence lives next to the project)
+        checkpoint_manager = CheckpointManager(project_dir)
 
-        # Generate execution ID
-        if not execution_id:
-            execution_id = f"WEX-{random.randint(1000, 9999):04d}"
+        # Working state: `context` accumulates node outputs, `completed_nodes` is the
+        # resume cursor and `resumed_node_results` restores the audit trail on resume.
+        context: Dict[str, Any] = {}
+        completed_nodes: List[str] = []
+        resumed_node_results: Dict[str, Any] = {}
 
-        # Load project
-        project_dir = self._find_project_dir(workflow["project_id"])
-        project_data = read_manifest(project_dir)
-
-        # Build execution context
-        context = {
-            "workflow_id": workflow["workflow_id"],
-            "project_id": workflow["project_id"],
-            "project_name": workflow.get("name", ""),
-            "project_data": workflow,
-        }
+        # Handle resume from checkpoint
+        if resume_from_checkpoint:
+            checkpoint = checkpoint_manager.load(resume_from_checkpoint)
+            if checkpoint is None:
+                raise ValueError(f"Checkpoint {resume_from_checkpoint} not found")
+            if checkpoint["workflow_id"] != workflow_id:
+                raise ValueError(
+                    f"Checkpoint {resume_from_checkpoint} belongs to workflow "
+                    f"{checkpoint['workflow_id']}, not {workflow_id}"
+                )
+            # Restore state so execution continues where it stopped
+            execution_id = checkpoint.get("execution_id") or execution_id
+            completed_nodes = list(checkpoint.get("completed_nodes", []))
+            context = dict(checkpoint.get("context", {}))
+            resumed_node_results = dict(checkpoint.get("node_results", {}))
 
         # Build execution state
         execution_id_final = execution_id
         from ..paths import now_utc
         now = now_utc()
 
-        # Initialize node states
+        # Initialize node states (restoring the audit trail for resumed nodes)
         node_states = {}
         for node in workflow["nodes"]:
-            node_states[node["node_id"]] = {
+            node_id = node["node_id"]
+            state = {
                 "status": "PENDING",
                 "started_at": None,
                 "completed_at": None,
@@ -174,6 +193,10 @@ class OrchestrationEngine:
                 "retry_count": 0,
                 "gate_results": {},
             }
+            saved = resumed_node_results.get(node_id)
+            if isinstance(saved, dict):
+                state.update(saved)
+            node_states[node_id] = state
 
         # Build adjacency for topological sort
         adj = defaultdict(list)
@@ -205,10 +228,14 @@ class OrchestrationEngine:
             }
 
         # Execute nodes in order
-        context = {}
-        gate_results = {}
+        gate_results: Dict[str, Any] = {}
 
         for node_id in execution_order:
+            # Resumed runs skip nodes already completed in the checkpoint
+            if node_id in completed_nodes:
+                node_states[node_id]["status"] = "COMPLETED"
+                continue
+
             node = node_map[node_id]
             
             # Check gate if specified
@@ -219,15 +246,40 @@ class OrchestrationEngine:
                     gate_results[gate_id] = gate_result
                 
                 if gate_results[gate_id].get("status") != "PASS":
+                    # Persist the blocking gate so the failure is auditable
+                    checkpoint_manager.save(
+                        workflow_id=workflow_id,
+                        execution_id=execution_id_final,
+                        completed_nodes=completed_nodes,
+                        node_results=_checkpoint_node_snapshot(node_states),
+                        gate_results=gate_results,
+                        context=context,
+                        status="FAILED",
+                    )
                     return self._fail_execution(
                         execution_id_final, workflow, node_states,
                         f"Gate {gate_id} failed: {gate_results[gate_id].get('detail', 'unknown')}"
                     )
 
             # Execute node using AgentRunner
+            node_states[node_id]["status"] = "RUNNING"
+            node_states[node_id]["started_at"] = now_utc()
             result = self._execute_node(node, project_dir, context, workflow)
             
             if result["status"] == "FAILED":
+                node_states[node_id]["status"] = "FAILED"
+                node_states[node_id]["completed_at"] = now_utc()
+                node_states[node_id]["error"] = result.get("error", "unknown error")
+                # Persist progress so the run can be resumed with --resume-from
+                checkpoint_manager.save(
+                    workflow_id=workflow_id,
+                    execution_id=execution_id_final,
+                    completed_nodes=completed_nodes,
+                    node_results=_checkpoint_node_snapshot(node_states),
+                    gate_results=gate_results,
+                    context=context,
+                    status="FAILED",
+                )
                 return self._fail_execution(
                     execution_id_final, workflow, node_states,
                     f"Node {node_id} failed: {result.get('error', 'unknown error')}"
@@ -235,6 +287,32 @@ class OrchestrationEngine:
 
             # Update context with node outputs
             context.update(result.get("outputs", {}))
+            completed_nodes.append(node_id)
+            node_states[node_id]["status"] = "COMPLETED"
+            node_states[node_id]["completed_at"] = now_utc()
+            node_states[node_id]["outputs"] = result.get("outputs", {})
+
+            # Save checkpoint after each node
+            checkpoint_manager.save(
+                workflow_id=workflow_id,
+                execution_id=execution_id_final,
+                completed_nodes=completed_nodes,
+                node_results=_checkpoint_node_snapshot(node_states),
+                gate_results=gate_results,
+                context=context,
+                status="IN_PROGRESS",
+            )
+
+        # Final checkpoint with COMPLETED status
+        checkpoint_manager.save(
+            workflow_id=workflow_id,
+            execution_id=execution_id_final,
+            completed_nodes=completed_nodes,
+            node_results=_checkpoint_node_snapshot(node_states),
+            gate_results=gate_results,
+            context=context,
+            status="COMPLETED",
+        )
 
         return {
             "execution_id": execution_id_final,

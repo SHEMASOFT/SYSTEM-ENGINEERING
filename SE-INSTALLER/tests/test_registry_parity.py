@@ -40,10 +40,6 @@ REGISTRY_ONLY: dict[str, str] = {
 
 # Installer server/tool components that intentionally sit outside the registry.
 INSTALLER_EXTRA: dict[str, str] = {
-    "engram": (
-        "Persistent cross-session memory backend owned by the orchestrator "
-        "memory contract; not exposed as a toolchain capability provider."
-    ),
     "codegraph": (
         "Optional code-intelligence indexer (Rust); not exposed as a toolchain "
         "capability; SE degrades to syntactic analysis without it."

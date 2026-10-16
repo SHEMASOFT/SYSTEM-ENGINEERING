@@ -339,7 +339,7 @@ def build_parser() -> argparse.ArgumentParser:
     install_group = p_install.add_mutually_exclusive_group()
     install_group.add_argument("--all", action="store_true", help="Register every MCP server (default)")
     install_group.add_argument("--with", dest="with_", default=None,
-                               help="Comma-separated list of MCP servers to register (e.g. engram,context7)")
+                               help="Comma-separated list of MCP servers to register (e.g. context7,filesystem)")
     p_install.add_argument("--no-register", dest="no_register", action="store_true",
                            help="Preflight and plan only; perform no registration")
     p_install.add_argument("--generate-adapter", dest="generate_adapter", action="store_true",
@@ -449,7 +449,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # memory
 
-    p_memory = sub.add_parser("memory", help="Memory operations: add, query, get, link, update, supersede")
+    p_memory = sub.add_parser("memory", help="Memory operations: add, query, get, search, index, link, update, supersede")
 
     p_memory_sub = p_memory.add_subparsers(dest="memory_command", required=True)
 
@@ -459,7 +459,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_add.add_argument("--project", required=True, help="Managed project workspace")
 
-    p_mem_add.add_argument("--type", required=True, help="Memory type (decision, architecture, discovery, constraint, capability, verification, checkpoint, relationship)")
+    p_mem_add.add_argument("--type", required=True, help="Memory type (decision, architecture, discovery, constraint, capability, verification, checkpoint, relationship, session, prompt)")
 
     p_mem_add.add_argument("--content", required=True, help="Memory content as JSON")
 
@@ -472,6 +472,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_mem_add.add_argument("--related", default=None, help="Comma-separated related memory IDs")
 
     p_mem_add.add_argument("--supersedes", default=None, help="Memory ID this supersedes")
+
+    p_mem_add.add_argument("--topic-key", default=None, help="Family key: an existing record with this key is revised in place instead of duplicated")
+
+    p_mem_add.add_argument("--review-after", default=None, help="ISO date after which this memory should be reviewed")
+
+    p_mem_add.add_argument("--state", default="active", choices=["active", "archived", "needs_review", "deprecated"], help="Lifecycle state")
+
+    p_mem_add.add_argument("--dedupe", action="store_true", help="Idempotent by content: an identical record is counted, not copied")
 
     p_mem_add.add_argument("--by", default=None, help="Author")
 
@@ -496,6 +504,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_mem_query.add_argument("--until", default=None, help="Filter by created before (ISO date)")
 
     p_mem_query.add_argument("--tags-mode", choices=["any", "all"], default="any", help="Tag match mode")
+
+    p_mem_query.add_argument("--state", default=None, choices=["active", "archived", "needs_review", "deprecated"], help="Filter by lifecycle state (default: all except deprecated)")
 
     p_mem_query.add_argument("--limit", type=int, default=50, help="Max results")
 
@@ -525,6 +535,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_link.add_argument("--related-id", required=True, help="Related memory ID")
 
+    p_mem_link.add_argument("--project", required=True, help="Managed project workspace (memory IDs are project-scoped)")
+
     p_mem_link.add_argument("--relation", default="related", choices=["related", "supersedes", "superseded_by"], help="Relation type")
 
     p_mem_link.set_defaults(func=commands.cmd_memory)
@@ -535,7 +547,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_update.add_argument("--memory-id", required=True, help="Memory ID to update")
 
-    p_mem_update.add_argument("--project", default=None, help="Managed project workspace")
+    p_mem_update.add_argument("--project", required=True, help="Managed project workspace (memory IDs are project-scoped)")
 
     p_mem_update.add_argument("--updates", required=True, help="Updates as JSON")
 
@@ -549,9 +561,45 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_supersede.add_argument("--new-id", required=True, help="New memory ID that supersedes")
 
-    p_mem_supersede.add_argument("--project", required=True, help="Managed project workspace")
+    p_mem_supersede.add_argument("--project", required=True, help="Managed project workspace (memory IDs are project-scoped)")
 
     p_mem_supersede.set_defaults(func=commands.cmd_memory)
+
+
+
+    p_mem_search = p_memory_sub.add_parser("search", help="Lexical search over memory records (derived FTS5 index)")
+
+    p_mem_search.add_argument("--query", required=True, help="Search text (all terms must match)")
+
+    p_mem_search.add_argument("--project", default=None, help="Managed project workspace (optional for cross-project search)")
+
+    p_mem_search.add_argument("--type", default=None, help="Comma-separated memory types to filter")
+
+    p_mem_search.add_argument("--limit", type=int, default=10, help="Max results")
+
+    p_mem_search.add_argument("--offset", type=int, default=0, help="Offset for pagination")
+
+    p_mem_search.add_argument("--candidates", type=int, default=50, help="Lexical candidates offered to the semantic reranker")
+
+    semantic = p_mem_search.add_mutually_exclusive_group()
+
+    semantic.add_argument("--semantic", dest="semantic", action="store_true", default=None, help="Require the local embedding reranker; fail when no model is installed")
+
+    semantic.add_argument("--no-semantic", dest="semantic", action="store_false", default=None, help="Disable the embedding reranker even when a model is installed")
+
+    p_mem_search.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
+
+    p_mem_search.set_defaults(func=commands.cmd_memory)
+
+
+
+    p_mem_index = p_memory_sub.add_parser("index", help="Build or refresh the derived search index")
+
+    p_mem_index.add_argument("--rebuild", action="store_true", help="Discard the index and rebuild it from the canonical records")
+
+    p_mem_index.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
+
+    p_mem_index.set_defaults(func=commands.cmd_memory)
 
 
 
@@ -663,11 +711,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_orch_execute.add_argument("--native", action="store_true", help="Generate prompt for OpenCode-native execution via invoke tool")
 
+    p_orch_execute.add_argument("--resume-from", default=None, help="Resume execution from checkpoint ID (CP-XXXX)")
+
     p_orch_execute.add_argument("--json", action="store_true", help="Emit machine-readable se.report/1 envelope")
 
     p_orch_execute.set_defaults(func=commands.cmd_orchestrate)
 
 
+
+    p_orch_checkpoint = p_orchestrate_sub.add_parser("checkpoint", help="Manage workflow checkpoints")
+    p_orch_checkpoint_sub = p_orch_checkpoint.add_subparsers(dest="checkpoint_command", required=True)
+    p_cp_list = p_orch_checkpoint_sub.add_parser("list", help="List checkpoints")
+    p_cp_list.add_argument("--project", required=True, help="Managed project workspace")
+    p_cp_list.add_argument("--workflow", default=None, help="Filter by workflow ID")
+    p_cp_list.add_argument("--json", action="store_true", help="Emit machine-readable se.report/1 envelope")
+    p_cp_list.set_defaults(func=commands.cmd_orchestrate_checkpoint)
+
+    p_cp_clean = p_orch_checkpoint_sub.add_parser("clean", help="Clean old checkpoints")
+    p_cp_clean.add_argument("--project", required=True, help="Managed project workspace")
+    p_cp_clean.add_argument("--workflow", default=None, help="Filter by workflow ID")
+    p_cp_clean.add_argument("--keep", type=int, default=10, help="Number of checkpoints to keep")
+    p_cp_clean.set_defaults(func=commands.cmd_orchestrate_checkpoint)
+
+    p_cp_delete = p_orch_checkpoint_sub.add_parser("delete", help="Delete a checkpoint")
+    p_cp_delete.add_argument("--project", required=True, help="Managed project workspace")
+    p_cp_delete.add_argument("--checkpoint", required=True, help="Checkpoint ID (CP-XXXX)")
+    p_cp_delete.set_defaults(func=commands.cmd_orchestrate_checkpoint)
 
     p_orch_list = p_orchestrate_sub.add_parser("list", help="List workflows in a project")
 
@@ -695,6 +764,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_intel.add_argument("--capability", action="append", help="Capability to match (repeatable; inferred if omitted)")
     p_intel.add_argument("--workflow", default=None, help="Workflow ID (WF-XXXX) to plan (dry-run)")
     p_intel.add_argument("--by", default=None, help="Requesting actor")
+    p_intel.add_argument("--memory", dest="memory", action="append", default=None, help="Topic this session is about; adds matching memories to the context (repeatable)")
+    p_intel.add_argument("--memory-limit", dest="memory_limit", type=int, default=10, help="Maximum memories injected by --memory (default: 10)")
     p_intel.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
     p_intel.set_defaults(func=commands.cmd_intelligence)
 

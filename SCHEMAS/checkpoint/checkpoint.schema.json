@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.system-engineering.local/checkpoint.schema.json",
+  "title": "Workflow Checkpoint",
+  "description": "Persisted workflow execution state for recovery/resume",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "checkpoint_id", "workflow_id", "execution_id", "completed_nodes", "node_results", "gate_results", "context", "created_at", "status"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "checkpoint_id": { "type": "string", "pattern": "^CP-\\d{4}$" },
+    "workflow_id": { "type": "string", "pattern": "^WF-\\d{4}$" },
+    "execution_id": { "type": "string", "pattern": "^WEX-\\d{4}$" },
+    "completed_nodes": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "node_results": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "status": { "enum": ["COMPLETED", "FAILED", "SKIPPED"] },
+          "outputs": { "type": "object" },
+          "error": { "type": ["string", "null"] },
+          "started_at": { "type": ["string", "null"], "format": "date-time" },
+          "completed_at": { "type": ["string", "null"], "format": "date-time" }
+        },
+        "required": ["status", "outputs"]
+      }
+    },
+    "gate_results": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "status": { "enum": ["PASS", "FAIL", "WARN", "MANUAL"] },
+          "detail": { "type": ["string", "null"] },
+          "evaluated_at": { "type": ["string", "null"], "format": "date-time" }
+        },
+        "required": ["status"]
+      }
+    },
+    "context": { "type": "object" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["IN_PROGRESS", "COMPLETED", "FAILED", "RESUMED"] }
+  }
+}

@@ -13,17 +13,6 @@
           "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
         }
       },
-      "engram": {
-        "type": "local",
-        "command": [
-          "engram",
-          "mcp",
-          "--tools=agent"
-        ],
-        "environment": {
-          "ENGRAM_PROJECT": "SYSTEM-ENGINEERING"
-        }
-      },
       "filesystem": {
         "type": "local",
         "command": [
@@ -41,9 +30,7 @@
           "python3",
           "SCRIPTS/se_core/mcp/skill_server.py"
         ],
-        "environment": {
-          "ENGRAM_PROJECT": "SYSTEM-ENGINEERING"
-        },
+        "environment": {},
         "cwd": "."
       }
     },
