@@ -487,3 +487,173 @@ class OrchestrationContextFilteringTests(unittest.TestCase):
         consumer_context = received_contexts.get("consumer", {})
         self.assertIn("step1_result", consumer_context)
         self.assertEqual(consumer_context["step1_result"], "produced_value")
+
+
+class OrchestrationGateEnforcementTests(unittest.TestCase):
+    """Top-level `gates` array must be enforced by the engine, without duplication.
+
+    The engine previously only read a per-node ``gate`` field, so a workflow
+    that declared its gates in the top-level ``gates`` array (the documented
+    shape) ran with no gate enforcement at all. These tests pin the unified
+    node -> gate resolution, the FAIL/WARN-only blocking (mirroring `se
+    transition`), and that each gate is evaluated exactly once.
+    """
+
+    PROJECT_ID = "PRJ-TEST-001"
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.project = support.make_project(self.root / "proj")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write_workflow(self, workflow_id, nodes, edges=None, gates=None):
+        data = {
+            "schema_version": "1",
+            "workflow_id": workflow_id,
+            "project_id": self.PROJECT_ID,
+            "name": "Gate workflow",
+            "version": "1.0.0",
+            "status": "DRAFT",
+            "nodes": nodes,
+            "edges": edges or [],
+            "gates": gates or [],
+        }
+        support.write_json(self.project / "workflows" / f"{workflow_id}.json", data)
+
+    def _make_engine(self):
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = OrchestrationEngine(root=self.root)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        return engine
+
+    # --- _resolve_node_gates -------------------------------------------------
+
+    def test_resolver_maps_top_level_array(self):
+        """Nodes listed in the top-level gates array resolve to that gate."""
+        from se_core.orchestration.engine import OrchestrationEngine
+        wf = {
+            "nodes": [{"node_id": "a"}, {"node_id": "b"}],
+            "gates": [{"gate_id": "G1", "nodes": ["b"]}],
+        }
+        self.assertEqual(
+            OrchestrationEngine._resolve_node_gates(wf),
+            {"b": "G1"},
+        )
+
+    def test_resolver_per_node_gate_overrides_array(self):
+        """A per-node `gate` wins over the array (no duplicate/conflicting map)."""
+        from se_core.orchestration.engine import OrchestrationEngine
+        wf = {
+            "nodes": [{"node_id": "a"}, {"node_id": "b", "gate": "G2"}],
+            "gates": [{"gate_id": "G1", "nodes": ["b"]}],
+        }
+        # b keeps its explicit G2; array's G1 for b is superseded, not duplicated.
+        self.assertEqual(
+            OrchestrationEngine._resolve_node_gates(wf),
+            {"b": "G2"},
+        )
+
+    def test_resolver_rejects_node_in_two_gates(self):
+        """A node listed under two different gates is a definition error."""
+        from se_core.orchestration.engine import OrchestrationEngine
+        wf = {
+            "nodes": [{"node_id": "a"}],
+            "gates": [
+                {"gate_id": "G1", "nodes": ["a"]},
+                {"gate_id": "G2", "nodes": ["a"]},
+            ],
+        }
+        with self.assertRaises(ValueError):
+            OrchestrationEngine._resolve_node_gates(wf)
+
+    # --- execute() enforcement ---------------------------------------------
+
+    def _run_execute(self, gate_status_by_id, nodes, edges, gates):
+        """Run execute() with AgentRunner and evaluate_gate mocked.
+
+        Returns (result, call_log) where call_log lists evaluated gate_ids.
+        """
+        from se_core.agents.runner import AgentRunner
+        engine = self._make_engine()
+        self._write_workflow("WF-0001", nodes=nodes, edges=edges, gates=gates)
+
+        call_log = []
+
+        def fake_evaluate_gate(project_dir, gate_id, root=None):
+            call_log.append(gate_id)
+            status = gate_status_by_id.get(gate_id, "PASS")
+            return {"gate": gate_id, "conditions": [], "status": status}
+
+        def fake_run(self, action, inputs, context, max_tokens=None):
+            return {"status": "COMPLETED", "output": {}, "outputs": {}}
+
+        with mock.patch("se_core.orchestration.engine.evaluate_gate", fake_evaluate_gate):
+            with mock.patch.object(AgentRunner, "run", fake_run):
+                with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                    result = engine.execute("WF-0001", self.PROJECT_ID)
+        return result, call_log
+
+    def test_fail_gate_from_array_blocks_node(self):
+        """A FAIL gate declared in the top-level array blocks its node."""
+        nodes = [
+            {"node_id": "n1", "agent": "analyst", "action": "a", "inputs": {}, "outputs": {}},
+            {"node_id": "n2", "agent": "planner", "action": "p", "inputs": {}, "outputs": {}},
+        ]
+        edges = [{"from": "n1", "to": "n2"}]
+        gates = [{"gate_id": "G1", "nodes": ["n2"]}]
+
+        result, call_log = self._run_execute({"G1": "FAIL"}, nodes, edges, gates)
+
+        self.assertEqual(result["status"], "FAILED")
+        self.assertIn("G1", call_log)
+        self.assertIn("G1", result.get("error", ""))
+
+    def test_manual_gate_does_not_block(self):
+        """MANUAL gates are attested at the lifecycle boundary, not blocked here."""
+        nodes = [
+            {"node_id": "n1", "agent": "analyst", "action": "a", "inputs": {}, "outputs": {}},
+            {"node_id": "n2", "agent": "planner", "action": "p", "inputs": {}, "outputs": {}},
+        ]
+        edges = [{"from": "n1", "to": "n2"}]
+        gates = [{"gate_id": "G1", "nodes": ["n2"]}]
+
+        result, call_log = self._run_execute({"G1": "MANUAL"}, nodes, edges, gates)
+
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertEqual(result["gate_results"]["G1"]["status"], "MANUAL")
+        self.assertEqual(result["node_states"]["n2"]["status"], "COMPLETED")
+
+    def test_shared_gate_evaluated_once(self):
+        """Two nodes sharing one gate -> evaluate_gate called exactly once."""
+        nodes = [
+            {"node_id": "n1", "agent": "analyst", "action": "a", "inputs": {}, "outputs": {}},
+            {"node_id": "n2", "agent": "planner", "action": "p", "inputs": {}, "outputs": {}},
+            {"node_id": "n3", "agent": "analyst", "action": "a", "inputs": {}, "outputs": {}},
+        ]
+        edges = [{"from": "n1", "to": "n2"}, {"from": "n2", "to": "n3"}]
+        gates = [{"gate_id": "G1", "nodes": ["n2", "n3"]}]
+
+        result, call_log = self._run_execute({"G1": "PASS"}, nodes, edges, gates)
+
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertEqual(call_log.count("G1"), 1, "gate must be evaluated once, not duplicated")
+
+    def test_node_level_gate_still_enforced(self):
+        """The pre-existing per-node `gate` field continues to work."""
+        nodes = [
+            {"node_id": "n1", "agent": "analyst", "action": "a", "inputs": {}, "outputs": {}},
+            {"node_id": "n2", "agent": "planner", "action": "p", "inputs": {}, "outputs": {}, "gate": "G2"},
+        ]
+        edges = [{"from": "n1", "to": "n2"}]
+
+        result, call_log = self._run_execute({"G2": "WARN"}, nodes, edges, gates=[])
+
+        self.assertEqual(result["status"], "FAILED")
+        self.assertIn("G2", call_log)
+
+
+if __name__ == "__main__":
+    unittest.main()

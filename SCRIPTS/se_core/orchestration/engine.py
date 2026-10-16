@@ -229,6 +229,8 @@ class OrchestrationEngine:
 
         # Execute nodes in order
         gate_results: Dict[str, Any] = {}
+        # Unified node -> gate map (top-level array + per-node field, no duplication).
+        node_gates = self._resolve_node_gates(workflow)
 
         for node_id in execution_order:
             # Resumed runs skip nodes already completed in the checkpoint
@@ -237,15 +239,18 @@ class OrchestrationEngine:
                 continue
 
             node = node_map[node_id]
-            
-            # Check gate if specified
-            if node.get("gate"):
-                gate_id = node["gate"]
+
+            # Check the node's gate (from the unified map, no duplication).
+            gate_id = node_gates.get(node_id)
+            if gate_id:
                 if gate_id not in gate_results:
-                    gate_result = evaluate_gate(gate_id, project_dir)
-                    gate_results[gate_id] = gate_result
-                
-                if gate_results[gate_id].get("status") != "PASS":
+                    # evaluate_gate(project_dir, gate_id) — project first.
+                    gate_results[gate_id] = evaluate_gate(project_dir, gate_id)
+
+                # Mirror `se transition`: only FAIL/WARN hard-block. MANUAL is
+                # an attestation concern resolved at the lifecycle boundary, not
+                # a per-node machine gate, so it is recorded but not blocking.
+                if gate_results[gate_id].get("status") in ("FAIL", "WARN"):
                     # Persist the blocking gate so the failure is auditable
                     checkpoint_manager.save(
                         workflow_id=workflow_id,
@@ -369,6 +374,51 @@ class OrchestrationEngine:
             raise ValueError("Workflow has cycles")
 
         return result
+
+    @staticmethod
+    def _resolve_node_gates(workflow: Dict[str, Any]) -> Dict[str, str]:
+        """Map each node_id to the single gate that must clear before it runs.
+
+        Two declaration styles are supported and are deliberately NOT
+        duplicated:
+
+        - Top-level ``gates`` array (``[{"gate_id": "G1", "nodes": [...]}]``)
+          applies a gate to every node it lists (lower precedence).
+        - A per-node ``gate`` field overrides the array for that node (higher
+          precedence, being the more local/specific declaration).
+
+        Each node therefore resolves to exactly one gate, and each distinct
+        gate id is evaluated at most once per run (the caller caches results
+        keyed by gate_id), so no gate is applied twice to the same node.
+
+        Raises:
+            ValueError: if the top-level array lists one node under two
+                different gates (a definition error surfaced instead of
+                silently picking one).
+        """
+        node_gates: Dict[str, str] = {}
+
+        # 1) Top-level array first (lower precedence).
+        for entry in workflow.get("gates", []) or []:
+            gate_id = entry.get("gate_id")
+            if not gate_id:
+                continue
+            for node_id in entry.get("nodes", []) or []:
+                existing = node_gates.get(node_id)
+                if existing and existing != gate_id:
+                    raise ValueError(
+                        f"Node {node_id!r} is listed under both gate "
+                        f"{existing!r} and {gate_id!r}; declare a single gate per node."
+                    )
+                node_gates[node_id] = gate_id
+
+        # 2) Per-node ``gate`` field overrides (higher precedence).
+        for node in workflow.get("nodes", []) or []:
+            explicit = node.get("gate")
+            if explicit:
+                node_gates[node["node_id"]] = explicit
+
+        return node_gates
 
     def _execute_node(
         self,
@@ -570,6 +620,8 @@ class OrchestrationEngine:
 
         # Build the native execution prompt
         # Use minimal context - workflow already listed in "Nodes to Execute" above
+        # Unified node -> gate map so top-level `gates` array is surfaced too.
+        node_gates = self._resolve_node_gates(workflow)
         minimal_context = {
             "workflow_id": workflow["workflow_id"],
             "project_id": workflow["project_id"],
@@ -601,8 +653,8 @@ class OrchestrationEngine:
             prompt_parts.append(f"- **Action**: {node['action']}")
             prompt_parts.append(f"- **Inputs**: {json.dumps(node.get('inputs', {}), indent=2)}")
             prompt_parts.append(f"- **Outputs**: {json.dumps(node.get('outputs', {}), indent=2)}")
-            if node.get('gate'):
-                prompt_parts.append(f"- **Gate**: {node['gate']}")
+            if node_gates.get(node_id):
+                prompt_parts.append(f"- **Gate**: {node_gates[node_id]}")
             if node.get('max_context_tokens'):
                 prompt_parts.append(f"- **Max Context Tokens**: {node['max_context_tokens']}")
             prompt_parts.append(f"")
@@ -616,7 +668,8 @@ class OrchestrationEngine:
             f"",
             f"1. **Check gate** (if specified):",
             f"   - If node has a `gate`, call `se gate --gate <GATE_ID> --project <project_dir>`",
-            f"   - If gate status != PASS -> report BLOCKED, stop execution",
+            f"   - If gate status is FAIL or WARN -> report BLOCKED, stop execution",
+            f"   - MANUAL gates are attested at the lifecycle boundary, not blocked here",
             f"",
             f"2. **Resolve inputs** (use the same logic as internal AgentRunner):",
             f"   - `context:key` -> from accumulated context below",
