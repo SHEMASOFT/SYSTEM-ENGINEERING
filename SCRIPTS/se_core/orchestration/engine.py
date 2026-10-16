@@ -385,6 +385,180 @@ class OrchestrationEngine:
         schemas = load_schemas(repo_root())
         return schemas.get(name, {})
 
+    def generate_native_execution_prompt(
+        self,
+        workflow_id: str,
+        project_id: str,
+        execution_id: Optional[str] = None,
+        start_node: Optional[str] = None,
+    ) -> str:
+        """Generate a prompt for the coordinator to execute workflow natively via OpenCode invoke.
+
+        This prompt is designed to be used when the coordinator runs as an OpenCode primary agent
+        and uses the `invoke` tool to launch subagents for each workflow node.
+
+        Returns:
+            Prompt string for the coordinator agent.
+        """
+        # Load workflow
+        workflow = self.load_workflow(workflow_id, project_id)
+
+        # Generate execution ID
+        if not execution_id:
+            execution_id = f"WEX-{random.randint(1000, 9999):04d}"
+
+        # Load project
+        project_dir = self._find_project_dir(workflow["project_id"])
+        project_data = read_manifest(project_dir)
+
+        # Build execution context
+        context = {
+            "workflow_id": workflow["workflow_id"],
+            "project_id": workflow["project_id"],
+            "project_name": workflow.get("name", ""),
+            "project_data": workflow,
+        }
+
+        # Build execution state
+        execution_id_final = execution_id
+        from ..paths import now_utc
+        now = now_utc()
+
+        # Initialize node states
+        node_states = {}
+        for node in workflow["nodes"]:
+            node_states[node["node_id"]] = {
+                "status": "PENDING",
+                "started_at": None,
+                "completed_at": None,
+                "outputs": {},
+                "error": None,
+                "retry_count": 0,
+                "gate_results": {},
+            }
+
+        # Build adjacency for topological sort
+        adj = defaultdict(list)
+        in_degree = defaultdict(int)
+        node_map = {n["node_id"]: n for n in workflow["nodes"]}
+
+        for edge in workflow.get("edges", []):
+            adj[edge["from"]].append(edge["to"])
+            in_degree[edge["to"]] += 1
+
+        # Add nodes with no edges
+        for node in workflow["nodes"]:
+            if node["node_id"] not in in_degree:
+                in_degree[node["node_id"]] = 0
+
+        # Topological sort with gate integration
+        execution_order = self._topological_sort_with_gates(
+            workflow, node_map, adj, in_degree, start_node
+        )
+
+        # Build the native execution prompt
+        prompt_parts = [
+            f"# Native Workflow Execution: {workflow_id}",
+            f"",
+            f"**Execution ID**: {execution_id_final}",
+            f"**Workflow**: {workflow['workflow_id']} ({workflow.get('name', '')})",
+            f"**Project**: {project_id}",
+            f"**Started**: {now}",
+            f"",
+            f"## Execution Order",
+            f"",
+            f"{' -> '.join(execution_order)}",
+            f"",
+            f"## Nodes to Execute",
+            f"",
+        ]
+
+        for node_id in execution_order:
+            node = node_map[node_id]
+            prompt_parts.append(f"### Node: {node_id}")
+            prompt_parts.append(f"- **Agent**: {node['agent']}")
+            prompt_parts.append(f"- **Action**: {node['action']}")
+            prompt_parts.append(f"- **Inputs**: {json.dumps(node.get('inputs', {}), indent=2)}")
+            prompt_parts.append(f"- **Outputs**: {json.dumps(node.get('outputs', {}), indent=2)}")
+            if node.get('gate'):
+                prompt_parts.append(f"- **Gate**: {node['gate']}")
+            if node.get('max_context_tokens'):
+                prompt_parts.append(f"- **Max Context Tokens**: {node['max_context_tokens']}")
+            prompt_parts.append(f"")
+
+        prompt_parts.extend([
+            f"## Instructions for Native Execution",
+            f"",
+            f"You are the SHEMA-AI Coordinador. Execute this workflow by invoking subagents via the `invoke` tool.",
+            f"",
+            f"### For each node in execution order:",
+            f"",
+            f"1. **Check gate** (if specified):",
+            f"   - If node has a `gate`, call `se gate --gate <GATE_ID> --project <project_dir>`",
+            f"   - If gate status != PASS -> report BLOCKED, stop execution",
+            f"",
+            f"2. **Resolve inputs**:",
+            f"   - `context:key` -> from accumulated context below",
+            f"   - `memory:id` -> call `se memory get <id> --project <project_id>`",
+            f"   - `literal:value` -> use as-is",
+            f"",
+            f"3. **Invoke subagent** via `invoke` tool:",
+            f"   ```json",
+            f"   {{",
+            f"     \"tool\": \"invoke\",",
+            f"     \"arguments\": {{",
+            f"       \"agent\": \"{node['agent']}\",",
+            f"       \"input\": {{",
+            f"         \"action\": \"{node['action']}\",",
+            f"         \"inputs\": {{...resolved inputs...}},",
+            f"         \"context\": {{...filtered context...}}",
+            f"       }}",
+            f"     }}",
+            f"   }}",
+            f"   ```",
+            f"",
+            f"4. **Capture outputs**:",
+            f"   - Subagent returns `outputs` dict -> merge into context",
+            f"   - Update node status in your tracking",
+            f"",
+            f"4. **Continue to next node**",
+            f"",
+            f"### Context Management",
+            f"",
+            f"- Start with initial context: `{json.dumps(context, indent=2)}`",
+            f"- After each node, update context with node outputs",
+            f"- Filter context for each subagent: only keys referenced in `inputs` with `context:` prefix",
+            f"",
+            f"### Gate Commands",
+            f"",
+            f"```bash",
+            f"se gate --gate G1 --project <project_dir>",
+            f"se gate --gate G2 --project <project_dir>",
+            f"# etc.",
+            f"```",
+            f"",
+            f"### Final Output",
+            f"",
+            f"When workflow completes (or fails), return a structured summary:",
+            f"```json",
+            f"{{",
+            f"  \"status\": \"COMPLETED|FAILED\",",
+            f"  \"execution_id\": \"{execution_id_final}\",",
+            f"  \"workflow_id\": \"{workflow_id}\",",
+            f"  \"node_results\": {{",
+            f"    \"node_id\": {{ \"status\": \"...\", \"outputs\": {{...}}, \"error\": \"...\" }}",
+            f"  }},",
+            f"  \"gate_results\": {{ \"G1\": \"PASS\", ... }},",
+            f"  \"final_context\": {{...}}",
+            f"  \"completed_at\": \"<ISO timestamp>\"",
+            f"  \"error\": \"<error message if FAILED>\"",
+            f"}}",
+            f"```",
+            f"",
+        ])
+
+        return "\n".join(prompt_parts)
+
 
 def create_workflow(
     project_id: str,
