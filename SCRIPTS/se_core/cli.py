@@ -579,6 +579,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_search.add_argument("--offset", type=int, default=0, help="Offset for pagination")
 
+    p_mem_search.add_argument("--candidates", type=int, default=50, help="Lexical candidates offered to the semantic reranker")
+
+    semantic = p_mem_search.add_mutually_exclusive_group()
+
+    semantic.add_argument("--semantic", dest="semantic", action="store_true", default=None, help="Require the local embedding reranker; fail when no model is installed")
+
+    semantic.add_argument("--no-semantic", dest="semantic", action="store_false", default=None, help="Disable the embedding reranker even when a model is installed")
+
     p_mem_search.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
 
     p_mem_search.set_defaults(func=commands.cmd_memory)

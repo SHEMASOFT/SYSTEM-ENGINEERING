@@ -4329,6 +4329,8 @@ def cmd_memory(args) -> int:
                 types=args.type.split(",") if args.type else None,
                 limit=args.limit,
                 offset=args.offset,
+                rerank=args.semantic,
+                candidates=args.candidates,
             )
         except ValueError as e:
             print(f"FAIL: {e}")
@@ -4344,9 +4346,22 @@ def cmd_memory(args) -> int:
         if project_id:
             print(f"Project: {project_id}")
         print(f"Backend: {result['backend']} | Returned: {result['summary']['returned']}")
+        reranker = result["reranker"]
+        if reranker["used"]:
+            print(
+                f"Reranker: {reranker['backend']} {reranker['model']} "
+                f"(candidates={reranker['candidates']})"
+            )
+        else:
+            print(f"Reranker: none | {reranker['reason']}")
         print()
         for hit in result["hits"]:
             print(f"  {hit['memory_id']} [{hit['type']}] {hit['created_at']} score={hit['score']}")
+            if "semantic_score" in hit:
+                print(
+                    f"    semantic={hit['semantic_score']} "
+                    f"lexical_score={hit['lexical_score']}"
+                )
             if hit.get("tags"):
                 print(f"    Tags: {', '.join(hit['tags'])}")
             print(f"    {hit['snippet']}")

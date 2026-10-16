@@ -25,6 +25,12 @@ from .index import (
     flatten_content,
     tokenize,
 )
+from .embeddings import (
+    MODEL_ENV_VAR,
+    MODEL_RELATIVE_PATH,
+    EmbeddingError,
+    SemanticReranker,
+)
 
 
 @dataclass
@@ -312,20 +318,38 @@ class MemoryEngine:
         limit: int = 10,
         offset: int = 0,
         include_deprecated: bool = False,
+        rerank: Optional[bool] = None,
+        candidates: int = 50,
     ) -> Dict[str, Any]:
-        """Lexical search over memory records (ADR-0027).
+        """Lexical search over memory records (ADR-0027), optionally reranked.
 
         Uses the derived FTS5 index when it is available and falls back to a
         pure-Python scan otherwise, so a result never depends on a cache being
         present. Hits are compact: fetch a full record with :meth:`get`.
         Deprecated (soft-deleted) records stay out unless asked for.
+
+        ``rerank`` selects the optional local embedding reranker: ``None`` uses
+        one if a model is installed, ``True`` demands one and fails without it,
+        ``False`` disables it. The reranker only reorders a candidate window of
+        ``candidates`` lexical hits, so it can never add or lose a hit, and the
+        window is what bounds its cost.
         """
         terms = tokenize(text)
         if not terms:
             raise ValueError("search requires at least one searchable term")
 
+        reranker, reranker_reason = self._semantic_reranker(rerank)
+
         index = MemoryIndex(self.root)
         revisions, paths = self._index_scope(project_id)
+
+        # With a reranker the whole window must be fetched in one page, because
+        # the order is only known after reranking; without one the backend keeps
+        # doing the paging exactly as before, so nothing changes when it is off.
+        window = max(limit + offset, candidates) if reranker else limit + offset
+        fetch_offset = 0 if reranker else offset
+        texts: Optional[Dict[Tuple[str, str], str]] = {} if reranker else None
+
         hits = self._indexed_search(
             index,
             revisions,
@@ -333,16 +357,27 @@ class MemoryEngine:
             text,
             project_id,
             types,
-            limit,
-            offset,
+            window,
+            fetch_offset,
             include_deprecated,
+            texts,
         )
         backend = "fts5"
         if hits is None:
             hits = self._lexical_search(
-                text, project_id, types, limit, offset, include_deprecated
+                text,
+                project_id,
+                types,
+                window,
+                fetch_offset,
+                include_deprecated,
+                texts,
             )
             backend = "scan"
+
+        if reranker is not None:
+            hits = reranker.rerank(text, hits, texts or {})
+            hits = hits[offset:offset + limit]
 
         by_type: Dict[str, int] = {}
         for hit in hits:
@@ -360,11 +395,46 @@ class MemoryEngine:
                 "path": str(index.path),
                 "used": backend == "fts5",
             },
+            "reranker": {
+                "used": reranker is not None,
+                "model": str(reranker.space.source) if reranker is not None else None,
+                "backend": reranker.space.backend if reranker is not None else None,
+                "candidates": window if reranker is not None else 0,
+                "reason": reranker_reason,
+            },
             "limit": limit,
             "offset": offset,
             "hits": hits,
             "summary": {"returned": len(hits), "by_type": by_type},
         }
+
+    def _semantic_reranker(
+        self, rerank: Optional[bool]
+    ) -> Tuple[Optional["SemanticReranker"], Optional[str]]:
+        """Resolve the optional reranker, returning it and a reason when absent.
+
+        ``None`` asks for the best available: an installed model is used and its
+        absence is not an error. ``True`` is a demand and fails loudly, because
+        answering with a different ranking than the one that was asked for would
+        be worse than refusing to answer.
+        """
+        if rerank is False:
+            return None, "semantic reranking disabled by the caller"
+        try:
+            reranker = SemanticReranker.from_root(self.root)
+        except EmbeddingError as exc:
+            if rerank is True:
+                raise ValueError(str(exc))
+            return None, str(exc)
+        if reranker is None:
+            reason = (
+                f"no embedding model at {MODEL_RELATIVE_PATH} "
+                f"(set {MODEL_ENV_VAR} to point at one)"
+            )
+            if rerank is True:
+                raise ValueError(f"semantic reranking requested but {reason}")
+            return None, reason
+        return reranker, None
 
     def _indexed_search(
         self,
@@ -377,11 +447,14 @@ class MemoryEngine:
         limit: int,
         offset: int,
         include_deprecated: bool = False,
+        texts: Optional[Dict[Tuple[str, str], str]] = None,
     ) -> Optional[List[Dict[str, Any]]]:
         """Search through the derived index, or ``None`` to fall back to a scan.
 
         The index is a cache, so an unusable file is discarded and rebuilt once
-        before giving up: losing the index must never lose a result.
+        before giving up: losing the index must never lose a result. When
+        ``texts`` is given it is filled with each hit's indexed text, so a
+        reranker can score candidates without reading a single record file.
         """
         if not index.available:
             return None
@@ -390,7 +463,7 @@ class MemoryEngine:
         for attempt in (0, 1):
             try:
                 index.sync(revisions, load)
-                return index.search(
+                hits = index.search(
                     text,
                     project_id=project_id,
                     types=types,
@@ -398,6 +471,13 @@ class MemoryEngine:
                     offset=offset,
                     include_deprecated=include_deprecated,
                 )
+                if texts is not None:
+                    texts.update(
+                        index.text_map(
+                            (hit["project_id"], hit["memory_id"]) for hit in hits
+                        )
+                    )
+                return hits
             except INDEX_ERRORS:
                 if attempt == 1:
                     return None
@@ -412,12 +492,14 @@ class MemoryEngine:
         limit: int,
         offset: int,
         include_deprecated: bool = False,
+        texts: Optional[Dict[Tuple[str, str], str]] = None,
     ) -> List[Dict[str, Any]]:
         """Pure-Python fallback, used when FTS5 is missing or the index fails.
 
         Scores by term frequency and requires every query term to be present,
         mirroring the index's AND semantics so callers see one contract whichever
-        backend answered.
+        backend answered. ``texts`` is filled from the haystack this scan already
+        built, so a reranker costs no extra parsing here either.
         """
         terms = tokenize(text)
         ranked: List[Tuple[float, str, str, Any, str]] = []
@@ -440,21 +522,25 @@ class MemoryEngine:
         ranked.sort(key=lambda item: item[1], reverse=True)
         ranked.sort(key=lambda item: item[0], reverse=True)
 
-        return [
-            {
-                "memory_id": record.memory_id,
-                "project_id": record.project_id,
-                "type": record.type,
-                "created_at": record.created_at,
-                "state": record.state,
-                "tags": list(record.tags),
-                "score": round(score, 6),
-                "snippet": self._snippet(haystack, terms),
-            }
-            for score, _created_at, _memory_id, record, haystack in ranked[
-                offset:offset + limit
-            ]
-        ]
+        hits: List[Dict[str, Any]] = []
+        for score, _created_at, _memory_id, record, haystack in ranked[
+            offset:offset + limit
+        ]:
+            if texts is not None:
+                texts[(record.project_id, record.memory_id)] = haystack
+            hits.append(
+                {
+                    "memory_id": record.memory_id,
+                    "project_id": record.project_id,
+                    "type": record.type,
+                    "created_at": record.created_at,
+                    "state": record.state,
+                    "tags": list(record.tags),
+                    "score": round(score, 6),
+                    "snippet": self._snippet(haystack, terms),
+                }
+            )
+        return hits
 
     @staticmethod
     def _snippet(text: str, terms: List[str], width: int = 90) -> str:

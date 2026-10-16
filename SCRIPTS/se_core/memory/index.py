@@ -421,6 +421,43 @@ class MemoryIndex:
             for row in rows
         ]
 
+    def text_map(self, keys: Sequence[Tuple[str, str]]) -> Dict[Tuple[str, str], str]:
+        """The text this index holds for the given ``(project_id, memory_id)`` pairs.
+
+        Reranking a candidate window needs each candidate's text, and the index
+        already stores it: fetching it here means scoring a candidate costs no
+        file read and no re-parse. The text is assembled exactly as the scan
+        fallback assembles its haystack (flattened content plus tags) so both
+        backends feed the reranker the same input.
+
+        One query per project rather than one per pair: a cross-project search
+        stays a handful of statements.
+        """
+        wanted: Dict[str, List[str]] = {}
+        for project_id, memory_id in keys:
+            if project_id and memory_id:
+                wanted.setdefault(project_id, []).append(memory_id)
+        if not wanted:
+            return {}
+
+        result: Dict[Tuple[str, str], str] = {}
+        conn = self._connect()
+        try:
+            self._create_schema(conn)
+            for project_id, memory_ids in wanted.items():
+                placeholders = ",".join("?" * len(memory_ids))
+                rows = conn.execute(
+                    "SELECT memory_id, content_text, tags FROM records_fts "
+                    f"WHERE project_id = ? AND memory_id IN ({placeholders})",
+                    [project_id, *memory_ids],
+                ).fetchall()
+                for row in rows:
+                    text = f"{row['content_text'] or ''} {row['tags'] or ''}".strip()
+                    result[(project_id, row["memory_id"])] = text
+        finally:
+            conn.close()
+        return result
+
     def stats(self) -> Dict[str, Any]:
         """Index inventory: availability, location, size and per-project counts."""
         report: Dict[str, Any] = {
