@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-10-14T21:36:05Z",
+  "created_at": "2026-10-16T07:54:46Z",
   "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
   "minimums": {
     "reference": 30
@@ -18,6 +18,10 @@
       {
         "path": "DOCS/reference/architecture.md",
         "hash": "75e57097d49dae0f"
+      },
+      {
+        "path": "DOCS/reference/checkpoint-recovery.md",
+        "hash": "73cc75ad9752d872"
       },
       {
         "path": "DOCS/reference/commands.md",
@@ -166,6 +170,10 @@
       {
         "path": "DOCS/reference/workflows.md",
         "hash": "3bd07672590882ab"
+      },
+      {
+        "path": "DOCS/token-economy-native-invoke.md",
+        "hash": "9bc106bfcc556344"
       }
     ]
   }
