@@ -10,7 +10,7 @@
     "schema_version": { "type": "string", "const": "1" },
     "memory_id": { "type": "string", "pattern": "^MEM-\\d{4}$" },
     "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
-    "type": { "enum": ["decision", "architecture", "discovery", "constraint", "capability", "verification", "checkpoint", "relationship"] },
+    "type": { "enum": ["decision", "architecture", "discovery", "constraint", "capability", "verification", "checkpoint", "relationship", "session", "prompt"] },
     "scope": { "enum": ["project", "global", "architecture"], "default": "project" },
     "content": { "type": "object", "description": "Structured content of the memory" },
     "tags": { "type": "array", "items": { "type": "string" } },
@@ -26,6 +26,12 @@
     },
     "supersedes": { "type": ["string", "null"], "pattern": "^MEM-\\d{4}$" },
     "superseded_by": { "type": ["string", "null"], "pattern": "^MEM-\\d{4}$" },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "topic_key": { "type": ["string", "null"], "description": "Family key for deduplication (kebab-case, optional)" },
+    "revision_count": { "type": "integer", "minimum": 0, "default": 0 },
+    "duplicate_count": { "type": "integer", "minimum": 0, "default": 0 },
+    "last_seen_at": { "type": ["string", "null"], "format": "date-time" },
+    "review_after": { "type": ["string", "null"], "format": "date-time" },
+    "state": { "enum": ["active", "archived", "needs_review", "deprecated"], "default": "active" }
   }
 }

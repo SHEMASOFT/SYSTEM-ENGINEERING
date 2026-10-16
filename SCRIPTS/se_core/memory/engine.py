@@ -8,13 +8,22 @@ from __future__ import annotations
 
 import json
 import random
+import re
+from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
 from ..paths import repo_root, now_utc, write_json_atomic
 from ..schemas import load_schemas, validate
 from ..artifacts import read_manifest
+from .index import (
+    INDEX_ERRORS,
+    IndexEntry,
+    MemoryIndex,
+    flatten_content,
+    tokenize,
+)
 
 
 @dataclass
@@ -35,6 +44,12 @@ class MemoryRecord:
     supersedes: Optional[str]
     superseded_by: Optional[str]
     metadata: Dict[str, Any]
+    topic_key: Optional[str] = None
+    revision_count: int = 0
+    duplicate_count: int = 0
+    last_seen_at: Optional[str] = None
+    review_after: Optional[str] = None
+    state: str = "active"
     schema_version: str = "1"
 
     def to_dict(self) -> Dict[str, Any]:
@@ -55,6 +70,12 @@ class MemoryRecord:
             "supersedes": self.supersedes,
             "superseded_by": self.superseded_by,
             "metadata": self.metadata,
+            "topic_key": self.topic_key,
+            "revision_count": self.revision_count,
+            "duplicate_count": self.duplicate_count,
+            "last_seen_at": self.last_seen_at,
+            "review_after": self.review_after,
+            "state": self.state,
         }
 
     @classmethod
@@ -75,6 +96,12 @@ class MemoryRecord:
             supersedes=data.get("supersedes"),
             superseded_by=data.get("superseded_by"),
             metadata=data.get("metadata", {}),
+            topic_key=data.get("topic_key"),
+            revision_count=data.get("revision_count", 0),
+            duplicate_count=data.get("duplicate_count", 0),
+            last_seen_at=data.get("last_seen_at"),
+            review_after=data.get("review_after"),
+            state=data.get("state", "active"),
         )
 
 
@@ -83,6 +110,8 @@ class MemoryEngine:
 
     Provides CRUD operations for memory records with:
     - Project-scoped and cross-project queries
+    - Lexical search through a derived, rebuildable FTS5 index, with a
+      pure-Python scan as the fallback path (ADR-0027)
     - Relationship tracking (supersedes, related, compatible)
     - Tag-based filtering
     - Atomic, LF, schema-validated persistence
@@ -158,8 +187,8 @@ class MemoryEngine:
     ) -> Dict[str, Any]:
         """Query memories with filters."""
         # The project memory files are the deterministic, auditable source of
-        # truth. Engram sync (when available) is a separate concern and must not
-        # add latency or stderr noise to a plain query.
+        # truth (ADR-0003). The derived search index of ADR-0027 is a separate
+        # concern and must not add latency or stderr noise to a plain query.
         memories = self._scan_local_memories(project_id, types, tags, author, since, until, tags_mode)
 
         # Apply pagination
@@ -197,6 +226,159 @@ class MemoryEngine:
         if record is None:
             return None
         return record.to_dict()
+
+    def search(
+        self,
+        text: str,
+        project_id: Optional[str] = None,
+        types: Optional[List[str]] = None,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """Lexical search over memory records (ADR-0027).
+
+        Uses the derived FTS5 index when it is available and falls back to a
+        pure-Python scan otherwise, so a result never depends on a cache being
+        present. Hits are compact: fetch a full record with :meth:`get`.
+        """
+        terms = tokenize(text)
+        if not terms:
+            raise ValueError("search requires at least one searchable term")
+
+        index = MemoryIndex(self.root)
+        revisions, paths = self._index_scope(project_id)
+        hits = self._indexed_search(
+            index, revisions, paths, text, project_id, types, limit, offset
+        )
+        backend = "fts5"
+        if hits is None:
+            hits = self._lexical_search(text, project_id, types, limit, offset)
+            backend = "scan"
+
+        by_type: Dict[str, int] = {}
+        for hit in hits:
+            by_type[hit["type"]] = by_type.get(hit["type"], 0) + 1
+
+        return {
+            "schema_version": "1",
+            "query_id": f"MQS-{random.randint(1000, 9999):04d}",
+            "query": text,
+            "project_id": project_id,
+            "searched_at": now_utc(),
+            "backend": backend,
+            "index": {
+                "available": index.available,
+                "path": str(index.path),
+                "used": backend == "fts5",
+            },
+            "limit": limit,
+            "offset": offset,
+            "hits": hits,
+            "summary": {"returned": len(hits), "by_type": by_type},
+        }
+
+    def _indexed_search(
+        self,
+        index: "MemoryIndex",
+        revisions: Dict[Tuple[str, str], str],
+        paths: Dict[Tuple[str, str], Path],
+        text: str,
+        project_id: Optional[str],
+        types: Optional[List[str]],
+        limit: int,
+        offset: int,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Search through the derived index, or ``None`` to fall back to a scan.
+
+        The index is a cache, so an unusable file is discarded and rebuilt once
+        before giving up: losing the index must never lose a result.
+        """
+        if not index.available:
+            return None
+
+        load = self._entry_loader(revisions, paths)
+        for attempt in (0, 1):
+            try:
+                index.sync(revisions, load)
+                return index.search(
+                    text, project_id=project_id, types=types, limit=limit, offset=offset
+                )
+            except INDEX_ERRORS:
+                if attempt == 1:
+                    return None
+                index.drop()
+        return None
+
+    def _lexical_search(
+        self,
+        text: str,
+        project_id: Optional[str],
+        types: Optional[List[str]],
+        limit: int,
+        offset: int,
+    ) -> List[Dict[str, Any]]:
+        """Pure-Python fallback, used when FTS5 is missing or the index fails.
+
+        Scores by term frequency and requires every query term to be present,
+        mirroring the index's AND semantics so callers see one contract whichever
+        backend answered.
+        """
+        terms = tokenize(text)
+        ranked: List[Tuple[float, str, str, Any, str]] = []
+
+        for _project_dir, record in self._iter_records(project_id):
+            if types and record.type not in types:
+                continue
+            haystack = flatten_content(record.content) + " " + " ".join(record.tags)
+            counts = Counter(tokenize(haystack))
+            if not all(term in counts for term in terms):
+                continue
+            score = float(sum(counts[term] for term in terms))
+            ranked.append((score, record.created_at, record.memory_id, record, haystack))
+
+        # Stable sorts applied least-significant first: score desc, then newest
+        # first, then id, so the order is total and reproducible.
+        ranked.sort(key=lambda item: item[2])
+        ranked.sort(key=lambda item: item[1], reverse=True)
+        ranked.sort(key=lambda item: item[0], reverse=True)
+
+        return [
+            {
+                "memory_id": record.memory_id,
+                "project_id": record.project_id,
+                "type": record.type,
+                "created_at": record.created_at,
+                "tags": list(record.tags),
+                "score": round(score, 6),
+                "snippet": self._snippet(haystack, terms),
+            }
+            for score, _created_at, _memory_id, record, haystack in ranked[
+                offset:offset + limit
+            ]
+        ]
+
+    @staticmethod
+    def _snippet(text: str, terms: List[str], width: int = 90) -> str:
+        """A short highlighted window around the first matching term.
+
+        Mirrors the shape of FTS5 ``snippet()`` (``[match]``, ``…`` at the cut)
+        so a caller cannot tell which backend produced it.
+        """
+        if not text:
+            return ""
+        lowered = text.lower()
+        found = [pos for pos in (lowered.find(term) for term in terms) if pos >= 0]
+        start = max(0, min(found) - width // 3) if found else 0
+        window = text[start:start + width].strip()
+        pattern = re.compile(
+            "|".join(re.escape(term) for term in terms), re.IGNORECASE
+        )
+        window = pattern.sub(lambda match: f"[{match.group(0)}]", window)
+        if start > 0:
+            window = "…" + window
+        if start + width < len(text):
+            window = window + " …"
+        return window
 
     # Relations: symmetric verbs are written on both records; directional verbs
     # are the two inverse views of one edge and delegate to `supersede`, so the
@@ -394,6 +576,50 @@ class MemoryEngine:
             raise ValueError(f"memory {memory_id} not found")
         return project_dir, record
 
+    def _project_dirs(self, project_id: Optional[str] = None) -> List[Path]:
+        """Project directories in scope for this engine root.
+
+        A project ID resolves to at most one directory; without one, every
+        discoverable project is in scope (the cross-project listing path).
+        """
+        if project_id:
+            found = self._find_project_dir(project_id)
+            return [found] if found else []
+        return sorted(
+            p for p in (self.root / "PROJECTS").glob("*")
+            if (p / "PROJECT.json").exists()
+        )
+
+    @staticmethod
+    def _project_id_of(project_dir: Path) -> Optional[str]:
+        """The project_id a directory belongs to, taken from its manifest."""
+        return read_manifest(project_dir).get("project_id")
+
+    @staticmethod
+    def _file_revision(path: Path) -> str:
+        """A cheap revision marker: ``stat`` only, never the file contents."""
+        st = Path(path).stat()
+        return f"{st.st_mtime_ns}:{st.st_size}"
+
+    def _iter_records(self, project_id: Optional[str] = None):
+        """Yield ``(project_dir, record)`` for every readable record in scope.
+
+        A malformed file is skipped rather than fatal: one bad record must not
+        hide every other record.
+        """
+        for project_dir in self._project_dirs(project_id):
+            mem_dir = project_dir / "memories"
+            if not mem_dir.exists():
+                continue
+            for mem_file in sorted(mem_dir.glob("*.json")):
+                try:
+                    record = MemoryRecord.from_dict(
+                        json.loads(mem_file.read_text(encoding="utf-8"))
+                    )
+                except Exception:
+                    continue
+                yield project_dir, record
+
     def _scan_local_memories(
         self,
         project_id: Optional[str],
@@ -407,50 +633,121 @@ class MemoryEngine:
         """Scan local memory files with filters."""
         memories = []
 
-        if project_id:
-            found = self._find_project_dir(project_id)
-            project_dirs = [found] if found else []
-        else:
-            project_dirs = [
-                p for p in (self.root / "PROJECTS").glob("*")
-                if (p / "PROJECT.json").exists()
-            ]
-
-        for project_dir in project_dirs:
-            if not project_dir:
+        for _project_dir, record in self._iter_records(project_id):
+            if types and record.type not in types:
                 continue
-            mem_dir = project_dir / "memories"
-            if not mem_dir.exists():
+            if author and record.author != author:
                 continue
-            for mem_file in mem_dir.glob("*.json"):
-                try:
-                    data = json.loads(mem_file.read_text(encoding="utf-8"))
-                    record = MemoryRecord.from_dict(data)
-
-                    # Apply filters
-                    if types and record.type not in types:
-                        continue
-                    if author and record.author != author:
-                        continue
-                    if tags:
-                        record_tags = set(record.tags)
-                        filter_tags = set(tags)
-                        if tags_mode == "all" and not filter_tags.issubset(record_tags):
-                            continue
-                        if tags_mode == "any" and not filter_tags.intersection(record_tags):
-                            continue
-                    if since and record.created_at < since:
-                        continue
-                    if until and record.created_at > until:
-                        continue
-
-                    memories.append(record)
-                except Exception:
+            if tags:
+                record_tags = set(record.tags)
+                filter_tags = set(tags)
+                if tags_mode == "all" and not filter_tags.issubset(record_tags):
                     continue
+                if tags_mode == "any" and not filter_tags.intersection(record_tags):
+                    continue
+            if since and record.created_at < since:
+                continue
+            if until and record.created_at > until:
+                continue
+
+            memories.append(record)
 
         # Sort by created_at descending
         memories.sort(key=lambda m: m.created_at, reverse=True)
         return memories
+
+    # -- derived search index (ADR-0027) -----------------------------------
+
+    def _index_scope(
+        self, project_id: Optional[str] = None
+    ) -> Tuple[Dict[Tuple[str, str], str], Dict[Tuple[str, str], Path]]:
+        """Inventory of indexable records: ``(revisions, paths)`` by identity.
+
+        Both maps come from directory listings and ``stat`` calls alone, so
+        deciding whether the index is current never parses a record.
+        """
+        revisions: Dict[Tuple[str, str], str] = {}
+        paths: Dict[Tuple[str, str], Path] = {}
+
+        for project_dir in self._project_dirs(project_id):
+            mem_dir = project_dir / "memories"
+            if not mem_dir.exists():
+                continue
+            pid = self._project_id_of(project_dir)
+            if not pid:
+                continue
+            for mem_file in sorted(mem_dir.glob("*.json")):
+                key = (pid, mem_file.stem)
+                try:
+                    revisions[key] = self._file_revision(mem_file)
+                except OSError:
+                    continue
+                paths[key] = mem_file
+
+        return revisions, paths
+
+    def _index_entry(
+        self, project_id: str, path: Path, revision: str
+    ) -> Optional[IndexEntry]:
+        """Build an index entry from one record file, or ``None`` if unreadable."""
+        try:
+            record = MemoryRecord.from_dict(
+                json.loads(Path(path).read_text(encoding="utf-8"))
+            )
+        except Exception:
+            return None
+        return IndexEntry.from_record(record, revision, project_id=project_id)
+
+    def _entry_loader(
+        self,
+        revisions: Dict[Tuple[str, str], str],
+        paths: Dict[Tuple[str, str], Path],
+    ):
+        """A ``load(project_id, memory_id)`` callable for :meth:`MemoryIndex.sync`."""
+
+        def load(project_id: str, memory_id: str) -> Optional[IndexEntry]:
+            key = (project_id, memory_id)
+            path = paths.get(key)
+            revision = revisions.get(key)
+            if path is None or revision is None:
+                return None
+            return self._index_entry(project_id, path, revision)
+
+        return load
+
+    def index_stats(self) -> Dict[str, Any]:
+        """State of the derived search index (never reads a record)."""
+        return MemoryIndex(self.root).stats()
+
+    def refresh_index(self, rebuild: bool = False) -> Dict[str, Any]:
+        """Bring the derived index up to date, or rebuild it from scratch.
+
+        The index is disposable, so ``rebuild`` simply deletes it first; that is
+        also the remedy for any doubt about its contents.
+        """
+        index = MemoryIndex(self.root)
+        if not index.available:
+            return {
+                "status": "unavailable",
+                "reason": "SQLite FTS5 is not available; searches fall back to a scan",
+                "path": str(index.path),
+                "dropped": False,
+                "inserted": 0,
+                "updated": 0,
+                "deleted": 0,
+                "total": 0,
+            }
+
+        revisions, paths = self._index_scope()
+        dropped = index.drop() if rebuild else False
+        report = index.sync(revisions, self._entry_loader(revisions, paths))
+
+        return {
+            "status": "rebuilt" if rebuild else "synced",
+            "path": str(index.path),
+            "dropped": dropped,
+            **report,
+        }
 
     def _get_schema(self, name: str) -> Dict[str, Any]:
         """Get schema by name."""
