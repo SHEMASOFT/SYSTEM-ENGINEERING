@@ -56,3 +56,14 @@ Produce visual, media, and design deliverables and their evidence.
 - `mockups`: Design mockups
 - `media`: Produced media files
 - `evidence`: Visual verification evidence
+
+## Context Handling
+
+You receive ONLY the context keys declared in your workflow node `inputs` with `context:` prefix.
+
+The coordinator uses `engine.build_native_subagent_input()` to filter context to ONLY keys you declared in `inputs.context:*`.
+
+- Do NOT assume access to keys not provided in `context`
+- If you need additional context, request it explicitly in your response
+- The `inputs` parameter contains resolved values (including from `context:`, `memory:`, `literal:`)
+- The `context` parameter contains only the filtered keys you declared

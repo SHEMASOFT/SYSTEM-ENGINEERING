@@ -1,6 +1,6 @@
 ---
 description: Aggregate health status from existing checks (doctor, validate, capabilities, review).
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # health

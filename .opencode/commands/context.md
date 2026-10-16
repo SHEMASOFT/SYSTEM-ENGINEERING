@@ -1,6 +1,6 @@
 ---
 description: Reconstruct the minimum relevant context (AUTO-02).
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # context

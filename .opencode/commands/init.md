@@ -1,6 +1,6 @@
 ---
 description: Create or repair a managed project workspace.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # init

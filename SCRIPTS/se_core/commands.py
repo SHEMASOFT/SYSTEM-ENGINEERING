@@ -4462,6 +4462,98 @@ def cmd_orchestrate(args) -> int:
         return 1
 
 
+def cmd_subagent(args) -> int:
+    """Execute a subagent with full token economy (reuses AgentRunner)."""
+    from .orchestration.engine import OrchestrationEngine
+    from .agents.runner import AgentRunner
+    from .paths import repo_root
+    import json
+
+    project_path = Path(args.project)
+    if not (project_path / "PROJECT.json").exists():
+        print(f"FAIL: no PROJECT.json in {project_path}")
+        return 1
+
+    # Parse inputs and context
+    try:
+        inputs = json.loads(args.inputs) if args.inputs else {}
+    except json.JSONDecodeError as e:
+        print(f"FAIL: invalid --inputs JSON: {e}")
+        return 1
+
+    try:
+        context = json.loads(args.context) if args.context else {}
+    except json.JSONDecodeError as e:
+        print(f"FAIL: invalid --context JSON: {e}")
+        return 1
+
+    # Validate agent
+    valid_agents = {
+        "analyst", "architect", "planner", "implementer", "tester",
+        "reviewer", "security", "documentation", "explorer", "devops", "visual"
+    }
+    agent = args.agent
+    if agent not in valid_agents:
+        print(f"FAIL: unknown agent '{agent}'. Valid: {', '.join(sorted(valid_agents))}")
+        return 1
+
+    # Load project
+    from .artifacts import read_manifest
+    project_manifest = read_manifest(project_path)
+    project_id = project_manifest.get("project_id", project_path.name)
+
+    # Create AgentRunner
+    try:
+        runner = AgentRunner(agent_name=agent, project_dir=project_path)
+    except Exception as e:
+        print(f"FAIL: failed to create agent runner for {agent}: {e}")
+        return 1
+
+    # Resolve max_tokens
+    max_tokens = args.max_tokens
+
+    # Execute
+    try:
+        result = runner.run(
+            action=args.action,
+            inputs=inputs,
+            context=context,
+            max_tokens=max_tokens,
+            temperature=args.temperature,
+        )
+    except Exception as e:
+        print(f"FAIL: subagent execution failed: {e}")
+        return 1
+
+    # Output
+    if args.json:
+        from .reporting import render_json
+        print(render_json(result))
+        return 0 if result.get("status") == "COMPLETED" else 1
+
+    # Human-readable output
+    status = result.get("status", "UNKNOWN")
+    print(f"Status: {status}")
+    if result.get("error"):
+        print(f"Error: {result['error']}")
+    if result.get("output"):
+        print(f"Output: {json.dumps(result['output'], indent=2, ensure_ascii=False)}")
+    if result.get("telemetry"):
+        tel = result["telemetry"]
+        ctx_proc = tel.get("context_processing", {})
+        prov = tel.get("provider_usage", {})
+        print(f"Telemetry: context_keys={ctx_proc.get('context_original_count', 0)} "
+              f"summarized={len(ctx_proc.get('keys_summarized', []))} "
+              f"truncated={len(ctx_proc.get('keys_truncated', []))} "
+              f"dropped={len(ctx_proc.get('keys_dropped', []))} "
+              f"est_tokens={ctx_proc.get('estimated_prompt_tokens', 0)} "
+              f"prompt_tokens={prov.get('prompt_tokens', 0)} "
+              f"completion_tokens={prov.get('completion_tokens', 0)} "
+              f"total_tokens={prov.get('total_tokens', 0)}")
+
+    return 0 if status == "COMPLETED" else 1
+
+
 def cmd_intelligence(args) -> int:
     """Integration layer: discovery + memory + orchestration plan + gates (READ-ONLY)."""
     from .intelligence.engine import IntelligenceEngine

@@ -1,6 +1,6 @@
 ---
 description: Create or load a HANDOFF.json artifact for project continuity.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # handoff

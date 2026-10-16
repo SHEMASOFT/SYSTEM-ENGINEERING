@@ -18,10 +18,10 @@ ADAPTER_MANIFEST = "adapter-manifest.json"
 # ``agent/`` is not a V2 discovery path. Exactly one spelling is emitted so a
 # tree can never register the same artifact twice.
 #
-# ``coordinator`` is the SE orchestrator, so it is the role offered as the
+# ``shema-ai-coordinador`` is the SE orchestrator, so it is the role offered as the
 # selectable primary agent; every other role runs as a subagent launched by the
 # primary agent or by a command's ``agent:`` frontmatter.
-PRIMARY_AGENTS = frozenset({"coordinator"})
+PRIMARY_AGENTS = frozenset({"shema-ai-coordinador"})
 _MODE_PRIMARY = "primary"
 _MODE_SUBAGENT = "subagent"
 
@@ -49,13 +49,18 @@ def _bullet(items) -> str:
 
 def build_agent_markdown(agent: dict, role: str) -> str:
     """Serialize an agent contract to ``agents/<role>.md``."""
+    # Derive display name from description (text before first colon) or fallback to role
+    description = agent.get('description') or agent.get('purpose', '')
+    display_name = description.split(':')[0].strip() if ':' in description else role.replace('-', ' ').title()
+    
     lines = [
         "---",
         f"description: {_yaml_scalar(agent.get('description') or agent.get('purpose', ''))}",
         f"mode: {agent_mode(role)}",
+        f"name: {_yaml_scalar(display_name)}",
         "---",
         "",
-        f"# {role}",
+        f"# {display_name}",
         "",
         f"- **id**: {agent.get('id')}",
         f"- **version**: {agent.get('version')}",

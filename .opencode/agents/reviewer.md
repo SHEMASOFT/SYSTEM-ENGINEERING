@@ -1,9 +1,10 @@
 ---
 description: Independently review artifacts, evidence and process for correctness and quality.
 mode: subagent
+name: Reviewer
 ---
 
-# reviewer
+# Reviewer
 
 - **id**: AG-0009
 - **version**: 1.0.0

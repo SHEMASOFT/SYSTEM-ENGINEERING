@@ -1,6 +1,6 @@
 ---
 description: Evaluate a single gate against a project.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # gate

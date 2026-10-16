@@ -19,7 +19,7 @@ from se_core.paths import load_json  # noqa: E402
 from se_core.schemas import validate  # noqa: E402
 
 EXPECTED_AGENTS = {
-    "coordinator", "explorer", "analyst", "architect", "planner", "implementer",
+    "shema-ai-coordinador", "explorer", "analyst", "architect", "planner", "implementer",
     "tester", "reviewer", "security", "documentation", "devops", "visual",
 }
 EXPECTED_COMMANDS = {

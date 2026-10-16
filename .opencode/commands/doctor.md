@@ -1,6 +1,6 @@
 ---
 description: Validate the Master System installation and environment.
-agent: coordinator
+agent: shema-ai-coordinador
 ---
 
 # doctor

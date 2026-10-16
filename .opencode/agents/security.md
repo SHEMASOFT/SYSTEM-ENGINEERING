@@ -1,9 +1,10 @@
 ---
 description: Identify security risks and produce security evidence across the lifecycle.
 mode: subagent
+name: Security
 ---
 
-# security
+# Security
 
 - **id**: AG-0010
 - **version**: 1.0.0

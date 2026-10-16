@@ -22,10 +22,10 @@
     "id": { "type": "string", "pattern": "^AG-\\d{4}$" },
     "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
     "name": {
-      "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+      "enum": ["shema-ai-coordinador", "coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
     },
     "role": {
-      "enum": ["coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
+      "enum": ["shema-ai-coordinador", "coordinator", "explorer", "analyst", "architect", "planner", "implementer", "tester", "reviewer", "security", "documentation", "devops", "visual"]
     },
     "description": { "type": "string", "minLength": 1 },
     "purpose": { "type": "string", "minLength": 1 },

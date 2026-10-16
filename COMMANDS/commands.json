@@ -18,7 +18,7 @@
       "name": "init",
       "description": "Create or repair a managed project workspace.",
       "purpose": "Create or repair a managed project workspace (seeds .gitignore and discovery.json without overwriting).",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "CREATE",
       "risk_level": "low",
       "inputs": [
@@ -37,7 +37,7 @@
         "discovery.json"
       ],
       "gate": "G0",
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": true,
       "implemented": true,
       "permissions": [
@@ -136,7 +136,7 @@
       "name": "new",
       "description": "Create a record from its template.",
       "purpose": "Create a record (objective, requirement, task, artifact, evidence, acceptance, decision) from its template.",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "CREATE",
       "risk_level": "low",
       "inputs": [
@@ -148,7 +148,7 @@
         "<canonical dir>/<ID>.json"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": true,
       "implemented": true,
       "permissions": [
@@ -183,7 +183,7 @@
       "name": "update",
       "description": "Apply a controlled, audited mutation to a record.",
       "purpose": "Apply a controlled mutation to an existing record (validated, atomic, reference-safe, audited).",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "MUTATE",
       "risk_level": "medium",
       "inputs": [
@@ -200,7 +200,7 @@
         "mutation-log.jsonl entry"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": true,
       "implemented": true,
       "permissions": [
@@ -259,7 +259,7 @@
       "name": "transition",
       "description": "Advance the project lifecycle through its gates.",
       "purpose": "Advance the project lifecycle through its gates; requires human attestation for MANUAL conditions.",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "CONTROL",
       "risk_level": "high",
       "inputs": [
@@ -273,7 +273,7 @@
         "metadata.transitions record"
       ],
       "gate": "varies",
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": true,
       "implemented": true,
       "permissions": [
@@ -535,7 +535,7 @@
       "name": "doctor",
       "description": "Validate the Master System installation and environment.",
       "purpose": "Validate the Master System installation and environment.",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "ANALYZE",
       "risk_level": "low",
       "inputs": [],
@@ -543,7 +543,7 @@
         "PASS/WARN/FAIL report"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": false,
       "implemented": true,
       "permissions": [
@@ -565,7 +565,7 @@
       "name": "validate",
       "description": "Validate schemas, agents, domains and an optional project.",
       "purpose": "Validate schemas, agents, domains and (optionally) a project.",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "ANALYZE",
       "risk_level": "low",
       "inputs": [
@@ -575,7 +575,7 @@
         "validation report"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": false,
       "implemented": true,
       "permissions": [
@@ -603,7 +603,7 @@
       "name": "gate",
       "description": "Evaluate a single gate against a project.",
       "purpose": "Evaluate a single gate against a project.",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "ANALYZE",
       "risk_level": "low",
       "inputs": [
@@ -614,7 +614,7 @@
         "gate condition report"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": false,
       "implemented": true,
       "permissions": [
@@ -648,7 +648,7 @@
       "name": "capabilities",
       "description": "Capability governance: registry, policy check and resolution.",
       "purpose": "Inspect the capability registry and declarative provider mapping, validate declared capability policies (skills, agents, project profiles, tasks) and resolve a deterministic capability plan (system, project and/or task scope).",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "ANALYZE",
       "risk_level": "low",
       "inputs": [
@@ -662,7 +662,7 @@
         "resolved capability plan"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": false,
       "implemented": true,
       "permissions": [
@@ -702,7 +702,7 @@
       "name": "context",
       "description": "Reconstruct the minimum relevant context (AUTO-02).",
       "purpose": "Read-only, deterministic, on-demand reconstruction of the smallest sufficient context for a project or focused entity (LEVEL 0 identity by default; work/authority/trace/deep require an explicit scope). Composes existing read-only functions; grants no authority; emits a se.report/1 envelope with --json.",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "READ",
       "risk_level": "low",
       "inputs": [
@@ -715,7 +715,7 @@
         "minimum context selection"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": false,
       "implemented": true,
       "permissions": [
@@ -755,7 +755,7 @@
       "name": "health",
       "description": "Aggregate health status from existing checks (doctor, validate, capabilities, review).",
       "purpose": "Aggregate health status from existing read-only checks (doctor, validate, capabilities --check, review) into a single deterministic, machine-readable health envelope (operation=health).",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "READ",
       "risk_level": "low",
       "inputs": [
@@ -766,7 +766,7 @@
         "se.report/1 health envelope"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": false,
       "implemented": true,
       "permissions": [
@@ -794,7 +794,7 @@
       "name": "auto",
       "description": "Deterministic decision engine: consumes health aggregation and emits a machine-readable next-action decision (se.auto/1).",
       "purpose": "Convert structured health status into a deterministic, auditable decision about the next AUTO pipeline step. READ-ONLY; no mutations, no LLM, no autonomous execution.",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "ANALYZE",
       "risk_level": "low",
       "inputs": [
@@ -805,7 +805,7 @@
         "se.auto/1 decision envelope"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": false,
       "implemented": true,
       "permissions": [
@@ -833,7 +833,7 @@
       "name": "intent",
       "description": "Normalize an explicit structured intent into a READ-ONLY se.intent/1 envelope.",
       "purpose": "Validate and normalize an explicit structured intent (objetivo, contexto/proyecto, alcance, restricciones, criterio de éxito) from a file or an existing OBJECTIVE artifact, emitting a deterministic se.intent/1 envelope. READ-ONLY; no mutations, no LLM.",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "ANALYZE",
       "risk_level": "low",
       "inputs": [
@@ -845,7 +845,7 @@
         "se.intent/1 intent envelope"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": false,
       "implemented": true,
       "permissions": [
@@ -885,7 +885,7 @@
       "name": "handoff",
       "description": "Create or load a HANDOFF.json artifact for project continuity.",
       "purpose": "Explicit handoff artifact capturing project state, context snapshot, blockers, and deterministic next-actions for seamless context transfer across sessions or agents. READ-ONLY (create does not mutate project records; load is pure read).",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "READ",
       "risk_level": "low",
       "inputs": [
@@ -902,7 +902,7 @@
         "handoff summary (load)"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": false,
       "implemented": true,
       "permissions": [
@@ -967,7 +967,7 @@
       "name": "archive",
       "description": "Create a verified archive bundle of the project.",
       "purpose": "Create a tamper-evident archive (.tar.gz) containing all project files with SHA-256 hashes, embedded archive-manifest.json with record counts, and pre-archive validation. READ-ONLY (does not mutate project records).",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "READ",
       "risk_level": "low",
       "inputs": [
@@ -981,7 +981,7 @@
         "archive-manifest.json (embedded)"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": false,
       "implemented": true,
       "permissions": [
@@ -1027,7 +1027,7 @@
       "name": "restore",
       "description": "Restore a project from an archive bundle.",
       "purpose": "Restore a project from a verified archive bundle; verifies SHA-256 hashes against embedded manifest, extracts all files, and runs se validate on the restored project. Does not overwrite without --force.",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "CREATE",
       "risk_level": "medium",
       "inputs": [
@@ -1040,7 +1040,7 @@
         "validation report"
       ],
       "gate": null,
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": true,
       "implemented": true,
       "permissions": [
@@ -1188,7 +1188,7 @@
       "name": "orchestrate",
       "description": "Manage deterministic multi-agent workflows (DAG + gates): create, execute, list.",
       "purpose": "Create workflow definitions from nodes/edges/gates, execute them with topological ordering and gate enforcement, and list workflows in a project.",
-      "agent": "coordinator",
+      "agent": "shema-ai-coordinador",
       "execution_intent": "CONTROL",
       "risk_level": "medium",
       "inputs": [
@@ -1207,7 +1207,7 @@
         "workflow list (list)"
       ],
       "gate": "varies",
-      "primary_agent": "coordinator",
+      "primary_agent": "shema-ai-coordinador",
       "mutates": true,
       "implemented": true,
       "permissions": [
