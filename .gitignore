@@ -19,6 +19,10 @@ credentials*
 secrets*
 tokens*
 
+# But the generated policy document and its canonical source are not secrets:
+!.opencode/policies/secrets.md
+!POLICIES/secrets.md
+
 # Node
 node_modules/
 

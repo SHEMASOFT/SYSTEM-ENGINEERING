@@ -63,7 +63,7 @@ SKELETON = """{
 """
 
 FOREIGN_MARKER = "keep-me-verbatim-9f3a"
-SE_SERVERS = ["context7", "filesystem", "se-skill-server"]
+SE_SERVERS = ["context7", "filesystem", "se-memory-server", "se-skill-server"]
 
 
 class FakeResult:

@@ -102,7 +102,7 @@
       "agents/planner.md": "71ea88da100ec1c5e9f8247f342fb3f82b768f0d33e405d05b01281971cc1cb6",
       "agents/reviewer.md": "d256676483b6265f0b61f9c9393f41289ef583c7a92d9690b1665ad617ec1c5a",
       "agents/security.md": "0c6e96a696947171220714aacd168dd9d116538758a45ee7117116d6247d6e28",
-      "agents/shema-ai-coordinador.md": "4d978a75f1555a07879eba5b02a826002df99a2b70a276f0004308ea95129ab4",
+      "agents/shema-ai-coordinador.md": "b60327ee6fe412fa1a2ae496ae07709d3be6f45670a1fc79db8fc58873b9ac3d",
       "agents/tester.md": "ed0d8c4930141ce6fb18c5dc65c9e1b41ef77817459b47ac00bc99fcbfa2e988",
       "agents/visual.md": "5ad578f95b13bb7f1a5bbeb73534143c74740d5c938e0b26a2504a19fdb43fdf",
       "commands/archive.md": "0eef75d0251284b826e65090ea7c98e7b76a920eade8613748e607eea6b9aca6",
@@ -113,14 +113,14 @@
       "commands/execute.md": "4a5d62eca54208d7c29201680a6bc3cd210f4581a40b403ee0e80cc2ca59babc",
       "commands/explore.md": "0355931d37fae8171c2169753001eb7ca7aec25123f5839f5519ebc56ec87fe5",
       "commands/gate.md": "5c4992afc559703c4e43409bf797754d2751d531c11f46d56857b0c9457b9a6b",
-      "commands/handoff.md": "84cb590ce0b776c88af7eb36d86f1b4ebf7cdf8496ed901e59b87b6445987309",
+      "commands/handoff.md": "4dffe5c45adb46fb88831cf52eb490d58bba4acd7df119576abebf90a6691108",
       "commands/health.md": "d40d2a173e75df27fc1c5a441899e38386e75c85a3a8fa5a70c1ece0ea9b0676",
       "commands/implement.md": "c126ce83766c34d13fc18db14514f5518930e24e552580016361b1e1dc8cac2b",
       "commands/init.md": "dedf24941e62489f98424ea9739327bf0293d678be5b5023181d42c48e185fe2",
       "commands/intent.md": "b8effedbacf5e6c917b4f4bfcaf4334a4a0688c960d0d0bcfcaa188d50d5de62",
       "commands/new.md": "6a4adfe9932a6a450bb51644af0a222606b0c8acf1bd0ef5e49119a9ac3170e6",
       "commands/observe.md": "94b50236bcd2725724dd3c9b4d2157ae862397cc1dcb019051ff828820d50a99",
-      "commands/orchestrate.md": "d9a27c5c61d5aecd0d2b0da5fd9e9ffe644a66b336a40d602a1f840c23d11b8c",
+      "commands/orchestrate.md": "7111526f45f66ce87c09f4b97e8e7c0c17843e1b50f2f46954a5d6fa200ea787",
       "commands/plan.md": "5a3844ade49a1f4c59403a590ef4b9025be4277d5d31aeec09d88d69fce6a258",
       "commands/release.md": "a486b9eb178b089868176b907783de790db6283195021497d4b67adac8580e10",
       "commands/restore.md": "4757fa0ac202d649cf671786a17f565448d8388ff47c81e4afd5f8718b6b99d0",
@@ -131,7 +131,17 @@
       "commands/verify.md": "d09a5746d996c582ae4d3fe1fa962dc218c9b0469b13b47ed5b4518477d6b318",
       "mcp/context7.json": "6b35e986530fb0250a1101865dab42e00767628bbc60b8480fb817c74c9aaea1",
       "mcp/filesystem.json": "e36993b6f3ddcfb59706ef82d3142a555551636b26c697549586962bfc9415e7",
+      "mcp/memory-server.json": "a803822715787feeee5022728c8261a6909a35f22c6962d275e0960cab8f1e59",
       "mcp/skill-server.json": "110a2f9259c34e930de5d9bd3259e239f318e4e60a9667a5aa619ad8fed0abda",
+      "policies/README.md": "d27201043aa42dce691761b3c08cc3dd809c4b9a2e8204f3d04c374a696b912b",
+      "policies/agent-permissions.md": "be8d81da8e78168bffb667889df2650271707547055243825afc6bc3078059f3",
+      "policies/change-control.md": "b475ec78ebbbc5ca6c0a2539c68698b8fcdd519159b838b8873fe6105e7955b0",
+      "policies/destructive-actions.md": "d3aa23a80f30f1311154f176b4b7540ac6fed31fa1c0057aeedd51d6773fb957",
+      "policies/evidence.md": "7e03f11e6220d01ecd4f191b6cf0cbca175ccefae99be78dab9f06bef551d183",
+      "policies/release.md": "dfc4ec85f12ca8735cbe8cbeaa4211062e1d712e5f2b1a641f05da5fa1f39a7b",
+      "policies/secrets.md": "a48670b9bf5c8a49ab859c285dfe5d134db0fa4a2c145e4e6df59f78e9e8fed7",
+      "policies/security.md": "77bbdb2b071614afc05057d42c44b7875a1a6f30f99326d63285175a851b5167",
+      "policies/verification.md": "4b80069a4341acbeba2867c32ed31b36bf78fef6976c038d37eca75cba4a9856",
       "skills/checkpoint-release/SKILL.md": "d9bc2407ad519a8f84b05a30a4fe5f77660a8856babd2aabe516ccca053ae2fa",
       "skills/dbg-systematic/SKILL.md": "742e8ce2bf48e276efa7361f2491ed0e864763ae74b059f4afdebd771c4cdef5",
       "skills/impl-tdd/SKILL.md": "a4d39e50c9f05a7dab081df0ccff9737b6b86d6d5aad424700b4cf2f3d25d8c8",
@@ -409,6 +419,60 @@
         "type": "skill"
       },
       {
+        "description": "Policy agent-permissions",
+        "format": "markdown",
+        "path": ".opencode/policies/agent-permissions.md",
+        "type": "policy"
+      },
+      {
+        "description": "Policy change-control",
+        "format": "markdown",
+        "path": ".opencode/policies/change-control.md",
+        "type": "policy"
+      },
+      {
+        "description": "Policy destructive-actions",
+        "format": "markdown",
+        "path": ".opencode/policies/destructive-actions.md",
+        "type": "policy"
+      },
+      {
+        "description": "Policy evidence",
+        "format": "markdown",
+        "path": ".opencode/policies/evidence.md",
+        "type": "policy"
+      },
+      {
+        "description": "Policy README",
+        "format": "markdown",
+        "path": ".opencode/policies/README.md",
+        "type": "policy"
+      },
+      {
+        "description": "Policy release",
+        "format": "markdown",
+        "path": ".opencode/policies/release.md",
+        "type": "policy"
+      },
+      {
+        "description": "Policy secrets",
+        "format": "markdown",
+        "path": ".opencode/policies/secrets.md",
+        "type": "policy"
+      },
+      {
+        "description": "Policy security",
+        "format": "markdown",
+        "path": ".opencode/policies/security.md",
+        "type": "policy"
+      },
+      {
+        "description": "Policy verification",
+        "format": "markdown",
+        "path": ".opencode/policies/verification.md",
+        "type": "policy"
+      },
+      {
         "description": "OpenCode adapter output manifest",
         "format": "json",
         "path": ".opencode/adapter-manifest.json",
@@ -430,6 +494,12 @@
         "description": "MCP filesystem configuration",
         "format": "json",
         "path": ".opencode/mcp/filesystem.json",
+        "type": "mcp"
+      },
+      {
+        "description": "MCP memory-server configuration",
+        "format": "json",
+        "path": ".opencode/mcp/memory-server.json",
         "type": "mcp"
       },
       {
@@ -479,7 +549,17 @@
       "commands/verify.md",
       "mcp/context7.json",
       "mcp/filesystem.json",
+      "mcp/memory-server.json",
       "mcp/skill-server.json",
+      "policies/README.md",
+      "policies/agent-permissions.md",
+      "policies/change-control.md",
+      "policies/destructive-actions.md",
+      "policies/evidence.md",
+      "policies/release.md",
+      "policies/secrets.md",
+      "policies/security.md",
+      "policies/verification.md",
       "skills/checkpoint-release/SKILL.md",
       "skills/dbg-systematic/SKILL.md",
       "skills/impl-tdd/SKILL.md",

@@ -86,14 +86,40 @@ def build_agent_markdown(agent: dict, role: str) -> str:
     lines += ["", "## Permissions", "", _bullet(sorted(agent.get("permissions", [])))]
     lines += ["", "## Verification requirements", ""]
     lines.append(_bullet(agent.get("verification_requirements", [])))
+    delegation = agent.get("delegation_instructions") or []
+    if delegation:
+        lines += ["", "## Delegation", ""]
+        lines.append(_bullet(delegation))
+    communication = agent.get("communication_preferences") or []
+    if communication:
+        lines += ["", "## Communication", ""]
+        lines.append(_bullet(communication))
     lines.append("")
     return "\n".join(lines)
+
+
+def _project_flag_on_subcommands(command: dict) -> bool:
+    """Whether the CLI declares ``--project`` on the subcommands, not at top level.
+
+    Commands whose contract declares a required ``subcommand`` argument take
+    ``--project`` on each subcommand, so the default
+    ``se <name> --project $ARGUMENTS`` template is not a valid invocation:
+    argparse reads the project path as the subcommand and exits with code 2
+    (``invalid choice``). Verified for CMD-0019 (handoff) and CMD-0024
+    (orchestrate).
+    """
+    return any(arg.get("name") == "subcommand" for arg in command.get("arguments", []))
 
 
 def build_command_markdown(command: dict) -> str:
     """Serialize a command contract to ``commands/<name>.md``."""
     name = command["name"]
     args = command.get("arguments", [])
+    # Caller supplies the subcommand and its own --project flag.
+    execution = (
+        f"se {name} $ARGUMENTS" if _project_flag_on_subcommands(command)
+        else f"se {name} --project $ARGUMENTS"
+    )
     lines = [
         "---",
         f"description: {_yaml_scalar(command.get('description') or command.get('purpose', ''))}",
@@ -112,7 +138,7 @@ def build_command_markdown(command: dict) -> str:
         "",
         "## Execution",
         "",
-        f"se {name} --project $ARGUMENTS",
+        execution,
         "",
         "## Arguments",
         "",

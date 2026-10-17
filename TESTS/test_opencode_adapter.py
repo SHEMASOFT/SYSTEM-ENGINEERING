@@ -7,8 +7,11 @@ Idempotence: two runs produce byte-identical results.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import io
 import json
+import shlex
 import sys
 import tempfile
 import unittest
@@ -17,7 +20,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
 
+from se_core.cli import build_parser  # noqa: E402
 from se_core.opencode.generator import generate  # noqa: E402
+from se_core.opencode.mappings import build_command_markdown  # noqa: E402
 from se_core.opencode.validators import audit_adapter  # noqa: E402
 from se_core.paths import load_json  # noqa: E402
 from se_core.schemas import validate  # noqa: E402
@@ -107,7 +112,7 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
             self.assertEqual(errors, [], f"{errors}")
             self.assertEqual(config["adapter_id"], "opencode")
             self.assertEqual(config["target"], "opencode")
-            self.assertEqual(len(config["output"]["artifacts"]), 48)
+            self.assertEqual(len(config["output"]["artifacts"]), 58)
 
     def test_capabilities_declared(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -161,7 +166,7 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = self.generate_to(Path(tmp))
             paths = {entry["path"] for entry in result["files"]}
-            self.assertEqual(len(paths), 48)
+            self.assertEqual(len(paths), 58)
             self.assertIn("adapter-manifest.json", paths)
             self.assertIn("AGENTS.md", paths)
 
@@ -188,7 +193,7 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
             self.assertEqual(result["status"], "PASS")
             self.assertTrue(result["dry_run"])
             self.assertEqual(list(Path(tmp).rglob("*")), [])
-            self.assertEqual(len(result["files"]), 48)
+            self.assertEqual(len(result["files"]), 58)
 
     def test_never_writes_into_projects(self):
         schemas = support.schemas()
@@ -207,9 +212,9 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = self.generate_to(Path(tmp))
             config = json.loads((Path(tmp) / "adapter-manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(len(config["output"]["generated_files"]), 47)
+            self.assertEqual(len(config["output"]["generated_files"]), 57)
             hashes = config["metadata"]["content_hashes"]
-            self.assertEqual(len(hashes), 47)
+            self.assertEqual(len(hashes), 57)
             for rel, digest in hashes.items():
                 content = (Path(tmp) / rel).read_bytes()
                 import hashlib
@@ -415,6 +420,104 @@ class AdapterConformanceAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             errors = audit_adapter(Path(support.REPO_ROOT), Path(tmp))
             self.assertTrue(any("missing adapter-manifest.json" in e for e in errors), errors)
+
+
+class CommandExecutionLineTests(unittest.TestCase):
+    """The generated `## Execution` line must be a valid CLI invocation.
+
+    `build_command_markdown` used to emit `se <name> --project $ARGUMENTS` for
+    every command. For commands whose `--project` lives on the subcommands
+    (CMD-0019 handoff, CMD-0024 orchestrate) that line exits 2 with
+    `invalid choice`, so the generated slash command never worked.
+    """
+
+    def _commands(self):
+        return load_json(Path(support.REPO_ROOT) / "COMMANDS" / "commands.json")["commands"]
+
+    @staticmethod
+    def _execution_line(command):
+        for line in build_command_markdown(command).splitlines():
+            if line.startswith("se "):
+                return line
+        raise AssertionError(f"no Execution line generated for {command['name']}")
+
+    @staticmethod
+    def _declares_subcommand(command):
+        return any(arg.get("name") == "subcommand" for arg in command.get("arguments", []))
+
+    def test_execution_line_follows_cli_shape_per_command(self):
+        for cmd in self._commands():
+            expected = (
+                f"se {cmd['name']} $ARGUMENTS" if self._declares_subcommand(cmd)
+                else f"se {cmd['name']} --project $ARGUMENTS"
+            )
+            self.assertEqual(self._execution_line(cmd), expected, cmd["name"])
+
+    def test_only_subcommand_commands_dropped_the_top_level_project_flag(self):
+        changed = [
+            cmd["name"] for cmd in self._commands()
+            if self._execution_line(cmd) != f"se {cmd['name']} --project $ARGUMENTS"
+        ]
+        self.assertEqual(sorted(changed), ["handoff", "orchestrate"])
+
+    def test_orchestrate_execution_line_parses_with_real_parser(self):
+        args = build_parser().parse_args(
+            shlex.split("orchestrate list --project PROJECTS/workflow-demo")
+        )
+        self.assertEqual(args.command, "orchestrate")
+        self.assertEqual(args.orchestrate_command, "list")
+
+    def test_handoff_execution_line_parses_with_real_parser(self):
+        args = build_parser().parse_args(
+            shlex.split("handoff load --project PROJECTS/workflow-demo")
+        )
+        self.assertEqual(args.command, "handoff")
+        self.assertEqual(args.subcommand, "load")
+
+    def test_pre_fix_template_is_still_rejected(self):
+        """Guards the regression: the old template must keep exiting with code 2."""
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                build_parser().parse_args(
+                    shlex.split("orchestrate --project PROJECTS/workflow-demo")
+                )
+        self.assertEqual(ctx.exception.code, 2)
+
+
+class AgentDelegationInstructionsTests(unittest.TestCase):
+    """The coordinator's generated agent file must carry the delegation contract."""
+
+    def test_generated_coordinator_agent_contains_delegation_section(self):
+        from se_core.opencode.generator import generate
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            generate(support.REPO_ROOT, out)
+            agent_md = (out / "agents" / "shema-ai-coordinador.md").read_text(encoding="utf-8")
+        self.assertIn("## Delegation", agent_md)
+        self.assertIn("background: true", agent_md)
+        self.assertIn("Never poll", agent_md)
+        self.assertIn("stay synchronous", agent_md)
+
+
+class AgentOverviewNotInstructionSourceTests(unittest.TestCase):
+    """Control test (B9): `.opencode/AGENTS.md` is an overview, NOT an
+    instruction source consumed by OpenCode. Empirically verified that OpenCode
+    injects only the agent definition file + Code Mode + personal instructions;
+    `.opencode/AGENTS.md` is never loaded. This test guards that the overview
+    stays free of operational delegation instructions."""
+
+    def test_agents_md_overview_carries_no_operational_instructions(self):
+        from se_core.opencode.generator import generate
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            generate(support.REPO_ROOT, out)
+            agents_md = (out / "AGENTS.md").read_text(encoding="utf-8")
+            agent_md = (out / "agents" / "shema-ai-coordinador.md").read_text(encoding="utf-8")
+        for keyword in ("background: true", "Never poll", "subagent", "invoke", "Delegation", "Communication"):
+            self.assertNotIn(keyword, agents_md, f"AGENTS.md must not contain '{keyword}'")
+        self.assertIn("## Delegation", agent_md)
+        self.assertIn("## Communication", agent_md)
 
 
 if __name__ == "__main__":

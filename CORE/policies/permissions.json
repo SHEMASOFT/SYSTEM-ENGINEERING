@@ -6,6 +6,7 @@
     { "id": "READ", "description": "Read files, repositories and artifacts." },
     { "id": "ANALYZE", "description": "Perform analysis and produce findings without modifying state." },
     { "id": "WRITE_DOCS", "description": "Create or modify documentation and non-code artifacts." },
+    { "id": "WRITE_MEMORY", "description": "Create or modify memory records and knowledge artifacts." },
     { "id": "IMPLEMENT", "description": "Create or modify code and configuration within an authorized scope." },
     { "id": "TEST", "description": "Execute tests and collect evidence." },
     { "id": "DEPLOY", "description": "Deploy to a non-production or explicitly authorized environment." },
@@ -13,7 +14,7 @@
   ],
   "defaults": {
     "granted": ["READ", "ANALYZE"],
-    "not_granted": ["WRITE_DOCS", "IMPLEMENT", "TEST", "DEPLOY", "DESTRUCTIVE"]
+    "not_granted": ["WRITE_DOCS", "WRITE_MEMORY", "IMPLEMENT", "TEST", "DEPLOY", "DESTRUCTIVE"]
   },
   "rules": [
     "DESTRUCTIVE is never granted by default and requires explicit human authorization.",

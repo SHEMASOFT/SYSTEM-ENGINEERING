@@ -79,7 +79,7 @@ class OrchestrationEngine:
     @property
     def memory_engine(self) -> "MemoryEngine":
         if self._memory_engine is None:
-            self._memory_engine = MemoryEngine(root=repo_root())
+            self._memory_engine = MemoryEngine(root=self.root)
         return self._memory_engine
 
     @property
@@ -261,6 +261,19 @@ class OrchestrationEngine:
                         context=context,
                         status="FAILED",
                     )
+                    self._auto_save_memory(
+                        project_id=workflow["project_id"],
+                        memory_type="constraint",
+                        content={
+                            "summary": f"Gate {gate_id} blocked node {node_id}",
+                            "gate_id": gate_id,
+                            "node_id": node_id,
+                            "status": gate_results[gate_id].get("status"),
+                            "detail": gate_results[gate_id].get("detail", "unknown"),
+                        },
+                        tags=["gate", "blocked", gate_id],
+                        topic_key=f"gate:{workflow_id}:{node_id}:{gate_id}",
+                    )
                     return self._fail_execution(
                         execution_id_final, workflow, node_states,
                         f"Gate {gate_id} failed: {gate_results[gate_id].get('detail', 'unknown')}"
@@ -285,17 +298,47 @@ class OrchestrationEngine:
                     context=context,
                     status="FAILED",
                 )
+                self._auto_save_memory(
+                    project_id=workflow["project_id"],
+                    memory_type="constraint",
+                    content={
+                        "summary": f"Node {node_id} failed",
+                        "node_id": node_id,
+                        "agent": node.get("agent"),
+                        "action": node.get("action"),
+                        "error": result.get("error", "unknown error"),
+                    },
+                    tags=["failure", "node", node_id],
+                    topic_key=f"failure:{workflow_id}:{node_id}",
+                )
                 return self._fail_execution(
                     execution_id_final, workflow, node_states,
                     f"Node {node_id} failed: {result.get('error', 'unknown error')}"
                 )
 
             # Update context with node outputs
-            context.update(result.get("outputs", {}))
+            node_outputs = result.get("outputs", {})
+            context.update(node_outputs)
             completed_nodes.append(node_id)
             node_states[node_id]["status"] = "COMPLETED"
             node_states[node_id]["completed_at"] = now_utc()
-            node_states[node_id]["outputs"] = result.get("outputs", {})
+            node_states[node_id]["outputs"] = node_outputs
+
+            # Save memory for reusable node results (only if outputs exist)
+            if node_outputs:
+                self._auto_save_memory(
+                    project_id=workflow["project_id"],
+                    memory_type="decision",
+                    content={
+                        "summary": f"Node {node_id} completed",
+                        "node_id": node_id,
+                        "agent": node.get("agent"),
+                        "action": node.get("action"),
+                        "outputs": node_outputs,
+                    },
+                    tags=["node", "completed", node_id, node.get("agent", "")],
+                    topic_key=f"node:{workflow_id}:{node_id}",
+                )
 
             # Save checkpoint after each node
             checkpoint_manager.save(
@@ -317,6 +360,19 @@ class OrchestrationEngine:
             gate_results=gate_results,
             context=context,
             status="COMPLETED",
+        )
+        self._auto_save_memory(
+            project_id=workflow["project_id"],
+            memory_type="checkpoint",
+            content={
+                "summary": f"Workflow {workflow_id} completed",
+                "workflow_id": workflow_id,
+                "execution_id": execution_id_final,
+                "completed_nodes": list(completed_nodes),
+                "node_count": len(completed_nodes),
+            },
+            tags=["workflow", "completed", workflow_id],
+            topic_key=f"workflow:{workflow_id}",
         )
 
         return {
@@ -490,19 +546,19 @@ class OrchestrationEngine:
         context: Dict[str, Any],
         resolved_inputs: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Build filtered input payload for native OpenCode `invoke` tool.
-        
+        """Build filtered input payload for the native OpenCode `subagent` tool.
+
         This ensures the subagent receives only the context keys it declares
         in its node inputs (context: prefix), consistent with the internal
         AgentRunner path token economy (FASE 1).
-        
+
         Args:
             node: Workflow node definition
             context: Accumulated execution context
             resolved_inputs: Already-resolved input values
-            
+
         Returns:
-            Dict with action, inputs, and filtered context for `invoke` tool
+            Dict with action, inputs, and filtered context for `subagent` tool
         """
         # Filter context to only keys referenced by node inputs (context: prefix)
         context_keys = set()
@@ -525,6 +581,34 @@ class OrchestrationEngine:
                 if manifest.get("project_id") == project_id:
                     return p
         return None
+
+    def _auto_save_memory(
+        self,
+        project_id: str,
+        memory_type: str,
+        content: Dict[str, Any],
+        tags: List[str],
+        topic_key: str,
+    ) -> None:
+        """Best-effort memory save. Never fails the workflow."""
+        # Skip if the project is not a managed project (e.g. in tests).
+        if self.memory_engine._find_project_dir(project_id) is None:
+            return
+        try:
+            self.memory_engine.add(
+                project_id=project_id,
+                type=memory_type,
+                content=content,
+                author="se-engine",
+                scope="project",
+                tags=tags,
+                topic_key=topic_key,
+                source="engine.execute",
+                state="active",
+            )
+        except Exception as exc:
+            import sys as _sys
+            print(f"WARN: auto-memory save failed ({topic_key}): {exc}", file=_sys.stderr)
 
     def _fail_execution(
         self,
@@ -554,10 +638,10 @@ class OrchestrationEngine:
         execution_id: Optional[str] = None,
         start_node: Optional[str] = None,
     ) -> str:
-        """Generate a prompt for the coordinator to execute workflow natively via OpenCode invoke.
+        """Generate a prompt for the coordinator to execute workflow natively via OpenCode.
 
         This prompt is designed to be used when the coordinator runs as an OpenCode primary agent
-        and uses the `invoke` tool to launch subagents for each workflow node.
+        and uses the native `subagent` tool to launch one subagent per workflow node.
 
         Returns:
             Prompt string for the coordinator agent.
@@ -662,7 +746,7 @@ class OrchestrationEngine:
         prompt_parts.extend([
             f"## Instructions for Native Execution",
             f"",
-            f"You are the SHEMA-AI Coordinador. Execute this workflow by invoking subagents via the `invoke` tool.",
+            f"You are the SHEMA-AI Coordinador. Execute this workflow by delegating each node to the native `subagent` tool.",
             f"",
             f"### For each node in execution order:",
             f"",
@@ -689,22 +773,36 @@ class OrchestrationEngine:
             f"   filtered to ONLY keys declared in node.inputs with `context:` prefix.",
             f"   (Consistent with internal AgentRunner token economy - FASE 1)",
             f"",
-            f"4. **Invoke subagent** via `invoke` tool:",
+            f"4. **Delegate the node** with the native `subagent` tool:",
             f"   ```json",
             f"   {{",
-            f"     \"tool\": \"invoke\",",
-            f"     \"arguments\": {{",
-            f"       \"agent\": \"{node['agent']}\",",
-            f"       \"input\": subagent_input  # Use the helper result",
-            f"     }}",
+            f"     \"agent\": \"{node['agent']}\",",
+            f"     \"description\": \"<short 3-5 word label>\",",
+            f"     \"prompt\": \"<action + inputs + filtered context, serialized from the helper result>\",",
+            f"     \"background\": <true|false>",
             f"   }}",
             f"   ```",
+            f"   - Required parameters: `agent`, `description`, `prompt`. Optional: `background` (default false).",
+            f"   - The tool takes no structured input: serialize the helper result into `prompt` as text.",
+            f"   - `background: false` runs the subagent to completion and returns its response.",
+            f"   - `background: true` returns immediately with a `sessionID` and the result is delivered",
+            f"     automatically when the subagent finishes. Never poll, sleep or ask it for status.",
             f"",
             f"5. **Capture outputs**:",
             f"   - Subagent returns `outputs` dict -> merge into context",
             f"   - Update node status in your tracking",
             f"",
             f"6. **Continue to next node**",
+            f"",
+            f"### Background delegation for independent nodes",
+            f"",
+            f"- A node is independent when every node it depends on has already delivered its outputs.",
+            f"- Independent nodes can be delegated with `background: true` so they run concurrently.",
+            f"- Collect their automatic completion notifications before starting any node that",
+            f"  consumes their outputs.",
+            f"- Never background a node whose inputs are still being produced by a running node.",
+            f"- The internal SE routes (`se orchestrate execute`, `se subagent`) stay synchronous and",
+            f"  blocking; background applies only to this native `subagent` delegation.",
             f"",
             f"### Context Management",
             f"",

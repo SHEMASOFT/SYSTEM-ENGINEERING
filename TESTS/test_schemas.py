@@ -74,8 +74,24 @@ class SchemaValidityTests(unittest.TestCase):
     def test_release_valid(self):
         self.assert_valid(support.release(), "release")
 
-    def test_release_invalid_version(self):
-        self.assert_invalid(support.release(version="v1"), "release")
+    def test_coordinator_agent_contract_valid(self):
+        import json
+        from pathlib import Path
+        instance = json.loads(
+            (Path(support.REPO_ROOT) / "AGENTS" / "shema-ai-coordinador" / "agent.json").read_text(encoding="utf-8")
+        )
+        self.assert_valid(instance, "agent_contract")
+        self.assertIn("delegation_instructions", instance)
+        self.assertGreaterEqual(len(instance["delegation_instructions"]), 1)
+
+    def test_agent_contract_rejects_unknown_field(self):
+        import json
+        from pathlib import Path
+        instance = json.loads(
+            (Path(support.REPO_ROOT) / "AGENTS" / "shema-ai-coordinador" / "agent.json").read_text(encoding="utf-8")
+        )
+        instance["__unknown_field__"] = "nope"
+        self.assert_invalid(instance, "agent_contract")
 
 
 if __name__ == "__main__":

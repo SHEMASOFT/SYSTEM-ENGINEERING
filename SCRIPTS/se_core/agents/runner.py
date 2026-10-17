@@ -517,14 +517,21 @@ Return results as JSON with the following structure:
         args: Dict[str, Any],
         context: Dict[str, Any],
     ) -> Any:
-        """Invoke a tool by name."""
-        # This would integrate with the actual tool execution system
-        # For now, return a placeholder
+        """Invoke a tool by name.
+
+        The internal AgentRunner route has no real tool dispatch wired (tools are
+        a placeholder). Returning a fabricated ``executed`` status would report
+        success without doing anything, so this route fails loudly instead.
+        """
         return {
             "tool": tool_name,
             "args": args,
-            "status": "executed",
-            "note": f"Tool {tool_name} executed with args: {args}"
+            "status": "ERROR",
+            "error": (
+                f"Tool '{tool_name}' is not available in the internal AgentRunner "
+                "route: no tool dispatch is wired. Use the native OpenCode `subagent` "
+                "tool instead, or implement dispatch here."
+            ),
         }
 
     def validate_output(self, output: Dict, expected_schema: str) -> Tuple[bool, List[str]]:

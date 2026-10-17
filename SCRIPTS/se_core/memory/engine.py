@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import random
 import re
+import time
+import contextlib
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -112,6 +115,34 @@ class MemoryRecord:
         )
 
 
+def _file_lock(lock_path: Path, timeout: float = 10.0):
+    """Cross-platform file lock via atomic O_CREAT|O_EXCL.
+
+    Returns a context manager. Raises TimeoutError if the lock cannot be
+    acquired within ``timeout`` seconds.
+    """
+    @contextlib.contextmanager
+    def _ctx():
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                break
+            except FileExistsError:
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"Could not acquire lock: {lock_path}")
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            try:
+                os.unlink(lock_path)
+            except OSError:
+                pass
+    return _ctx()
+
+
 class MemoryEngine:
     """Memory Engine over canonical JSON records (ADR-0003, ADR-0027).
 
@@ -124,8 +155,9 @@ class MemoryEngine:
     - Atomic, LF, schema-validated persistence
     """
 
-    def __init__(self, root: Optional[Path] = None):
+    def __init__(self, root: Optional[Path] = None, global_store: Optional[Path] = None):
         self.root = Path(root) if root else repo_root()
+        self.global_store = Path(global_store) if global_store else None
         self._schemas = None
 
     @property
@@ -172,82 +204,88 @@ class MemoryEngine:
         if not project_dir:
             raise ValueError(f"Project {project_id} not found")
 
-        # Dedupe: topic_key is an upsert key, not an identity
-        existing = None
-        if topic_key:
-            existing = self._find_by_topic_key(project_id, topic_key)
-            if existing:
-                # Revision: update in place, bump counters
-                existing.revision_count += 1
-                existing.content = content
-                existing.tags = tags or existing.tags
-                existing.updated_at = now_utc()
-                existing.last_seen_at = now_utc()
-                self._prepare_for_write(existing)
-                self._write_record(project_dir, existing)
-                return {
-                    "memory_id": existing.memory_id,
-                    "status": "revised",
-                    "revision_count": existing.revision_count,
-                }
+        # Cross-process lock: prevents concurrent ID generation and
+        # silent overwrites on topic_key upserts.
+        mem_dir = project_dir / "memories"
+        lock_path = project_dir / ".memory.lock"
 
-        # Exact dedupe: same content hash within same project+type. Opt-in, because
-        # identical text can still be two genuinely distinct records and `add` must
-        # not silently swallow one of them.
-        if dedupe:
-            content_hash = hashlib.sha256(
-                json.dumps(content, sort_keys=True).encode()
-            ).hexdigest()
-            for _dir, record in self._iter_records(project_id):
-                if record.type != type:
-                    continue
-                if record.state == "deprecated":
-                    continue
-                existing_hash = hashlib.sha256(
-                    json.dumps(record.content, sort_keys=True).encode()
-                ).hexdigest()
-                if existing_hash == content_hash:
-                    record.duplicate_count += 1
-                    record.last_seen_at = now_utc()
-                    self._prepare_for_write(record)
-                    self._write_record(project_dir, record)
+        with _file_lock(lock_path):
+                # Dedupe: topic_key is an upsert key, not an identity
+            existing = None
+            if topic_key:
+                existing = self._find_by_topic_key(project_id, topic_key)
+                if existing:
+                    # Revision: update in place, bump counters
+                    existing.revision_count += 1
+                    existing.content = content
+                    existing.tags = tags or existing.tags
+                    existing.updated_at = now_utc()
+                    existing.last_seen_at = now_utc()
+                    self._prepare_for_write(existing)
+                    self._write_record(project_dir, existing)
                     return {
-                        "memory_id": record.memory_id,
-                        "status": "deduplicated",
-                        "duplicate_count": record.duplicate_count,
+                        "memory_id": existing.memory_id,
+                        "status": "revised",
+                        "revision_count": existing.revision_count,
                     }
 
-        # Generate ID
-        memory_id = self._generate_memory_id(project_id)
+            # Exact dedupe: same content hash within same project+type. Opt-in, because
+            # identical text can still be two genuinely distinct records and `add` must
+            # not silently swallow one of them.
+            if dedupe:
+                content_hash = hashlib.sha256(
+                    json.dumps(content, sort_keys=True).encode()
+                ).hexdigest()
+                for _dir, record in self._iter_records(project_id):
+                    if record.type != type:
+                        continue
+                    if record.state == "deprecated":
+                        continue
+                    existing_hash = hashlib.sha256(
+                        json.dumps(record.content, sort_keys=True).encode()
+                    ).hexdigest()
+                    if existing_hash == content_hash:
+                        record.duplicate_count += 1
+                        record.last_seen_at = now_utc()
+                        self._prepare_for_write(record)
+                        self._write_record(project_dir, record)
+                        return {
+                            "memory_id": record.memory_id,
+                            "status": "deduplicated",
+                            "duplicate_count": record.duplicate_count,
+                        }
 
-        record = MemoryRecord(
-            memory_id=memory_id,
-            project_id=project_id,
-            type=type,
-            scope=scope,
-            content=content,
-            tags=tags or [],
-            confidence=confidence,
-            created_at=now_utc(),
-            updated_at=now_utc(),
-            author=author,
-            source=source,
-            related_memories=related_memories or [],
-            supersedes=None,
-            superseded_by=None,
-            metadata=metadata or {},
-            topic_key=topic_key,
-            revision_count=revision_count,
-            duplicate_count=duplicate_count,
-            last_seen_at=last_seen_at,
-            review_after=review_after,
-            state=state,
-        )
+            # Generate ID
+            memory_id = self._generate_memory_id(project_id)
 
-        # Validate and persist atomically (LF, no half-written record).
-        self._write_record(project_dir, record)
+            record = MemoryRecord(
+                memory_id=memory_id,
+                project_id=project_id,
+                type=type,
+                scope=scope,
+                content=content,
+                tags=tags or [],
+                confidence=confidence,
+                created_at=now_utc(),
+                updated_at=now_utc(),
+                author=author,
+                source=source,
+                related_memories=related_memories or [],
+                supersedes=None,
+                superseded_by=None,
+                metadata=metadata or {},
+                topic_key=topic_key,
+                revision_count=revision_count,
+                duplicate_count=duplicate_count,
+                last_seen_at=last_seen_at,
+                review_after=review_after,
+                state=state,
+            )
 
-        return {"memory_id": record.memory_id, "status": "created"}
+            # Validate and persist atomically (LF, no half-written record).
+            self._write_record(project_dir, record)
+
+            return {"memory_id": record.memory_id, "status": "created"}
 
     def query(
         self,
@@ -689,6 +727,10 @@ class MemoryEngine:
                 manifest = read_manifest(p)
                 if manifest.get("project_id") == project_id:
                     return p
+        if self.global_store is not None and (self.global_store / "PROJECT.json").exists():
+            manifest = read_manifest(self.global_store)
+            if manifest.get("project_id") == project_id:
+                return self.global_store
         return None
 
     def _find_by_topic_key(self, project_id: str, topic_key: str) -> Optional["MemoryRecord"]:
@@ -724,7 +766,12 @@ class MemoryEngine:
                 highest = max(highest, num)
             except (IndexError, ValueError):
                 pass
-        return f"MEM-{highest + 1:04d}"
+
+        # Find next free slot (handles concurrent writes)
+        candidate = highest + 1
+        while (mem_dir / f"MEM-{candidate:04d}.json").exists():
+            candidate += 1
+        return f"MEM-{candidate:04d}"
 
     def _record_path(self, project_dir: Path, memory_id: str) -> Path:
         """Canonical on-disk location of a memory record (ADR-0003)."""
@@ -784,10 +831,13 @@ class MemoryEngine:
         if project_id:
             found = self._find_project_dir(project_id)
             return [found] if found else []
-        return sorted(
+        dirs = sorted(
             p for p in (self.root / "PROJECTS").glob("*")
             if (p / "PROJECT.json").exists()
         )
+        if self.global_store is not None and (self.global_store / "PROJECT.json").exists():
+            dirs = dirs + [self.global_store]
+        return dirs
 
     @staticmethod
     def _project_id_of(project_dir: Path) -> Optional[str]:
@@ -815,7 +865,12 @@ class MemoryEngine:
                     record = MemoryRecord.from_dict(
                         json.loads(mem_file.read_text(encoding="utf-8"))
                     )
-                except Exception:
+                except Exception as exc:
+                    import sys as _sys
+                    print(
+                        f"WARN: skipped corrupt memory file {mem_file}: {exc}",
+                        file=_sys.stderr,
+                    )
                     continue
                 yield project_dir, record
 

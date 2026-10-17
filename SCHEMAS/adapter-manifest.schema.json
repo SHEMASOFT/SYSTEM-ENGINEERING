@@ -36,7 +36,7 @@
             "additionalProperties": false,
             "required": ["type", "path"],
             "properties": {
-              "type": { "enum": ["agent", "command", "skill", "config", "docs", "mcp"] },
+              "type": { "enum": ["agent", "command", "skill", "config", "docs", "mcp", "policy"] },
               "path": { "type": "string", "minLength": 1 },
               "format": { "type": "string", "minLength": 1 },
               "description": { "type": "string" }
