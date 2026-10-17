@@ -1,0 +1,6 @@
+{
+  "name": "se-memory-server",
+  "type": "mcp",
+  "command": "python3",
+  "args": ["${SE_ROOT}/SCRIPTS/se_core/mcp/memory_server.py"]
+}

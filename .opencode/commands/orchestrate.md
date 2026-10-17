@@ -15,7 +15,7 @@ agent: shema-ai-coordinador
 
 ## Execution
 
-se orchestrate --project $ARGUMENTS
+se orchestrate $ARGUMENTS
 
 ## Arguments
 

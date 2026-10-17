@@ -43,11 +43,11 @@ class DetectOsTests(unittest.TestCase):
 
 
 class LoadMcpTemplatesTests(unittest.TestCase):
-    def test_loads_all_three_servers(self):
+    def test_loads_all_four_servers(self):
         templates = install.load_mcp_templates(support.REPO_ROOT)
         keys = [t["key"] for t in templates]
         self.assertEqual(
-            keys, ["context7", "filesystem", "skill-server"]
+            keys, ["context7", "filesystem", "memory-server", "skill-server"]
         )
 
     def test_template_records_expose_command_and_args(self):
@@ -74,7 +74,7 @@ class SelectServersTests(unittest.TestCase):
     def test_all_by_default(self):
         self.assertEqual(
             install.select_servers(self.templates),
-            ["context7", "filesystem", "skill-server"],
+             ["context7", "filesystem", "memory-server", "skill-server"],
         )
 
     def test_with_selects_subset(self):
@@ -118,7 +118,7 @@ class BuildPlanTests(unittest.TestCase):
         plan = self._plan()
         self.assertEqual(
             plan["servers"],
-            ["context7", "filesystem", "skill-server"],
+             ["context7", "filesystem", "memory-server", "skill-server"],
         )
 
     def test_global_scope_recorded(self):

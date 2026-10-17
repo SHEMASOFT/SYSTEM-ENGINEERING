@@ -198,10 +198,6 @@ class OrchestrateExecuteExitCodeTests(unittest.TestCase):
         self.assertEqual(code, 1, out)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class OrchestrationContextFilteringTests(unittest.TestCase):
     """Tests for context filtering in _execute_node (token economy)."""
 
@@ -653,6 +649,91 @@ class OrchestrationGateEnforcementTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "FAILED")
         self.assertIn("G2", call_log)
+
+
+class OrchestrateNativePromptTests(unittest.TestCase):
+    """`orchestrate execute --native` must only reference tools that exist.
+
+    OpenCode V2 exposes `subagent` (agent, description, prompt, model,
+    sessionID, background). The generated prompt used to ask for an `invoke`
+    tool that does not exist, so the native route could never be followed.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.project = support.make_project(self.root / "proj")
+        self.project_id = "PRJ-TEST-001"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _engine(self):
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = OrchestrationEngine(root=self.root)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        return engine
+
+    def _write_workflow(self, workflow_id="WF-NAT-0001"):
+        support.write_json(self.project / "workflows" / f"{workflow_id}.json", {
+            "schema_version": "1",
+            "workflow_id": workflow_id,
+            "project_id": self.project_id,
+            "name": "Native prompt workflow",
+            "version": "1.0.0",
+            "status": "DRAFT",
+            "nodes": [
+                {"node_id": "n1", "agent": "analyst", "action": "analyze",
+                 "inputs": {}, "outputs": {}},
+                {"node_id": "n2", "agent": "planner", "action": "plan",
+                 "inputs": {"prior": "context:n1_out"}, "outputs": {}},
+            ],
+            "edges": [{"from": "n1", "to": "n2"}],
+            "gates": [],
+        })
+        return workflow_id
+
+    def _prompt(self):
+        workflow_id = self._write_workflow("WF-7001")
+        return self._engine().generate_native_execution_prompt(workflow_id, self.project_id)
+
+    def test_prompt_uses_the_native_subagent_tool(self):
+        prompt = self._prompt()
+        self.assertIn("`subagent`", prompt)
+        self.assertNotIn("invoke", prompt.lower())
+
+    def test_prompt_arguments_match_the_available_tool_schema(self):
+        prompt = self._prompt()
+        for name in ("agent", "description", "prompt", "background"):
+            self.assertIn(f'"{name}"', prompt, name)
+        # The `subagent` tool takes no structured payload and no tool wrapper.
+        for stale in ('"tool"', '"arguments"', '"input"'):
+            self.assertNotIn(stale, prompt, stale)
+
+    def test_prompt_documents_background_only_for_independent_nodes(self):
+        prompt = self._prompt()
+        self.assertIn("background: true", prompt)
+        self.assertIn("Never poll", prompt)
+        # Internal SE orchestration must not be turned async by this route.
+        self.assertIn("stay synchronous", prompt)
+
+    def test_prompt_names_the_delegated_agents_from_the_workflow(self):
+        prompt = self._prompt()
+        self.assertIn("- **Agent**: analyst", prompt)
+        self.assertIn("- **Agent**: planner", prompt)
+        self.assertIn('"agent": "planner"', prompt)
+
+    def test_build_native_subagent_input_still_filters_context(self):
+        node = {"node_id": "n2", "agent": "planner", "action": "plan",
+                "inputs": {"prior": "context:n1_out"}, "outputs": {}}
+        result = self._engine().build_native_subagent_input(
+            node, {"n1_out": "kept", "unrelated": "dropped"}, {"prior": "kept"}
+        )
+        self.assertEqual(result, {
+            "action": "plan",
+            "inputs": {"prior": "kept"},
+            "context": {"n1_out": "kept"},
+        })
 
 
 if __name__ == "__main__":

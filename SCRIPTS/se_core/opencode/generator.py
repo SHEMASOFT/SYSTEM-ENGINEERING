@@ -76,6 +76,12 @@ def _build_plan(root: Path, schemas, errors, counts):
         name = path.parent.name
         planned[f"{mappings.SKILL_DIR}/{name}/SKILL.md"] = path.read_text(encoding="utf-8")
 
+    # Policy files (canonical governance, copied verbatim)
+    policies_dir = root / "POLICIES"
+    if policies_dir.exists():
+        for path in sorted(policies_dir.glob("*.md")):
+            planned[f"policies/{path.name}"] = path.read_text(encoding="utf-8")
+
     # MCP configuration files
     mcp_dir = root / "TEMPLATES" / "mcp"
     if mcp_dir.exists():
@@ -112,6 +118,13 @@ def _build_plan(root: Path, schemas, errors, counts):
             {"type": "skill", "path": f".opencode/{mappings.SKILL_DIR}/{path.parent.name}/SKILL.md",
              "format": "markdown", "description": f"Skill {path.parent.name}"}
         )
+    policies_dir = root / "POLICIES"
+    if policies_dir.exists():
+        for path in sorted(policies_dir.glob("*.md")):
+            output_artifacts.append(
+                {"type": "policy", "path": f".opencode/policies/{path.name}",
+                 "format": "markdown", "description": f"Policy {path.stem}"}
+            )
     output_artifacts += [
         {"type": "config", "path": ".opencode/adapter-manifest.json", "format": "json",
          "description": "OpenCode adapter output manifest"},

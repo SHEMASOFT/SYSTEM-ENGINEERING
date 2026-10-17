@@ -31,12 +31,14 @@
     },
     "purpose": { "type": "string", "minLength": 1 },
     "responsibilities": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+  "delegation_instructions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+  "communication_preferences": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
     "inputs": { "type": "array", "items": { "type": "string" } },
     "outputs": { "type": "array", "items": { "type": "string" } },
     "permissions": {
       "type": "array",
       "uniqueItems": true,
-      "items": { "enum": ["READ", "ANALYZE", "WRITE_DOCS", "IMPLEMENT", "TEST", "DEPLOY", "DESTRUCTIVE"] }
+      "items": { "enum": ["READ", "ANALYZE", "WRITE_DOCS", "WRITE_MEMORY", "IMPLEMENT", "TEST", "DEPLOY", "DESTRUCTIVE"] }
     },
     "restrictions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
     "activation_conditions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },

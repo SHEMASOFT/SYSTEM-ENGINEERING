@@ -32,6 +32,15 @@
         ],
         "environment": {},
         "cwd": "."
+      },
+      "se-memory-server": {
+        "type": "local",
+        "command": [
+          "python3",
+          "SCRIPTS/se_core/mcp/memory_server.py"
+        ],
+        "environment": {},
+        "cwd": "."
       }
     },
     "timeout": {

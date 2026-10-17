@@ -15,7 +15,7 @@ agent: shema-ai-coordinador
 
 ## Execution
 
-se handoff --project $ARGUMENTS
+se handoff $ARGUMENTS
 
 ## Arguments
 

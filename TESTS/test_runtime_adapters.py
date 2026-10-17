@@ -53,7 +53,7 @@ class ClaudeCodeAdapterTests(unittest.TestCase):
             data = json.loads((Path(tmp) / ".mcp.json").read_text(encoding="utf-8"))
             self.assertEqual(
                 sorted(data["mcpServers"]),
-                ["context7", "filesystem", "se-skill-server"],
+                ["context7", "filesystem", "se-memory-server", "se-skill-server"],
             )
             text = json.dumps(data)
             # Portable by construction: no absolute host paths in the config.

@@ -465,5 +465,47 @@ class MemoryCliGuardTests(unittest.TestCase):
         self.assertEqual(code, 2, out)
 
 
+class MemoryIntegrityTests(unittest.TestCase):
+    """Regression tests for Stage 1: durable writes and corrupt-record visibility."""
+
+    def test_write_json_atomic_produces_valid_complete_json(self):
+        """write_json_atomic must produce a parseable, complete file (fsync safety)."""
+        import tempfile
+        from pathlib import Path
+        from se_core.paths import write_json_atomic
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "record.json"
+            data = {"memory_id": "MEM-0001", "content": {"summary": "test"}, "tags": ["a", "b"]}
+            write_json_atomic(path, data)
+            self.assertTrue(path.exists())
+            raw = path.read_text(encoding="utf-8")
+            self.assertTrue(raw.endswith("\n"), "file must end with newline")
+            parsed = json.loads(raw)
+            self.assertEqual(parsed["memory_id"], "MEM-0001")
+            self.assertEqual(parsed["content"]["summary"], "test")
+            self.assertEqual(parsed["tags"], ["a", "b"])
+
+    def test_corrupt_record_emits_warning_and_does_not_crash(self):
+        """A corrupt memory file must produce a warning on stderr, not be silently ignored."""
+        import io
+        import contextlib
+        with tempfile.TemporaryDirectory() as tmp:
+            root, project = _master(tmp)
+            engine = MemoryEngine(root=root)
+            _add(engine)  # creates MEM-0001
+
+            # Corrupt the record
+            corrupt = _record_file(project, "MEM-0001")
+            corrupt.write_text("{not valid json", encoding="utf-8")
+
+            buf = io.StringIO()
+            with contextlib.redirect_stderr(buf):
+                result = engine.query(project_id="PRJ-TEST-001")
+
+            self.assertEqual(result["summary"]["total"], 0, "corrupt record must be excluded")
+            self.assertIn("WARN", buf.getvalue(), "warning must be emitted to stderr")
+            self.assertIn("corrupt", buf.getvalue().lower(), "warning must mention corrupt")
+
+
 if __name__ == "__main__":
     unittest.main()

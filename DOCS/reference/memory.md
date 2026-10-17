@@ -161,6 +161,68 @@ se memory add --project PROJECTS/EXAMPLE --type prompt \
 Use `--topic-key session-<n>` to revise one running summary instead of
 accumulating a session record per restart.
 
+## Shared memory via MCP (SE-MEMORY-SERVER)
+
+SYSTEM-ENGINEERING exposes its memory engine as an MCP server (`se-memory-server`)
+so any compatible runtime (OpenCode, Codex, Claude Code, Pi) can search, read,
+and save memories without duplicating the engine.
+
+### Tools
+
+| Tool | Permission | Description |
+|---|---|---|
+| `memory_search` | READ | Search by text. Returns compact hits (id, type, score, snippet). |
+| `memory_get` | READ | Full content of a memory by ID. |
+| `memory_list` | READ | List memories with filters (types, tags, limit). |
+| `memory_save` | WRITE | Save a memory (decision, discovery, constraint, etc.). |
+| `memory_checkpoint` | WRITE | Save a checkpoint for task resumption. |
+
+### Registration
+
+The adapter generates `.opencode/mcp/memory-server.json` (portable, `${SE_ROOT}`
+placeholders). To activate in OpenCode, add to `opencode.jsonc`:
+
+```json
+"se-memory-server": {
+  "type": "local",
+  "command": ["python3", "SCRIPTS/se_core/mcp/memory_server.py"],
+  "environment": {},
+  "cwd": "."
+}
+```
+
+For global config (any directory), use absolute paths:
+
+```json
+"se-memory-server": {
+  "type": "local",
+  "command": ["python3", "D:/servidor-ia/SYSTEM-ENGINEERING/SCRIPTS/se_core/mcp/memory_server.py"],
+  "environment": {},
+  "cwd": "D:/servidor-ia/SYSTEM-ENGINEERING"
+}
+```
+
+### Storage scopes
+
+| Scope | Location | When used |
+|---|---|---|
+| Project | `PROJECTS/<p>/memories/` | Work within a managed project |
+| Repo/global | `MEMORY/` (repo root) | Work in the repo without a project |
+| External | `~/.se/memory/` | Work outside any repo |
+
+### Concurrency
+
+- File lock via atomic `O_CREAT|O_EXCL` (cross-platform).
+- ID generation retries if the target file already exists.
+- Upserts by `topic_key` are serialized.
+- SQLite index is derived and rebuildable (`se memory index --rebuild`).
+
+### Permissions
+
+- `READ`: search, get, list.
+- `WRITE_MEMORY`: save, checkpoint.
+- No general filesystem access. No CLI exposure.
+
 ## Related
 
 - [architecture.md](architecture.md) -- layers and boundaries

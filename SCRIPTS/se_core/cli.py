@@ -457,7 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mem_add = p_memory_sub.add_parser("add", help="Add a new memory record")
 
-    p_mem_add.add_argument("--project", required=True, help="Managed project workspace")
+    p_mem_add.add_argument("--project", default=None, help="Managed project workspace (optional: defaults to global memory store)")
 
     p_mem_add.add_argument("--type", required=True, help="Memory type (decision, architecture, discovery, constraint, capability, verification, checkpoint, relationship, session, prompt)")
 
@@ -709,7 +709,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_orch_execute.add_argument("--dry-run", action="store_true", help="Validate and plan only, don't execute")
 
-    p_orch_execute.add_argument("--native", action="store_true", help="Generate prompt for OpenCode-native execution via invoke tool")
+    p_orch_execute.add_argument("--native", action="store_true", help="Generate prompt for OpenCode-native execution via the subagent tool")
 
     p_orch_execute.add_argument("--resume-from", default=None, help="Resume execution from checkpoint ID (CP-XXXX)")
 

@@ -4079,17 +4079,69 @@ def cmd_skill(args) -> int:
         return 1
 
 
+def _resolve_global_memory_store() -> Path:
+    """Resolve a writable global memory store location.
+
+    Walks up from cwd looking for a git repository; if found, uses
+    ``<repo_root>/MEMORY``. Otherwise falls back to ``~/.se/memory``.
+    Creates the store and a minimal PROJECT.json if needed.
+    """
+    from pathlib import Path
+    import json
+    from .paths import now_utc
+
+    cwd = Path.cwd().resolve()
+    repo_root = None
+    for p in [cwd] + list(cwd.parents):
+        if (p / ".git").exists():
+            repo_root = p
+            break
+
+    if repo_root is not None:
+        store = repo_root / "MEMORY"
+    else:
+        store = Path.home() / ".se" / "memory"
+
+    store.mkdir(parents=True, exist_ok=True)
+    (store / "memories").mkdir(parents=True, exist_ok=True)
+
+    manifest = store / "PROJECT.json"
+    if not manifest.exists():
+        now = now_utc()
+        data = {
+            "schema_version": "1",
+            "project_id": "PRJ-GLOBAL",
+            "name": "Global Memory",
+            "description": "Global memory store for work outside managed projects",
+            "owner": "system",
+            "domains": ["memory"],
+            "criticality": "low",
+            "lifecycle_state": "ACTIVE",
+            "blocked": False,
+            "version": "1.0.0",
+            "created_at": now,
+            "updated_at": now,
+            "master_system_version": "1.0.0",
+            "source": "se memory",
+            "metadata": {"category": "GLOBAL"},
+            "profiles": {"work": {"type": "brownfield", "scale": "small", "risk": "low"}},
+        }
+        manifest.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    return store
+
+
 def cmd_memory(args) -> int:
     """Memory operations: add, query, get, search, index, link, update, supersede."""
     from .memory.engine import MemoryEngine
     from .paths import repo_root
 
-    engine = MemoryEngine(root=repo_root())
+    engine = MemoryEngine(root=repo_root(), global_store=_resolve_global_memory_store())
 
     if args.memory_command == "add":
         if not args.project:
-            print("FAIL: --project is required for memory add")
-            return 1
+            args.project = str(_resolve_global_memory_store())
+            print(f"INFO: no --project given; using global memory store: {args.project}")
         if not args.type:
             print("FAIL: --type is required for memory add")
             return 1

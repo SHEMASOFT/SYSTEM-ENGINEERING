@@ -44,6 +44,8 @@ def write_json_atomic(path: Path, data) -> None:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(data, fh, indent=2, ensure_ascii=False)
             fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp_name, path)
     except BaseException:
         try:
