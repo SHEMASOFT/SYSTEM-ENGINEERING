@@ -1,6 +1,6 @@
 {
   "adapter_id": "opencode",
-  "adapter_version": "0.10.0",
+  "adapter_version": "0.10.1",
   "capabilities": {
     "agents": "SUPPORTED",
     "commands": "SUPPORTED",
@@ -82,7 +82,7 @@
     ],
     "registry": "CORE/capabilities/capabilities.json"
   },
-  "engine_version": "0.10.0",
+  "engine_version": "0.10.1",
   "input": {
     "agents": "AGENTS/*/agent.json",
     "commands": "COMMANDS/commands.json",

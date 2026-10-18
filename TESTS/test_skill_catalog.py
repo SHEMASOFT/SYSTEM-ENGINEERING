@@ -139,6 +139,14 @@ class SecurityScannerTests(unittest.TestCase):
 class SkillCatalogMcpTests(unittest.TestCase):
     """Tests for skill catalog MCP tools (via subprocess)."""
 
+    def setUp(self):
+        import shutil
+        self.catalog_path = Path(support.REPO_ROOT) / "CATALOG" / "skills.json"
+        self.catalog_backup = self.catalog_path.read_text(encoding="utf-8")
+
+    def tearDown(self):
+        self.catalog_path.write_text(self.catalog_backup, encoding="utf-8")
+
     def _call_tool(self, tool_name, args):
         import subprocess, json
         proc = subprocess.Popen(
@@ -176,10 +184,25 @@ class SkillCatalogMcpTests(unittest.TestCase):
         result = self._call_tool("skill_catalog_show", {"name": "nonexistent-skill"})
         self.assertIn("error", result)
 
-    def test_catalog_validate(self):
-        result = self._call_tool("skill_catalog_validate", {"name": "checkpoint-release"})
-        self.assertTrue(result.get("valid"))
-        self.assertEqual(result.get("issues"), [])
+    def test_catalog_enable(self):
+        result = self._call_tool("skill_catalog_enable", {"name": "checkpoint-release"})
+        self.assertEqual(result.get("status"), "enabled")
+        self.assertEqual(result.get("installation_state"), "installed")
+
+    def test_catalog_disable(self):
+        result = self._call_tool("skill_catalog_disable", {"name": "checkpoint-release"})
+        self.assertEqual(result.get("status"), "disabled")
+        self.assertEqual(result.get("installation_state"), "disabled")
+
+    def test_catalog_remove_requires_confirm(self):
+        result = self._call_tool("skill_catalog_remove", {"name": "checkpoint-release"})
+        err = result.get("error", {})
+        msg = err.get("message", "") if isinstance(err, dict) else str(err)
+        self.assertIn("confirm", msg)
+
+    def test_catalog_remove_not_found(self):
+        result = self._call_tool("skill_catalog_remove", {"name": "nonexistent-skill", "confirm": True})
+        self.assertIn("error", result)
 
 
 if __name__ == "__main__":

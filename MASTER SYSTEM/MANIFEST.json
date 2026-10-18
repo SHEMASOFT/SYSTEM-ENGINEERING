@@ -2,7 +2,7 @@
   "schema_version": "1",
   "manifest_version": "1",
   "name": "MASTER SYSTEM",
-  "master_system_version": "0.10.0",
+  "master_system_version": "0.10.1",
   "status": "FOUNDATION",
   "source": {
     "repository": "SYSTEM-ENGINEERING",
