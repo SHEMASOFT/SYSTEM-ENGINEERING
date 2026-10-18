@@ -303,6 +303,40 @@ class SkillServer:
                     "required": ["name"],
                 },
             },
+            {
+                "name": "skill_catalog_enable",
+                "description": "Enable an installed skill (set installation_state to installed). Idempotent.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Skill name to enable"},
+                    },
+                    "required": ["name"],
+                },
+            },
+            {
+                "name": "skill_catalog_disable",
+                "description": "Disable an installed skill (set installation_state to disabled). Idempotent.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Skill name to disable"},
+                    },
+                    "required": ["name"],
+                },
+            },
+            {
+                "name": "skill_catalog_remove",
+                "description": "Remove a skill from SKILLS/ and update catalog. Requires confirm=true.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Skill name to remove"},
+                        "confirm": {"type": "boolean", "description": "Must be true to confirm removal"},
+                    },
+                    "required": ["name", "confirm"],
+                },
+            },
         ]
 
     def call_tool(self, name: str, arguments: Dict) -> Dict:
@@ -336,6 +370,12 @@ class SkillServer:
                 return self._catalog_show(arguments)
             elif name == "skill_catalog_validate":
                 return self._catalog_validate(arguments)
+            elif name == "skill_catalog_enable":
+                return self._catalog_enable(arguments)
+            elif name == "skill_catalog_disable":
+                return self._catalog_disable(arguments)
+            elif name == "skill_catalog_remove":
+                return self._catalog_remove(arguments)
             else:
                 return {"error": f"Unknown tool: {name}"}
         except Exception as e:
@@ -560,6 +600,59 @@ class SkillServer:
             "issues": issues,
             "security": security,
         }
+
+    def _catalog_enable(self, args: Dict) -> Dict:
+        name = args.get("name")
+        catalog = self._load_catalog()
+        for s in catalog.get("skills", []):
+            if s.get("name") == name:
+                s["installation_state"] = "installed"
+                self._save_catalog(catalog)
+                return {"name": name, "installation_state": "installed", "status": "enabled"}
+        return {"error": f"Skill '{name}' not found in catalog"}
+
+    def _catalog_disable(self, args: Dict) -> Dict:
+        name = args.get("name")
+        catalog = self._load_catalog()
+        for s in catalog.get("skills", []):
+            if s.get("name") == name:
+                s["installation_state"] = "disabled"
+                self._save_catalog(catalog)
+                return {"name": name, "installation_state": "disabled", "status": "disabled"}
+        return {"error": f"Skill '{name}' not found in catalog"}
+
+    def _catalog_remove(self, args: Dict) -> Dict:
+        name = args.get("name")
+        if not args.get("confirm"):
+            return {"error": "confirm must be true to remove a skill"}
+        catalog = self._load_catalog()
+        entry = None
+        for s in catalog.get("skills", []):
+            if s.get("name") == name:
+                entry = s
+                break
+        if not entry:
+            return {"error": f"Skill '{name}' not found in catalog"}
+
+        # Remove directory if it exists
+        skill_dir = repo_root() / entry.get("path", f"SKILLS/{name}")
+        removed_files = []
+        if skill_dir.exists():
+            import shutil
+            shutil.rmtree(skill_dir)
+            removed_files.append(str(skill_dir))
+
+        # Update catalog
+        catalog["skills"] = [s for s in catalog.get("skills", []) if s.get("name") != name]
+        self._save_catalog(catalog)
+        return {"name": name, "status": "removed", "removed_files": removed_files}
+
+    def _save_catalog(self, catalog: Dict) -> None:
+        """Save the catalog file atomically."""
+        from se_core.paths import write_json_atomic
+        path = self._catalog_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_json_atomic(path, catalog)
 
     def _get_schemas(self):
         if self._schemas is None:

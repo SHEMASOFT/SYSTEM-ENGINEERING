@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "name": "SYSTEM ENGINEERING",
-  "master_system_version": "0.10.0",
+  "master_system_version": "0.10.1",
   "status": "FOUNDATION/DEVELOPMENT",
   "description": "Reusable, domain-agnostic project operating system.",
   "lifecycle_model": "CORE/lifecycle/lifecycle.json",

@@ -1,0 +1,30 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0028",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-10-18",
+  "context": "The skill-contract schema (SCHEMAS/skill-contract.schema.json) did not include a 'license' property. SE-native skills in SKILLS/*/SKILL.json had no license metadata. The repository itself is MIT-licensed (LICENSE, README). A skill catalog was added (CATALOG/skills.json) listing 7 SE-native skills. Without a license field in the contract, skills cannot declare their licensing terms, and the catalog cannot report license provenance. ADR-0020 requires that any contract change to SCHEMAS/*-contract follows ADR-0019 with an ADR + VERSION bump.",
+  "problem": "How to add license metadata to the skill contract without breaking existing consumers, while following ADR-0020's requirement for ADR + VERSION bump on contract changes?",
+  "options_considered": [
+    { "option": "Add 'license' as optional property to skill-contract.schema.json", "pros": ["Backward compatible (optional field)", "Follows existing pattern (dependencies, restrictions are optional)", "Enables license reporting in catalog and security scanner"], "cons": ["Requires ADR + VERSION bump per ADR-0020", "Legacy schema must also be updated"] },
+    { "option": "Store license only in catalog metadata, not in skill contract", "pros": ["No schema change", "No ADR needed"], "cons": ["Skill sidecars remain without formal license", "Inconsistent with contract layer being single source of truth"] },
+    { "option": "Store license in metadata object", "pros": ["No schema property needed (metadata is free-form)"], "cons": ["Less discoverable", "Not validated", "Inconsistent with top-level fields like dependencies and restrictions"] }
+  ],
+  "decision": "Add 'license' as an optional string property (minLength 1) to SCHEMAS/skill-contract.schema.json. Add the same property to AGENTS/_contract/agent.schema.json for compatibility (though skills use skill-contract, not agent-contract). Set 'license': 'MIT' in all 7 SE-native SKILL.json sidecars, following the repository's MIT license. Set 'license': 'MIT' in the catalog entries for SE-native skills. Third-party skills (when added) must declare their own license from upstream evidence. Static security scanning reports missing license as an issue. This is an additive, backward-compatible change: existing skills without 'license' still validate.",
+  "reason": "The repository is MIT-licensed. SE-native skills are part of the repository and inherit its license. Adding an optional 'license' field to the skill contract enables license provenance in the catalog and security scanner without breaking existing consumers. Following ADR-0020's requirement for ADR + VERSION bump ensures the change is documented and traceable.",
+  "consequences": "skill-contract.schema.json gains an optional 'license' property. All 7 SE-native SKILL.json files gain 'license': 'MIT'. CATALOG/skills.json entries gain 'license': 'MIT'. The security scanner can now verify license presence. Future third-party skills must declare their own license from upstream evidence. VERSION bumped from 0.10.0 to 0.10.1 (patch, additive change).",
+  "affected_components": ["SCHEMAS/skill-contract.schema.json", "AGENTS/_contract/agent.schema.json", "SKILLS/*/SKILL.json", "CATALOG/skills.json", "SCRIPTS/se_core/skills/security.py", "VERSION", "SYSTEM.json"],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "shema-ai-coordinador",
+  "created_at": "2026-10-18T00:00:00Z",
+  "updated_at": "2026-10-18T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "SKILL-CATALOG-VERTICAL-SLICE",
+    "depends_on_adr": ["ADR-0017", "ADR-0019", "ADR-0020"]
+  }
+}

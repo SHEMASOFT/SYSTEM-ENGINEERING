@@ -3,6 +3,7 @@
   "skill_id": "SK-0006",
   "name": "impl-tdd",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Implementación test-first (behavioral, opt-in): RED -> GREEN -> REFACTOR con la prueba como contrato de aceptación del cambio. Política opt-in: el implementer aplica TDD cuando la tarea/política lo pide; NO es obligatorio para todas las tareas y no endurece gates.",
   "skill_kind": "behavioral",
   "scope": {
@@ -23,8 +24,15 @@
     }
   ],
   "capabilities": {
-    "required": ["filesystem.read", "filesystem.search"],
-    "optional": ["filesystem.write", "structured.reasoning", "documentation.lookup"]
+    "required": [
+      "filesystem.read",
+      "filesystem.search"
+    ],
+    "optional": [
+      "filesystem.write",
+      "structured.reasoning",
+      "documentation.lookup"
+    ]
   },
   "constraints": {
     "write": "allowed"

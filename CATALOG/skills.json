@@ -11,7 +11,7 @@
       "source_url": null,
       "maintainer": "SHEMA",
       "version": "0.1.0",
-      "license": "internal",
+      "license": "MIT",
       "provenance": "se-native",
       "supported_runtimes": [
         "opencode",
@@ -45,7 +45,7 @@
       "source_url": null,
       "maintainer": "SHEMA",
       "version": "0.1.0",
-      "license": "internal",
+      "license": "MIT",
       "provenance": "se-native",
       "supported_runtimes": [
         "opencode",
@@ -80,7 +80,7 @@
       "source_url": null,
       "maintainer": "SHEMA",
       "version": "0.1.0",
-      "license": "internal",
+      "license": "MIT",
       "provenance": "se-native",
       "supported_runtimes": [
         "opencode",
@@ -114,7 +114,7 @@
       "source_url": null,
       "maintainer": "SHEMA",
       "version": "0.1.0",
-      "license": "internal",
+      "license": "MIT",
       "provenance": "se-native",
       "supported_runtimes": [
         "opencode",
@@ -148,7 +148,7 @@
       "source_url": null,
       "maintainer": "SHEMA",
       "version": "0.1.0",
-      "license": "internal",
+      "license": "MIT",
       "provenance": "se-native",
       "supported_runtimes": [
         "opencode",
@@ -182,7 +182,7 @@
       "source_url": null,
       "maintainer": "SHEMA",
       "version": "0.1.0",
-      "license": "internal",
+      "license": "MIT",
       "provenance": "se-native",
       "supported_runtimes": [
         "opencode",
@@ -217,7 +217,7 @@
       "source_url": null,
       "maintainer": "SHEMA",
       "version": "0.1.0",
-      "license": "internal",
+      "license": "MIT",
       "provenance": "se-native",
       "supported_runtimes": [
         "opencode",

@@ -3,6 +3,7 @@
   "skill_id": "SK-0004",
   "name": "dbg-systematic",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Procedimiento de debugging sistemático (workflow): reproducir -> hipótesis -> aislar -> corregir -> verificar, registrando cada hipótesis y su evidencia como EVD comprobable. Aplicar cuando un fallo/incidencia requiera diagnóstico que termine en verificación demostrable en vez de arreglos a ciegas.",
   "skill_kind": "workflow",
   "scope": {
@@ -23,8 +24,16 @@
     }
   ],
   "capabilities": {
-    "required": ["filesystem.read", "filesystem.search", "structured.reasoning"],
-    "optional": ["documentation.lookup", "browser.snapshot", "browser.screenshot"]
+    "required": [
+      "filesystem.read",
+      "filesystem.search",
+      "structured.reasoning"
+    ],
+    "optional": [
+      "documentation.lookup",
+      "browser.snapshot",
+      "browser.screenshot"
+    ]
   },
   "constraints": {
     "write": "allowed"
