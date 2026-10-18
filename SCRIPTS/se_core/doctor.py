@@ -25,7 +25,7 @@ REQUIRED_DIRS = [
     # check_project_alignment and check_contracts. They used to live only in
     # ALLOWED_ROOT_DIRS, which meant their absence was tolerated as "extra
     # but expected" instead of being reported as a missing part of the layout.
-    "MASTER SYSTEM", "PROJECTS", "SKILLS",
+    "MASTER SYSTEM", "PROJECTS", "SKILLS", "CATALOG",
     # Vendored console ships with the system:
     "SE-CONSOLE",
     # SE Installer package (unified installer for SE + MCPs + runtimes):

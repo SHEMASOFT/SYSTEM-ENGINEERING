@@ -260,6 +260,49 @@ class SkillServer:
                     "required": ["project"],
                 },
             },
+            {
+                "name": "skill_catalog_list",
+                "description": "List skills in the SE skill catalog with optional category filter.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "category": {"type": "string", "description": "Filter by category (optional)"},
+                    },
+                },
+            },
+            {
+                "name": "skill_catalog_search",
+                "description": "Search skills by keyword in name, purpose, or tags.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search keyword"},
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "skill_catalog_show",
+                "description": "Show full details of a skill from the catalog.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Skill name"},
+                    },
+                    "required": ["name"],
+                },
+            },
+            {
+                "name": "skill_catalog_validate",
+                "description": "Validate a skill structure and run security scan.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Skill name to validate"},
+                    },
+                    "required": ["name"],
+                },
+            },
         ]
 
     def call_tool(self, name: str, arguments: Dict) -> Dict:
@@ -285,6 +328,14 @@ class SkillServer:
                 return self._rdd_validate(arguments)
             elif name == "skill_rdd_list":
                 return self._rdd_list(arguments)
+            elif name == "skill_catalog_list":
+                return self._catalog_list(arguments)
+            elif name == "skill_catalog_search":
+                return self._catalog_search(arguments)
+            elif name == "skill_catalog_show":
+                return self._catalog_show(arguments)
+            elif name == "skill_catalog_validate":
+                return self._catalog_validate(arguments)
             else:
                 return {"error": f"Unknown tool: {name}"}
         except Exception as e:
@@ -318,7 +369,7 @@ class SkillServer:
         sdd_path = project_dir / "sdds" / f"{sdd_id}.json"
         if not sdd_path.exists():
             return {"error": f"SDD {sdd_id} not found"}
-        from se_core.paths import load_json
+        from se_core.paths import load_json, repo_root
         sdd = load_json(sdd_path)
         schemas = self._get_schemas()
         errors = validate(sdd, schemas["sdd"])
@@ -409,6 +460,106 @@ class SkillServer:
             for _, d in items
         ]
         return {"rdds": rdds}
+
+    def _catalog_path(self) -> Path:
+        """Path to the skill catalog file."""
+        return repo_root() / "CATALOG" / "skills.json"
+
+    def _load_catalog(self) -> Dict:
+        """Load the skill catalog. Returns empty list if not found."""
+        path = self._catalog_path()
+        if not path.exists():
+            return {"catalog_version": "1", "skills": []}
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def _catalog_list(self, args: Dict) -> Dict:
+        catalog = self._load_catalog()
+        skills = catalog.get("skills", [])
+        category = args.get("category")
+        if category:
+            skills = [s for s in skills if s.get("category") == category]
+        compact = []
+        for s in skills:
+            compact.append({
+                "id": s.get("id"),
+                "name": s.get("name"),
+                "category": s.get("category"),
+                "version": s.get("version"),
+                "risk_level": s.get("risk_level"),
+                "validation_status": s.get("validation_status"),
+                "installation_state": s.get("installation_state"),
+            })
+        return {"skills": compact, "total": len(compact)}
+
+    def _catalog_search(self, args: Dict) -> Dict:
+        query = args.get("query", "").lower()
+        catalog = self._load_catalog()
+        skills = catalog.get("skills", [])
+        results = []
+        for s in skills:
+            searchable = " ".join([
+                s.get("name", ""),
+                s.get("purpose", ""),
+                s.get("category", ""),
+                " ".join(s.get("tags", [])),
+            ]).lower()
+            if query in searchable:
+                results.append({
+                    "id": s.get("id"),
+                    "name": s.get("name"),
+                    "category": s.get("category"),
+                    "purpose": s.get("purpose", "")[:120],
+                    "risk_level": s.get("risk_level"),
+                })
+        return {"results": results, "total": len(results)}
+
+    def _catalog_show(self, args: Dict) -> Dict:
+        name = args.get("name")
+        catalog = self._load_catalog()
+        for s in catalog.get("skills", []):
+            if s.get("name") == name:
+                return s
+        return {"error": f"Skill '{name}' not found in catalog"}
+
+    def _catalog_validate(self, args: Dict) -> Dict:
+        name = args.get("name")
+        # Find skill in catalog
+        catalog = self._load_catalog()
+        entry = None
+        for s in catalog.get("skills", []):
+            if s.get("name") == name:
+                entry = s
+                break
+        if not entry:
+            return {"error": f"Skill '{name}' not found in catalog"}
+
+        # Read SKILL.md if installed
+        skill_dir = repo_root() / entry.get("path", f"SKILLS/{name}")
+        skill_md_path = skill_dir / "SKILL.md"
+        skill_json_path = skill_dir / "SKILL.json"
+
+        issues = []
+        if not skill_md_path.exists():
+            issues.append("SKILL.md not found")
+        if not skill_json_path.exists():
+            issues.append("SKILL.json sidecar not found")
+
+        # Security scan
+        from se_core.skills.security import scan_skill_content, scan_skill_dir
+        content = skill_md_path.read_text(encoding="utf-8") if skill_md_path.exists() else ""
+        security = scan_skill_dir(str(skill_dir), content, entry)
+
+        # Check required fields
+        for field in ("id", "name", "purpose", "category", "version"):
+            if not entry.get(field):
+                issues.append(f"missing required field: {field}")
+
+        return {
+            "name": name,
+            "valid": len(issues) == 0 and security["risk_level"] != "high",
+            "issues": issues,
+            "security": security,
+        }
 
     def _get_schemas(self):
         if self._schemas is None:

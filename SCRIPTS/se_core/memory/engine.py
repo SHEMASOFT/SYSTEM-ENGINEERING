@@ -123,6 +123,7 @@ def _file_lock(lock_path: Path, timeout: float = 10.0):
     """
     @contextlib.contextmanager
     def _ctx():
+        waited = False
         deadline = time.monotonic() + timeout
         while True:
             try:
@@ -132,9 +133,10 @@ def _file_lock(lock_path: Path, timeout: float = 10.0):
             except FileExistsError:
                 if time.monotonic() > deadline:
                     raise TimeoutError(f"Could not acquire lock: {lock_path}")
+                waited = True
                 time.sleep(0.05)
         try:
-            yield
+            yield waited
         finally:
             try:
                 os.unlink(lock_path)
@@ -209,7 +211,7 @@ class MemoryEngine:
         mem_dir = project_dir / "memories"
         lock_path = project_dir / ".memory.lock"
 
-        with _file_lock(lock_path):
+        with _file_lock(lock_path) as waited:
                 # Dedupe: topic_key is an upsert key, not an identity
             existing = None
             if topic_key:
@@ -227,6 +229,7 @@ class MemoryEngine:
                         "memory_id": existing.memory_id,
                         "status": "revised",
                         "revision_count": existing.revision_count,
+                        "conflict": waited,
                     }
 
             # Exact dedupe: same content hash within same project+type. Opt-in, because
