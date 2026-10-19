@@ -337,6 +337,19 @@ class SkillServer:
                     "required": ["name", "confirm"],
                 },
             },
+            {
+                "name": "skill_catalog_install",
+                "description": "Install a skill from a local source directory. Validates before activating. Atomic: stages in temp, validates, then activates.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Skill name to install"},
+                        "source_path": {"type": "string", "description": "Path to source directory containing SKILL.md and SKILL.json"},
+                        "confirm": {"type": "boolean", "description": "Must be true to confirm installation"},
+                    },
+                    "required": ["name", "source_path", "confirm"],
+                },
+            },
         ]
 
     def call_tool(self, name: str, arguments: Dict) -> Dict:
@@ -376,6 +389,8 @@ class SkillServer:
                 return self._catalog_disable(arguments)
             elif name == "skill_catalog_remove":
                 return self._catalog_remove(arguments)
+            elif name == "skill_catalog_install":
+                return self._catalog_install(arguments)
             else:
                 return {"error": f"Unknown tool: {name}"}
         except Exception as e:
@@ -409,7 +424,7 @@ class SkillServer:
         sdd_path = project_dir / "sdds" / f"{sdd_id}.json"
         if not sdd_path.exists():
             return {"error": f"SDD {sdd_id} not found"}
-        from se_core.paths import load_json, repo_root
+        from se_core.paths import load_json, repo_root, now_utc
         sdd = load_json(sdd_path)
         schemas = self._get_schemas()
         errors = validate(sdd, schemas["sdd"])
@@ -649,10 +664,208 @@ class SkillServer:
 
     def _save_catalog(self, catalog: Dict) -> None:
         """Save the catalog file atomically."""
-        from se_core.paths import write_json_atomic
+        from se_core.paths import write_json_atomic, now_utc
         path = self._catalog_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         write_json_atomic(path, catalog)
+
+    @staticmethod
+    def _is_symlink_or_reparse(path: Path) -> bool:
+        """Detect symlinks and Windows reparse points (junctions, mount points).
+
+        On POSIX, os.path.islink detects symlinks. On Windows, junctions are
+        reparse points that islink() may not detect in all Python versions.
+        We check both islink() and st_file_attributes (Windows-specific).
+        """
+        if path.is_symlink():
+            return True
+        try:
+            st = os.stat(str(path), follow_symlinks=False)
+        except OSError:
+            return False
+        attrs = getattr(st, "st_file_attributes", 0)
+        if attrs & 0x400:
+            return True
+        return False
+
+    def _catalog_install(self, args: Dict) -> Dict:
+        name = args.get("name")
+        source_path = args.get("source_path")
+        if not args.get("confirm"):
+            return {"error": "confirm must be true to install a skill"}
+
+        if not name or not source_path:
+            return {"error": "name and source_path are required"}
+
+        # Validate name against skill identifier contract
+        import re
+        if not re.match(r"^[a-z][a-z0-9-]*$", name):
+            return {"error": f"invalid skill name: {name!r} (must match ^[a-z][a-z0-9-]*$)"}
+
+        import shutil, hashlib, json as _json, os, tempfile
+        from se_core.paths import write_json_atomic, now_utc
+
+        src = Path(source_path)
+        # Reject symlinks (source directory and files)
+        if self._is_symlink_or_reparse(src):
+            return {"error": f"source_path is a symlink or reparse point (not allowed): {source_path}"}
+        if not src.is_dir():
+            return {"error": f"source_path is not a directory: {source_path}"}
+
+        # Resolve and verify containment within allowed locations.
+        # Allowed: repo_root() and subdirectories (for SE-native skills),
+        # or the designated staging directory under the system temp dir.
+        try:
+            resolved = src.resolve()
+        except (OSError, ValueError) as e:
+            return {"error": f"source_path cannot be resolved: {e}"}
+        allowed_roots = [repo_root().resolve()]
+        # Designated temp staging dir for external skill sources
+        staging_root = Path(tempfile.gettempdir()).resolve() / "se-skill-sources"
+        allowed_roots.append(staging_root)
+        if not any(resolved == root or root in resolved.parents for root in allowed_roots):
+            return {"error": f"source_path outside allowed locations: {source_path}. Allowed: repo root or {staging_root}"}
+        # Reject path traversal components
+        if ".." in Path(source_path).parts:
+            return {"error": f"source_path contains traversal: {source_path}"}
+
+        src_md = src / "SKILL.md"
+        src_json = src / "SKILL.json"
+        if self._is_symlink_or_reparse(src_md) or self._is_symlink_or_reparse(src_json):
+            return {"error": "SKILL.md or SKILL.json is a symlink or reparse point (not allowed)"}
+        if not src_md.is_file():
+            return {"error": "SKILL.md not found in source directory"}
+        if not src_json.is_file():
+            return {"error": "SKILL.json not found in source directory"}
+
+        # Read and validate source
+        try:
+            sidecar = json.loads(src_json.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            return {"error": f"Invalid SKILL.json: {e}"}
+
+        content = src_md.read_text(encoding="utf-8")
+
+        # Schema validation against skill-contract
+        schemas = self._get_schemas()
+        schema_errors = validate(sidecar, schemas["skill_contract"])
+        if schema_errors:
+            return {"error": f"SKILL.json validation failed: {schema_errors}"}
+
+        # Verify declared name matches requested name
+        if sidecar.get("name") != name:
+            return {"error": f"skill name mismatch: catalog name '{name}' != SKILL.json name '{sidecar.get('name')}'"}
+
+        # Security scan
+        from se_core.skills.security import scan_skill_dir
+        security = scan_skill_dir(str(src), content, sidecar)
+        if security["risk_level"] == "high":
+            return {"error": f"Security scan failed (high risk): {security['findings']}"}
+
+        # Check if already installed (filesystem)
+        target_dir = repo_root() / "SKILLS" / name
+        if target_dir.exists() or target_dir.is_symlink():
+            return {"error": f"Skill '{name}' already installed. Use update or remove first."}
+
+        # Check catalog for collisions BEFORE any filesystem changes
+        catalog = self._load_catalog()
+        for s in catalog.get("skills", []):
+            if s.get("id") == sidecar.get("skill_id"):
+                return {"error": f"Duplicate skill_id: {sidecar.get('skill_id')}"}
+            if s.get("name") == name:
+                return {"error": f"Skill '{name}' already in catalog"}
+
+        # Stage in temp directory on same filesystem as destination
+        skills_dir = repo_root() / "SKILLS"
+        skills_dir.mkdir(parents=True, exist_ok=True)
+        stage_parent = None
+        stage_dir = None
+        activated = False
+        try:
+            stage_parent = Path(tempfile.mkdtemp(dir=str(skills_dir)))
+            stage_dir = stage_parent / name
+            stage_dir.mkdir()
+            (stage_dir / "SKILL.md").write_text(content, encoding="utf-8")
+            (stage_dir / "SKILL.json").write_text(
+                json.dumps(sidecar, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+            )
+
+            # Verify staged files
+            if not (stage_dir / "SKILL.md").is_file() or not (stage_dir / "SKILL.json").is_file():
+                raise RuntimeError("staging failed: files not created")
+
+            # Atomic activation: rename stage dir to target (atomic on same filesystem)
+            try:
+                os.rename(str(stage_dir), str(target_dir))
+                stage_dir = None  # moved, no cleanup needed
+                activated = True
+            except OSError as e:
+                raise RuntimeError(f"activation failed (atomic rename): {e}")
+
+            # Update catalog
+            checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+            entry = {
+                "id": sidecar.get("skill_id"),
+                "name": name,
+                "purpose": sidecar.get("description", ""),
+                "category": sidecar.get("metadata", {}).get("category", "general"),
+                "source": "third-party",
+                "source_url": sidecar.get("metadata", {}).get("source_url"),
+                "maintainer": sidecar.get("metadata", {}).get("maintainer", "unknown"),
+                "version": sidecar.get("version", "0.0.0"),
+                "license": sidecar.get("license"),
+                "provenance": "installed-from-local-source",
+                "supported_runtimes": sidecar.get("metadata", {}).get("supported_runtimes", ["opencode"]),
+                "dependencies": sidecar.get("dependencies", []),
+                "permissions": sidecar.get("capabilities", {}).get("required", []),
+                "risk_level": security["risk_level"],
+                "validation_status": "validated" if security["risk_level"] != "high" else "rejected",
+                "installation_state": "installed",
+                "path": f"SKILLS/{name}",
+                "skill_md_path": f"SKILLS/{name}/SKILL.md",
+                "skill_json_path": f"SKILLS/{name}/SKILL.json",
+                "restrictions": sidecar.get("restrictions", []),
+                "skill_kind": sidecar.get("skill_kind", "knowledge"),
+                "installed_at": now_utc(),
+                "checksum": checksum,
+            }
+            entry = {k: v for k, v in entry.items() if v is not None}
+
+            catalog.setdefault("skills", []).append(entry)
+            self._save_catalog(catalog)
+
+            return {
+                "name": name,
+                "status": "installed",
+                "source": source_path,
+                "version": sidecar.get("version"),
+                "risk_level": security["risk_level"],
+                "findings": security["findings"],
+                "installed_at": entry.get("installed_at"),
+            }
+
+        except Exception as e:
+            # Rollback: remove target_dir ONLY if activation succeeded
+            if activated and target_dir.exists():
+                shutil.rmtree(target_dir, ignore_errors=True)
+            # Remove catalog entry ONLY if activation succeeded
+            if activated:
+                try:
+                    catalog = self._load_catalog()
+                    catalog["skills"] = [s for s in catalog.get("skills", []) if s.get("name") != name]
+                    self._save_catalog(catalog)
+                except Exception:
+                    pass
+            return {"error": f"installation failed: {e}"}
+
+        finally:
+            # Clean up stage directory if it still exists
+            if stage_dir is not None and stage_dir.exists():
+                shutil.rmtree(stage_dir.parent, ignore_errors=True)
+            # Always clean up the temp parent directory if it still exists
+            if stage_parent is not None and stage_parent.exists():
+                shutil.rmtree(stage_parent, ignore_errors=True)
 
     def _get_schemas(self):
         if self._schemas is None:
