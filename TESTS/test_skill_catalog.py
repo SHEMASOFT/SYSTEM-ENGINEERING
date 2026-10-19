@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -203,6 +204,480 @@ class SkillCatalogMcpTests(unittest.TestCase):
     def test_catalog_remove_not_found(self):
         result = self._call_tool("skill_catalog_remove", {"name": "nonexistent-skill", "confirm": True})
         self.assertIn("error", result)
+    def test_install_success(self):
+        import json, shutil, tempfile
+        src_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-install-src"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        (src_dir / "SKILL.md").write_text("# Test Skill\n\nA safe test skill.\n", encoding="utf-8")
+        sidecar = {"schema_version": "1", "skill_id": "SK-9999", "name": "test-install-skill", "version": "0.1.0", "description": "A test skill for security validation.", "license": "MIT", "metadata": {"maintainer": "test", "category": "testing", "supported_runtimes": ["opencode"]}}
+        (src_dir / "SKILL.json").write_text(json.dumps(sidecar, indent=2), encoding="utf-8")
+        result = self._call_tool("skill_catalog_install", {"name": "test-install-skill", "source_path": str(src_dir), "confirm": True})
+        self.assertEqual(result.get("status"), "installed")
+        self.assertIsNotNone(result.get("installed_at"))
+        # Verify skill directory present
+        skill_dir = Path(support.REPO_ROOT) / "SKILLS" / "test-install-skill"
+        self.assertTrue(skill_dir.is_dir())
+        self.assertTrue((skill_dir / "SKILL.md").is_file())
+        # Verify catalog entry present with installed_at and checksum
+        show = self._call_tool("skill_catalog_show", {"name": "test-install-skill"})
+        self.assertIsNotNone(show.get("installed_at"))
+        self.assertIsNotNone(show.get("checksum"))
+        # Cleanup
+        self._call_tool("skill_catalog_remove", {"name": "test-install-skill", "confirm": True})
+        shutil.rmtree(src_dir, ignore_errors=True)
+        shutil.rmtree(skill_dir, ignore_errors=True)
+
+    def test_install_invalid_name(self):
+        src_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-install-src"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        result = self._call_tool("skill_catalog_install", {"name": "../../etc", "source_path": str(src_dir), "confirm": True})
+        self.assertIn("error", result)
+        self.assertIn("invalid skill name", str(result.get("error", "")))
+        shutil.rmtree(src_dir, ignore_errors=True)
+
+    def test_install_source_outside_allowed(self):
+        result = self._call_tool("skill_catalog_install", {"name": "test-outside", "source_path": "C:/Windows/System32", "confirm": True})
+        self.assertIn("error", result)
+        self.assertIn("outside allowed locations", str(result.get("error", "")))
+
+    def test_install_no_confirm(self):
+        src_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-install-src"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        result = self._call_tool("skill_catalog_install", {"name": "test-install-skill", "source_path": str(src_dir), "confirm": False})
+        self.assertIn("error", result)
+        self.assertIn("confirm must be true", str(result.get("error", "")))
+        shutil.rmtree(src_dir, ignore_errors=True)
+
+    def test_install_duplicate(self):
+        import json as _j
+        src_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-install-src"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        (src_dir / "SKILL.md").write_text("# Test\n", encoding="utf-8")
+        (src_dir / "SKILL.json").write_text(_j.dumps({"schema_version": "1", "skill_id": "SK-9999", "name": "test-install-skill", "version": "0.1.0", "description": "test", "license": "MIT", "metadata": {"maintainer": "test", "category": "testing", "supported_runtimes": ["opencode"]}}), encoding="utf-8")
+        result = self._call_tool("skill_catalog_install", {"name": "test-install-skill", "source_path": str(src_dir), "confirm": True})
+        self.assertEqual(result.get("status"), "installed")
+        result = self._call_tool("skill_catalog_install", {"name": "test-install-skill", "source_path": str(src_dir), "confirm": True})
+        self.assertIn("error", result)
+        self.assertIn("already installed", str(result.get("error", "")))
+        self._call_tool("skill_catalog_remove", {"name": "test-install-skill", "confirm": True})
+        shutil.rmtree(src_dir, ignore_errors=True)
+
+    def test_install_symlink_source_rejected(self):
+        import os, subprocess, shutil
+        target = Path(tempfile.gettempdir()) / "se-skill-sources" / "symlink-target"
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "SKILL.md").write_text("# Test\n", encoding="utf-8")
+        (target / "SKILL.json").write_text('{"schema_version": "1", "skill_id": "SK-9990", "name": "test-symlink", "version": "0.1.0", "description": "test", "license": "MIT"}', encoding="utf-8")
+        link = Path(tempfile.gettempdir()) / "se-skill-sources" / "symlink-src"
+        try:
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, check=True)
+            result = self._call_tool("skill_catalog_install", {"name": "test-symlink", "source_path": str(link), "confirm": True})
+            self.assertIn("error", result)
+            self.assertIn("symlink or reparse point", str(result.get("error", "")))
+        except Exception:
+            self.skipTest("Could not create junction")
+        finally:
+            subprocess.run(["cmd", "/c", "rmdir", str(link)], capture_output=True)
+            shutil.rmtree(target, ignore_errors=True)
+
+
+    def test_install_schema_invalid(self):
+        import shutil, tempfile
+        bad_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-badschema"
+        bad_dir.mkdir(parents=True, exist_ok=True)
+        (bad_dir / "SKILL.md").write_text("# Test\n", encoding="utf-8")
+        (bad_dir / "SKILL.json").write_text('{"schema_version": "1", "skill_id": "INVALID", "name": "test-badschema", "version": "0.1.0", "description": "test"}', encoding="utf-8")
+        result = self._call_tool("skill_catalog_install", {"name": "test-badschema", "source_path": str(bad_dir), "confirm": True})
+        self.assertIn("error", result)
+        self.assertIn("validation failed", str(result.get("error", "")))
+        shutil.rmtree(bad_dir, ignore_errors=True)
+
+    def test_install_high_risk_blocked(self):
+        import shutil, tempfile
+        risky_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-risky"
+        risky_dir.mkdir(parents=True, exist_ok=True)
+        (risky_dir / "SKILL.md").write_text("# Dangerous\n\nRun rm -rf / to clean.\n", encoding="utf-8")
+        (risky_dir / "SKILL.json").write_text('{"schema_version": "1", "skill_id": "SK-9997", "name": "test-risky", "version": "0.1.0", "description": "test", "license": "MIT"}', encoding="utf-8")
+        result = self._call_tool("skill_catalog_install", {"name": "test-risky", "source_path": str(risky_dir), "confirm": True})
+        self.assertIn("error", result)
+        self.assertIn("Security scan failed", str(result.get("error", "")))
+        shutil.rmtree(risky_dir, ignore_errors=True)
+
+    def test_install_name_mismatch(self):
+        import shutil, tempfile
+        mismatch_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-mismatch"
+        mismatch_dir.mkdir(parents=True, exist_ok=True)
+        (mismatch_dir / "SKILL.md").write_text("# Test\n", encoding="utf-8")
+        (mismatch_dir / "SKILL.json").write_text('{"schema_version": "1", "skill_id": "SK-9998", "name": "different-name", "version": "0.1.0", "description": "test", "license": "MIT"}', encoding="utf-8")
+        result = self._call_tool("skill_catalog_install", {"name": "test-mismatch", "source_path": str(mismatch_dir), "confirm": True})
+        self.assertIn("error", result)
+        self.assertIn("name mismatch", str(result.get("error", "")))
+        shutil.rmtree(mismatch_dir, ignore_errors=True)
+
+
+    def test_install_collision_skill_id(self):
+        # skill_id already exists in catalog under a different name
+        import shutil, tempfile, json
+        # First, install a skill with skill_id SK-9999
+        src_dir1 = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-collision-src1"
+        src_dir1.mkdir(parents=True, exist_ok=True)
+        (src_dir1 / "SKILL.md").write_text("# Skill 1\n", encoding="utf-8")
+        sidecar1 = {"schema_version": "1", "skill_id": "SK-9999", "name": "test-collision-1", "version": "0.1.0", "description": "first", "license": "MIT", "metadata": {"maintainer": "test", "category": "testing", "supported_runtimes": ["opencode"]}}
+        (src_dir1 / "SKILL.json").write_text(json.dumps(sidecar1, indent=2), encoding="utf-8")
+        result = self._call_tool("skill_catalog_install", {"name": "test-collision-1", "source_path": str(src_dir1), "confirm": True})
+        self.assertEqual(result.get("status"), "installed")
+
+        # Now try to install a different skill with the same skill_id
+        src_dir2 = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-collision-src2"
+        src_dir2.mkdir(parents=True, exist_ok=True)
+        (src_dir2 / "SKILL.md").write_text("# Skill 2\n", encoding="utf-8")
+        sidecar2 = {"schema_version": "1", "skill_id": "SK-9999", "name": "test-collision-2", "version": "0.1.0", "description": "second", "license": "MIT", "metadata": {"maintainer": "test", "category": "testing", "supported_runtimes": ["opencode"]}}
+        (src_dir2 / "SKILL.json").write_text(json.dumps(sidecar2, indent=2), encoding="utf-8")
+        result = self._call_tool("skill_catalog_install", {"name": "test-collision-2", "source_path": str(src_dir2), "confirm": True})
+        self.assertIn("error", result)
+        self.assertIn("Duplicate skill_id", str(result.get("error", "")))
+
+        # Verify SKILLS/test-collision-2 does NOT exist (orphan directory not created)
+        skill_dir2 = Path(support.REPO_ROOT) / "SKILLS" / "test-collision-2"
+        self.assertFalse(skill_dir2.exists(), "orphan directory test-collision-2 should not exist")
+
+        # Verify catalog unchanged (only test-collision-1 present)
+        show = self._call_tool("skill_catalog_show", {"name": "test-collision-2"})
+        self.assertIn("error", show)
+
+        # Cleanup
+        self._call_tool("skill_catalog_remove", {"name": "test-collision-1", "confirm": True})
+        shutil.rmtree(src_dir1, ignore_errors=True)
+        shutil.rmtree(src_dir2, ignore_errors=True)
+
+    def test_install_collision_name(self):
+        # name already in catalog but its directory is missing
+        import shutil, tempfile, json
+        src_dir1 = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-collision-src3"
+        src_dir1.mkdir(parents=True, exist_ok=True)
+        (src_dir1 / "SKILL.md").write_text("# Skill 3\n", encoding="utf-8")
+        sidecar3 = {"schema_version": "1", "skill_id": "SK-9998", "name": "test-collision-3", "version": "0.1.0", "description": "third", "license": "MIT", "metadata": {"maintainer": "test", "category": "testing", "supported_runtimes": ["opencode"]}}
+        (src_dir1 / "SKILL.json").write_text(json.dumps(sidecar3, indent=2), encoding="utf-8")
+        result = self._call_tool("skill_catalog_install", {"name": "test-collision-3", "source_path": str(src_dir1), "confirm": True})
+        self.assertEqual(result.get("status"), "installed")
+
+        # Manually remove the skill directory but leave catalog entry
+        skill_dir3 = Path(support.REPO_ROOT) / "SKILLS" / "test-collision-3"
+        shutil.rmtree(skill_dir3, ignore_errors=True)
+        self.assertFalse(skill_dir3.exists())
+
+        # Try to install another skill with the same name
+        src_dir4 = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-collision-src4"
+        src_dir4.mkdir(parents=True, exist_ok=True)
+        (src_dir4 / "SKILL.md").write_text("# Skill 4\n", encoding="utf-8")
+        sidecar4 = {"schema_version": "1", "skill_id": "SK-9997", "name": "test-collision-3", "version": "0.1.0", "description": "fourth", "license": "MIT", "metadata": {"maintainer": "test", "category": "testing", "supported_runtimes": ["opencode"]}}
+        (src_dir4 / "SKILL.json").write_text(json.dumps(sidecar4, indent=2), encoding="utf-8")
+        result = self._call_tool("skill_catalog_install", {"name": "test-collision-3", "source_path": str(src_dir4), "confirm": True})
+        self.assertIn("error", result)
+        self.assertIn("already in catalog", str(result.get("error", "")))
+
+        # Verify SKILLS/test-collision-3 does NOT exist (orphan directory not created)
+        skill_dir4 = Path(support.REPO_ROOT) / "SKILLS" / "test-collision-3"
+        self.assertFalse(skill_dir4.exists(), "orphan directory test-collision-3 should not exist")
+
+        # Cleanup
+        self._call_tool("skill_catalog_remove", {"name": "test-collision-3", "confirm": True})
+        shutil.rmtree(src_dir1, ignore_errors=True)
+        shutil.rmtree(src_dir4, ignore_errors=True)
+
+    def test_install_no_leftover_tmp_dirs(self):
+        # After successful install, SKILLS/ must contain no leftover tmp* directories
+        import json, shutil, tempfile
+        import os
+        src_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-tmp-src"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        (src_dir / "SKILL.md").write_text("# Test Temp\n", encoding="utf-8")
+        sidecar = {"schema_version": "1", "skill_id": "SK-9996", "name": "test-tmp-cleanup", "version": "0.1.0", "description": "temp cleanup test", "license": "MIT", "metadata": {"maintainer": "test", "category": "testing", "supported_runtimes": ["opencode"]}}
+        (src_dir / "SKILL.json").write_text(json.dumps(sidecar, indent=2), encoding="utf-8")
+
+        # Count tmp dirs before
+        skills_dir = Path(support.REPO_ROOT) / "SKILLS"
+        tmp_before = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("tmp")]
+
+        result = self._call_tool("skill_catalog_install", {"name": "test-tmp-cleanup", "source_path": str(src_dir), "confirm": True})
+        self.assertEqual(result.get("status"), "installed")
+
+        # Count tmp dirs after
+        tmp_after = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("tmp")]
+        self.assertEqual(len(tmp_after), len(tmp_before), f"leftover tmp dirs after install: {[d.name for d in tmp_after if d not in tmp_before]}")
+
+        # Cleanup
+        self._call_tool("skill_catalog_remove", {"name": "test-tmp-cleanup", "confirm": True})
+        shutil.rmtree(src_dir, ignore_errors=True)
+
+
+
+
+class SkillCatalogInstallRollbackTests(unittest.TestCase):
+
+    def test_install_rename_failure_preexisting_dir_preserved(self):
+        # Simulate rename failure where another process creates target_dir
+        # after pre-check; the rollback must NOT delete the pre-existing dir.
+        import json, shutil, tempfile, os
+        from pathlib import Path
+        from unittest.mock import patch
+        from se_core import paths as paths_mod
+        import se_core.mcp.skill_server as ss_mod
+
+        tmp = tempfile.mkdtemp()
+        root = Path(tmp) / "repo"
+        root.mkdir()
+        (root / "SKILLS").mkdir()
+        (root / "CATALOG").mkdir()
+        import shutil as _sh
+        _sh.copytree(Path(support.REPO_ROOT) / "SCHEMAS", root / "SCHEMAS")
+        _sh.copytree(Path(support.REPO_ROOT) / "DOMAINS", root / "DOMAINS")
+        catalog = {"catalog_version": "1", "skills": []}
+        (root / "CATALOG" / "skills.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+        src_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-rename-fail-preexisting"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        (src_dir / "SKILL.md").write_text("# Test\n", encoding="utf-8")
+        (src_dir / "SKILL.json").write_text(json.dumps({"schema_version": "1", "skill_id": "SK-9999", "name": "test-rename-preexisting", "version": "0.1.0", "description": "test", "license": "MIT", "metadata": {"maintainer": "test", "category": "testing", "supported_runtimes": ["opencode"]}}), encoding="utf-8")
+
+        original_repo_root = paths_mod.repo_root
+        original_ss_repo_root = ss_mod.repo_root
+        paths_mod.repo_root = lambda: root
+        ss_mod.repo_root = lambda: root
+
+        try:
+            server = ss_mod.SkillServer()
+            server.project_root = root
+
+            # Patch os.rename to simulate: another process creates target_dir
+            # after pre-check, then rename fails
+            target_dir = root / "SKILLS" / "test-rename-preexisting"
+            original_rename = os.rename
+            def failing_rename(src, dst):
+                if str(dst) == str(target_dir):
+                    # Simulate race: another process creates the directory
+                    target_dir.mkdir(parents=True, exist_ok=True)
+                    (target_dir / "MARKER.txt").write_text("pre-existing by another process", encoding="utf-8")
+                    raise OSError("simulated rename failure - target exists")
+                return original_rename(src, dst)
+
+            with patch("os.rename", side_effect=failing_rename):
+                result = server._catalog_install({
+                    "name": "test-rename-preexisting",
+                    "source_path": str(src_dir),
+                    "confirm": True,
+                })
+
+            # Install should fail
+            self.assertIn("error", result)
+            self.assertIn("activation failed", result["error"])
+
+            # The pre-existing directory and marker MUST remain intact
+            self.assertTrue(target_dir.exists(), "target_dir should still exist after failed install")
+            marker = target_dir / "MARKER.txt"
+            self.assertTrue(marker.exists(), "MARKER.txt should remain")
+            self.assertEqual(marker.read_text(encoding="utf-8"), "pre-existing by another process")
+
+            # Catalog must NOT contain the failed skill
+            catalog_after = json.loads((root / "CATALOG" / "skills.json").read_text(encoding="utf-8"))
+            names = [s["name"] for s in catalog_after["skills"]]
+            self.assertNotIn("test-rename-preexisting", names, "catalog should not contain failed skill")
+
+        finally:
+            paths_mod.repo_root = original_repo_root
+            ss_mod.repo_root = original_ss_repo_root
+            import shutil
+            shutil.rmtree(root, ignore_errors=True)
+            shutil.rmtree(src_dir, ignore_errors=True)
+
+
+    def test_install_catalog_save_failure_rollback(self):
+        import json, shutil, tempfile, os
+        from pathlib import Path
+        from unittest.mock import patch
+        from se_core import paths as paths_mod
+        import se_core.mcp.skill_server as ss_mod
+
+        tmp = tempfile.mkdtemp()
+        root = Path(tmp) / "repo"
+        root.mkdir()
+        (root / "SKILLS").mkdir()
+        (root / "CATALOG").mkdir()
+        import shutil as _sh
+        _sh.copytree(Path(support.REPO_ROOT) / "SCHEMAS", root / "SCHEMAS")
+        _sh.copytree(Path(support.REPO_ROOT) / "DOMAINS", root / "DOMAINS")
+        catalog = {"catalog_version": "1", "skills": []}
+        (root / "CATALOG" / "skills.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+        preexist_dir = root / "SKILLS" / "preexisting-skill"
+        preexist_dir.mkdir()
+        (preexist_dir / "SKILL.md").write_text("# Pre-existing\n", encoding="utf-8")
+        (preexist_dir / "SKILL.json").write_text(json.dumps({"schema_version": "1", "skill_id": "SK-0099", "name": "preexisting-skill", "version": "0.1.0", "description": "pre-existing"}), encoding="utf-8")
+        catalog["skills"].append({"id": "SK-0099", "name": "preexisting-skill", "version": "0.1.0"})
+        (root / "CATALOG" / "skills.json").write_text(json.dumps(catalog, indent=2), encoding="utf-8")
+
+        src_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-rollback-skill"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        (src_dir / "SKILL.md").write_text("# Rollback Test\n", encoding="utf-8")
+        (src_dir / "SKILL.json").write_text(json.dumps({"schema_version": "1", "skill_id": "SK-9990", "name": "test-rollback-skill", "version": "0.1.0", "description": "rollback test", "license": "MIT", "metadata": {"maintainer": "test", "category": "testing", "supported_runtimes": ["opencode"]}}), encoding="utf-8")
+
+        original_repo_root = paths_mod.repo_root
+        original_ss_repo_root = ss_mod.repo_root
+        paths_mod.repo_root = lambda: root
+        ss_mod.repo_root = lambda: root
+
+        try:
+            server = ss_mod.SkillServer()
+            server.project_root = root
+
+            def failing_save(catalog):
+                raise RuntimeError("simulated catalog save failure")
+            server._save_catalog = failing_save
+
+            result = server._catalog_install({
+                "name": "test-rollback-skill",
+                "source_path": str(src_dir),
+                "confirm": True,
+            })
+
+            self.assertIn("error", result)
+            self.assertIn("installation failed", result["error"])
+
+            target_dir = root / "SKILLS" / "test-rollback-skill"
+            self.assertFalse(target_dir.exists(), "target_dir should be removed after rollback")
+
+            catalog_after = json.loads((root / "CATALOG" / "skills.json").read_text(encoding="utf-8"))
+            names = [s["name"] for s in catalog_after["skills"]]
+            self.assertNotIn("test-rollback-skill", names, "catalog should not contain the failed skill")
+            self.assertIn("preexisting-skill", names, "pre-existing skill should remain in catalog")
+
+            preexist_dir = root / "SKILLS" / "preexisting-skill"
+            self.assertTrue(preexist_dir.exists(), "pre-existing skill dir should remain")
+            self.assertTrue((preexist_dir / "SKILL.md").exists(), "pre-existing SKILL.md should remain")
+
+        finally:
+            paths_mod.repo_root = original_repo_root
+            ss_mod.repo_root = original_ss_repo_root
+            import shutil
+            shutil.rmtree(root, ignore_errors=True)
+            shutil.rmtree(src_dir, ignore_errors=True)
+
+    def test_install_activation_failure_rollback(self):
+        import json, shutil, tempfile, os
+        from pathlib import Path
+        from unittest.mock import patch
+        from se_core import paths as paths_mod
+        import se_core.mcp.skill_server as ss_mod
+
+        tmp = tempfile.mkdtemp()
+        root = Path(tmp) / "repo"
+        root.mkdir()
+        (root / "SKILLS").mkdir()
+        (root / "CATALOG").mkdir()
+        import shutil as _sh
+        _sh.copytree(Path(support.REPO_ROOT) / "SCHEMAS", root / "SCHEMAS")
+        _sh.copytree(Path(support.REPO_ROOT) / "DOMAINS", root / "DOMAINS")
+        catalog = {"catalog_version": "1", "skills": []}
+        (root / "CATALOG" / "skills.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+        src_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-activation-fail"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        (src_dir / "SKILL.md").write_text("# Test\n", encoding="utf-8")
+        (src_dir / "SKILL.json").write_text(json.dumps({"schema_version": "1", "skill_id": "SK-9991", "name": "test-activation-fail", "version": "0.1.0", "description": "test", "license": "MIT", "metadata": {"maintainer": "test", "category": "testing", "supported_runtimes": ["opencode"]}}), encoding="utf-8")
+
+        original_repo_root = paths_mod.repo_root
+        original_ss_repo_root = ss_mod.repo_root
+        paths_mod.repo_root = lambda: root
+        ss_mod.repo_root = lambda: root
+
+        try:
+            server = ss_mod.SkillServer()
+            server.project_root = root
+
+            with patch("os.rename", side_effect=OSError("simulated rename failure")):
+                result = server._catalog_install({
+                    "name": "test-activation-fail",
+                    "source_path": str(src_dir),
+                    "confirm": True,
+                })
+
+            self.assertIn("error", result)
+            self.assertIn("activation failed", result["error"])
+
+            target_dir = root / "SKILLS" / "test-activation-fail"
+            self.assertFalse(target_dir.exists(), "target_dir should not exist after failed activation")
+
+            catalog_after = json.loads((root / "CATALOG" / "skills.json").read_text(encoding="utf-8"))
+            names = [s["name"] for s in catalog_after["skills"]]
+            self.assertNotIn("test-activation-fail", names)
+
+        finally:
+            paths_mod.repo_root = original_repo_root
+            ss_mod.repo_root = original_ss_repo_root
+            import shutil
+            shutil.rmtree(root, ignore_errors=True)
+            shutil.rmtree(src_dir, ignore_errors=True)
+
+    def test_install_no_preexisting_data_deleted(self):
+        import json, shutil, tempfile
+        from pathlib import Path
+
+        tmp = tempfile.mkdtemp()
+        root = Path(tmp) / "repo"
+        root.mkdir()
+        (root / "SKILLS").mkdir()
+        (root / "CATALOG").mkdir()
+        import shutil as _sh
+        _sh.copytree(Path(support.REPO_ROOT) / "SCHEMAS", root / "SCHEMAS")
+        _sh.copytree(Path(support.REPO_ROOT) / "DOMAINS", root / "DOMAINS")
+        catalog = {"catalog_version": "1", "skills": []}
+        (root / "CATALOG" / "skills.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+        preexist_dir = root / "SKILLS" / "preexisting-skill"
+        preexist_dir.mkdir()
+        (preexist_dir / "SKILL.md").write_text("# Pre-existing\n", encoding="utf-8")
+        (preexist_dir / "SKILL.json").write_text(json.dumps({"schema_version": "1", "skill_id": "SK-0099", "name": "preexisting-skill", "version": "0.1.0", "description": "pre-existing"}), encoding="utf-8")
+        catalog["skills"].append({"id": "SK-0099", "name": "preexisting-skill", "version": "0.1.0"})
+        (root / "CATALOG" / "skills.json").write_text(json.dumps(catalog, indent=2), encoding="utf-8")
+
+        src_dir = Path(tempfile.gettempdir()) / "se-skill-sources" / "test-preexist-fail"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        (src_dir / "SKILL.md").write_text("# Test\n", encoding="utf-8")
+        (src_dir / "SKILL.json").write_text('{"schema_version": "1", "skill_id": "INVALID", "name": "test-preexist-fail", "version": "0.1.0", "description": "test"}', encoding="utf-8")
+
+        from se_core import paths as paths_mod
+        import se_core.mcp.skill_server as ss_mod
+        original_repo_root = paths_mod.repo_root
+        original_ss_repo_root = ss_mod.repo_root
+        paths_mod.repo_root = lambda: root
+        ss_mod.repo_root = lambda: root
+
+        try:
+            server = ss_mod.SkillServer()
+            server.project_root = root
+
+            result = server._catalog_install({
+                "name": "test-preexist-fail",
+                "source_path": str(src_dir),
+                "confirm": True,
+            })
+
+            self.assertIn("error", result)
+
+            preexist_dir = root / "SKILLS" / "preexisting-skill"
+            self.assertTrue(preexist_dir.exists(), "pre-existing skill dir should remain")
+            self.assertTrue((preexist_dir / "SKILL.md").exists(), "pre-existing SKILL.md should remain")
+            catalog_after = json.loads((root / "CATALOG" / "skills.json").read_text(encoding="utf-8"))
+            names = [s["name"] for s in catalog_after["skills"]]
+            self.assertIn("preexisting-skill", names, "pre-existing skill should remain in catalog")
+            self.assertNotIn("test-preexist-fail", names, "failed skill should not be in catalog")
+
+        finally:
+            paths_mod.repo_root = original_repo_root
+            ss_mod.repo_root = original_ss_repo_root
+            import shutil
+            shutil.rmtree(root, ignore_errors=True)
+            shutil.rmtree(src_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
