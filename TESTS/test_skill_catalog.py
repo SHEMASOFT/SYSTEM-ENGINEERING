@@ -236,7 +236,12 @@ class SkillCatalogMcpTests(unittest.TestCase):
         shutil.rmtree(src_dir, ignore_errors=True)
 
     def test_install_source_outside_allowed(self):
-        result = self._call_tool("skill_catalog_install", {"name": "test-outside", "source_path": "C:/Windows/System32", "confirm": True})
+        # Use a real directory that is outside both allowed roots
+        # (repo root and <tmp>/se-skill-sources).
+        import shutil
+        outside_dir = Path(tempfile.mkdtemp(prefix="se-install-outside-"))
+        self.addCleanup(shutil.rmtree, str(outside_dir), True)
+        result = self._call_tool("skill_catalog_install", {"name": "test-outside", "source_path": str(outside_dir), "confirm": True})
         self.assertIn("error", result)
         self.assertIn("outside allowed locations", str(result.get("error", "")))
 
@@ -263,22 +268,51 @@ class SkillCatalogMcpTests(unittest.TestCase):
         shutil.rmtree(src_dir, ignore_errors=True)
 
     def test_install_symlink_source_rejected(self):
-        import os, subprocess, shutil
+        import json, os, shutil, subprocess
         target = Path(tempfile.gettempdir()) / "se-skill-sources" / "symlink-target"
         target.mkdir(parents=True, exist_ok=True)
+        self.addCleanup(shutil.rmtree, str(target), True)
         (target / "SKILL.md").write_text("# Test\n", encoding="utf-8")
-        (target / "SKILL.json").write_text('{"schema_version": "1", "skill_id": "SK-9990", "name": "test-symlink", "version": "0.1.0", "description": "test", "license": "MIT"}', encoding="utf-8")
+        (target / "SKILL.json").write_text(json.dumps({"schema_version": "1", "skill_id": "SK-9990", "name": "test-symlink", "version": "0.1.0", "description": "test", "license": "MIT"}), encoding="utf-8")
         link = Path(tempfile.gettempdir()) / "se-skill-sources" / "symlink-src"
+
+        def cleanup_link():
+            # Works for both symlinks (POSIX) and junctions (Windows).
+            try:
+                os.unlink(link)
+            except OSError:
+                try:
+                    os.rmdir(link)
+                except OSError:
+                    pass
+        self.addCleanup(cleanup_link)
+
+        created = False
         try:
-            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, check=True)
-            result = self._call_tool("skill_catalog_install", {"name": "test-symlink", "source_path": str(link), "confirm": True})
-            self.assertIn("error", result)
-            self.assertIn("symlink or reparse point", str(result.get("error", "")))
-        except Exception:
-            self.skipTest("Could not create junction")
-        finally:
-            subprocess.run(["cmd", "/c", "rmdir", str(link)], capture_output=True)
-            shutil.rmtree(target, ignore_errors=True)
+            os.symlink(target, link, target_is_directory=True)
+            created = True
+        except (OSError, NotImplementedError, AttributeError) as exc:
+            # Windows without Developer Mode / privilege: fall back to a junction.
+            if os.name == "nt":
+                try:
+                    subprocess.run(
+                        ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                        capture_output=True, check=True,
+                    )
+                    created = True
+                except Exception as junction_exc:
+                    self.skipTest(
+                        f"Could not create a symlink or junction on this system: {exc}; {junction_exc}"
+                    )
+            else:
+                self.skipTest(f"Could not create a directory symlink on this system: {exc}")
+
+        if not created:
+            self.skipTest("Could not create a directory symlink or junction on this system")
+
+        result = self._call_tool("skill_catalog_install", {"name": "test-symlink", "source_path": str(link), "confirm": True})
+        self.assertIn("error", result)
+        self.assertIn("symlink or reparse point", str(result.get("error", "")))
 
 
     def test_install_schema_invalid(self):
