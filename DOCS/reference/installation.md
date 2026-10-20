@@ -165,7 +165,19 @@ python3 SCRIPTS/se.py install --bootstrap   # run se-installer, then register
 |---|---|---|
 | `context7` | Up-to-date library documentation | yes |
 | `filesystem` | Read/write files under a root (MCP reference server) | yes |
-| `skill-server` | SE's own stdio skill server (SDD/ODD tools) | SE-owned |
+| `skill-server` | SE's own stdio skill server (SDD/ODD/RDD + skill catalog tools) | SE-owned |
+
+### skill_catalog_install
+
+`skill_catalog_install` installs a skill from a controlled local source into `SKILLS/` and registers it in `CATALOG/skills.json`.
+
+- Arguments: `name` (skill name), `source_path` (local source directory), `confirm` (must be `true`).
+- Allowed roots for `source_path`: the repo root or `<tmp>/se-skill-sources`. Traversal, symlinks and Windows reparse points are rejected.
+- Validations: skill name (`^[a-z][a-z0-9-]*$`), `SKILL.json` contract, name match between the requested name and the SKILL.json name, and the static security scan (high risk blocks).
+- Collision checks (skill_id/name) run before any filesystem change.
+- Activation is atomic (`os.rename` from a staging dir under `SKILLS/`); rollback removes only what this install created (target dir and catalog entry, gated by the `activated` flag).
+
+Known limitations: no catalog lock for concurrent installs; no dependency resolution; no update mechanism; only `SKILL.md` and `SKILL.json` are copied; Windows reparse-point detection may not be exhaustive.
 
 ### Flags
 

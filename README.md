@@ -10,7 +10,7 @@ or any other kind of project.
 This repository **is the system itself**. It creates and operates other projects
 without being coupled to them.
 
-> Version 0.10.0 — Status: **foundation / development**. Smallest system capable of
+> Version 0.10.1 — Status: **foundation / development**. Smallest system capable of
 > becoming the larger one; not yet validated in production.
 
 ---

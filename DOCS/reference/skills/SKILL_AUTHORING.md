@@ -25,6 +25,8 @@ SKILLS/<skill-name>/
 | 5 | Regenerar el adapter (`.opencode`) | `se adapter opencode` → idempotente (Wrote 0 en re-ejecución) |
 | 6 | Validar e integrar | `se validate`, `se doctor`, suite completa |
 
+> Nota: `skill_catalog_install` copia solo `SKILL.md` y `SKILL.json` del origen; los demás archivos no se instalan.
+
 ## 2. Frontmatter (SKILL.md)
 
 | Campo | Regla |
