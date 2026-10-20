@@ -4,13 +4,28 @@
 Exposes skill operations as MCP tools for lazy-loading skills on demand.
 
 Tools exposed:
+SDD:
 - skill_sdd_create: Create a new SDD artifact
 - skill_sdd_validate: Validate an SDD artifact
 - skill_sdd_list: List SDD artifacts in a project
+ODD:
 - skill_odd_create: Create a new ODD artifact
 - skill_odd_validate: Validate an ODD artifact against schema
 - skill_odd_evaluate: Evaluate an ODD artifact
 - skill_odd_list: List ODD artifacts in a project
+RDD:
+- skill_rdd_create: Create a new RDD (review receipt) artifact
+- skill_rdd_validate: Validate an RDD artifact
+- skill_rdd_list: List RDD artifacts in a project
+Catalog:
+- skill_catalog_list: List skills in the SE skill catalog
+- skill_catalog_search: Search the skill catalog
+- skill_catalog_show: Show full details of a skill
+- skill_catalog_validate: Validate a skill's structure and run the security scan
+- skill_catalog_enable: Enable a skill in the catalog
+- skill_catalog_disable: Disable a skill in the catalog
+- skill_catalog_remove: Remove a skill from the catalog
+- skill_catalog_install: Install a skill from a controlled local source
 """
 
 from __future__ import annotations
