@@ -230,7 +230,8 @@ def get_all_components() -> list:
         long_description=(
             "El runtime que carga y ejecuta los agentes, skills y MCPs de SE. Proporciona TUI, "
             "gestion de sesiones, MCP host (stdio), y ejecucion de agentes. Es el motor principal "
-            "que hace correr SE. Instalado via winget/scoop/brew/script oficial."
+            "que hace correr SE. Instalado via npm (@opencode/cli) o binario standalone en Windows; "
+            "brew/script v2 en macOS/Linux."
         ),
         requires=["se_core"],
         supported_os=[OSType.WINDOWS, OSType.MACOS, OSType.LINUX],

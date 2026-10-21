@@ -8,7 +8,7 @@ Instalador unificado para **System Engineering Master System (SE)**.
 - **Selección interactiva**: TUI (Textual) con checkboxes, descripciones y dependencias
 - **CLI completo**: `se-installer install`, `list`, `status`, `doctor`, `tui`
 - **Dependencias inteligentes**: Solo instala `node/npx` si se seleccionan MCPs que lo requieren
-- **Multi-plataforma**: Windows (winget/scoop/choco), macOS (brew), Linux (apt/dnf/pacman)
+- **Multi-plataforma**: Windows (winget/scoop/choco; OpenCode v2 usa npm o binario standalone), macOS (brew; OpenCode v2 usa el tap anomalyco), Linux (apt/dnf/pacman; OpenCode v2 usa el script v2/npm)
 - **Dry-run**: Valida y planifica sin instalar
 - **Atajo de escritorio opcional**: `--shortcuts` (o el checkbox de la TUI) crea un único acceso directo que arranca SE Console; sin esa opción no se toca el Escritorio
 - **Estado persistente**: Guarda progreso y permite reanudar
@@ -20,8 +20,9 @@ Instalador unificado para **System Engineering Master System (SE)**.
   Python 3.12 con winget, Chocolatey o Scoop. En Linux/macOS instala `python3` y
   el paquete `python3-venv` antes de empezar.
 - **Git** para clonar el repositorio.
-- **Un gestor de paquetes** (winget, Chocolatey o Scoop) si Node.js u OpenCode
-  no están ya instalados.
+- **Un gestor de paquetes** (winget, Chocolatey o Scoop) si Node.js no está
+  instalado. OpenCode v2 no usa gestores de paquetes en Windows: se instala con
+  npm o con el binario standalone.
 - **Red** para `pip` y para los MCPs que `npx` descarga en el primer arranque.
 
 ## Componentes incluidos

@@ -83,9 +83,9 @@ DEPENDENCIES = (
         "commands": ("opencode",),
         "purpose": "The runtime that loads the registered MCP servers.",
         "guidance": {
-            "windows": "Install the OpenCode CLI: npm install -g opencode-ai.",
-            "linux": "Install the OpenCode CLI: curl -fsSL https://opencode.ai/install | bash.",
-            "macos": "Install the OpenCode CLI: brew install sst/tap/opencode.",
+            "windows": "Install OpenCode v2: npm install -g @opencode/cli (or the standalone Windows binary at https://opencode.ai/v2/docs).",
+            "linux": "Install OpenCode v2: curl -fsSL https://opencode.ai/v2/install | bash.",
+            "macos": "Install OpenCode v2: brew install anomalyco/tap/opencode-v2.",
         },
     },
 )
@@ -325,7 +325,7 @@ def classify_opencode(*, ok: bool, version: str | None, detail: str | None, os_n
             remedy = (
                 "The opencode CLI did not run. Repair or reinstall it: "
                 "npm rebuild -g @opencode/cli (with pnpm: pnpm approve-builds first), or use the "
-                "official installer at https://opencode.ai/install."
+                "official installer at https://opencode.ai/v2/install."
             )
         return "WARN", f"does not run: {(detail or '').strip()[:160]}", remedy
     match = _OPENCODE_VERSION_RE.search(version or "")
@@ -334,7 +334,7 @@ def classify_opencode(*, ok: bool, version: str | None, detail: str | None, os_n
             "WARN",
             f"v1 detected ({version}); this project targets OpenCode v2",
             "Upgrade the CLI: npm install -g @opencode/cli, or re-run the official installer "
-            "(https://opencode.ai/install).",
+            "(https://opencode.ai/v2/install).",
         )
     return "PASS", version or "runs", None
 
