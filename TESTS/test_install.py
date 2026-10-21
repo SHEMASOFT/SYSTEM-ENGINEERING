@@ -56,6 +56,12 @@ class LoadMcpTemplatesTests(unittest.TestCase):
         self.assertIsInstance(by_key["context7"]["args"], list)
         self.assertIsInstance(by_key["filesystem"]["env"], dict)
 
+    def test_context7_is_pinned_to_a_working_release(self):
+        # 4.4.4 ships an exports map pointing at dist/index.mjs, which is
+        # missing from the published tarball; npx exits before the handshake.
+        by_key = {t["key"]: t for t in install.load_mcp_templates(support.REPO_ROOT)}
+        self.assertIn("@upstash/context7-mcp@4.4.0", by_key["context7"]["args"])
+
     def test_registered_name_can_differ_from_key(self):
         by_key = {t["key"]: t for t in install.load_mcp_templates(support.REPO_ROOT)}
         self.assertEqual(by_key["skill-server"]["key"], "skill-server")
