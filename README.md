@@ -100,26 +100,39 @@ the foreground and with no timeout. Details:
 
 ## Use it with OpenCode
 
-Generate the agent layer from the canonical contracts:
+On a fresh clone, register the runtime and generate the agent layer with the
+installer venv (it already contains `jsonschema`):
 
-```bash
-python SCRIPTS/se.py adapter opencode
+```powershell
+# Windows
+SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
+SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py adapter opencode
 ```
 
-This writes `.opencode/` with **12 agents, 24 commands and 7 skills**, all generated —
-never edit them by hand, regenerate instead.
+```bash
+# Linux / macOS
+SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
+SE-INSTALLER/.venv/bin/python SCRIPTS/se.py adapter opencode
+```
 
-- **`coordinator`** is the primary agent: it orchestrates the lifecycle and routes work
+`se install` registers the SE MCP servers with the interpreter available on this
+host (`python` on Windows, `python3` elsewhere) and rewrites only the MCP entries
+in `opencode.jsonc`. `se adapter opencode` writes `.opencode/` with **12 agents,
+24 commands and 7 skills**, all generated — never edit them by hand, regenerate
+instead.
+
+- **`shema-ai-coordinador`** is the primary agent: it orchestrates the lifecycle and routes work
   to the other roles (`planner`, `implementer`, `tester`, `reviewer`, ...), each of
   which runs as a subagent.
 - Commands (for example `/plan`, `/implement`, `/review`) are reusable prompt templates.
 - Skills (for example `impl-tdd`, `rev-adversarial`) are loaded only when relevant.
 
-To make new sessions start as the coordinator, add to `opencode.jsonc`:
+To make new sessions start as the coordinator, set its generated agent ID in
+`opencode.jsonc` (the master repository already does this):
 
 ```jsonc
 {
-  "default_agent": "coordinator",
+  "default_agent": "shema-ai-coordinador",
 }
 ```
 
