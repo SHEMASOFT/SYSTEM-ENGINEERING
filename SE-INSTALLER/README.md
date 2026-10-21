@@ -46,12 +46,20 @@ powershell -ExecutionPolicy Bypass -File SYSTEM-ENGINEERING/SE-INSTALLER/bootstr
 
 # Linux / macOS
 git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git
-bash SYSTEM-ENGINEERING/SE-INSTALLER/install.sh install --recommended --dry-run
+bash SYSTEM-ENGINEERING/SE-INSTALLER/install.sh install --recommended
 ```
 
 El script crea un virtualenv aislado (`.venv`), instala el paquete `se-installer`
 dentro y reenvía los argumentos restantes a la CLI (`se-installer`). Sin argumentos,
 ejecuta la ayuda del CLI.
+
+Tras un `install` correcto (y salvo que se use `--dry-run`), el bootstrap también
+ejecuta `se install` sobre el repositorio para registrar los MCP de SE en OpenCode.
+Usa `--skip-mcp-registration` para omitir ese paso, por ejemplo si solo vas a
+configurar otro runtime. También se omite si usas `-c/--components` (para no
+registrar MCPs que no has instalado) o si `--runtimes` no incluye `opencode`.
+El modo `tui` y la instalación manual con `se-installer` no hacen ese registro
+automático: ejecuta `se install` después.
 
 ### Instalación manual
 

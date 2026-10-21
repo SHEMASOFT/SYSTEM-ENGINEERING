@@ -8,11 +8,19 @@
     the se-installer package into it, and forwards every remaining argument to
     the `se-installer` CLI. This is the one-command entry point for Windows.
 
+    After a successful `install` (and unless --dry-run is used), it also runs
+    the repository's `se install` to register the SE MCP servers for OpenCode.
+    Pass --skip-mcp-registration to opt out, for example when installing only
+    another runtime.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File bootstrap.ps1 tui
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File bootstrap.ps1 install --recommended --dry-run
+
+.EXAMPLE
+    powershell -ExecutionPolicy Bypass -File bootstrap.ps1 install --recommended --skip-mcp-registration
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File bootstrap.ps1 list --json
@@ -34,6 +42,50 @@ $InstallerRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent 
 $VenvDir       = Join-Path $InstallerRoot ".venv"
 $VenvPython    = Join-Path $VenvDir "Scripts\python.exe"
 $InstallerExe  = Join-Path $VenvDir "Scripts\se-installer.exe"
+$RepoRoot      = Split-Path -Parent $InstallerRoot
+$SeCli         = Join-Path $RepoRoot "SCRIPTS\se.py"
+
+# `--skip-mcp-registration` is a bootstrap-only switch: se-installer does not
+# know it, so strip it before forwarding and remember the intent.
+$SkipMcpRegistration = $false
+$ForwardArgs = @()
+foreach ($arg in @($InstallerArgs)) {
+    if ($arg -ieq "--skip-mcp-registration") {
+        $SkipMcpRegistration = $true
+    } else {
+        $ForwardArgs += $arg
+    }
+}
+
+function Test-InstallerArg {
+    param([string] $Value)
+    foreach ($arg in @($InstallerArgs)) {
+        if ($arg -ieq $Value) { return $true }
+    }
+    return $false
+}
+
+function Test-OpenCodeRuntimeRequested {
+    # se-installer defaults to OpenCode when --runtimes is omitted. When the
+    # operator asks for another runtime only (e.g. --runtimes codex), OpenCode
+    # MCP registration is not wanted.
+    $list = @($InstallerArgs)
+    for ($i = 0; $i -lt $list.Count; $i++) {
+        $arg = $list[$i]
+        if ($arg -ieq "--runtimes") {
+            $j = $i + 1
+            while ($j -lt $list.Count -and -not $list[$j].StartsWith("-")) {
+                if ($list[$j] -ieq "opencode") { return $true }
+                $j++
+            }
+            return $false
+        }
+        if ($arg -match '^--runtimes=(.+)$') {
+            return (($Matches[1] -split ',') -contains "opencode")
+        }
+    }
+    return $true
+}
 
 function Find-PythonExe {
     # 1) `python` on PATH, if it is a real 3.10+ interpreter
@@ -77,8 +129,43 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "bootstrap: running se-installer ..."
 if (Test-Path $InstallerExe) {
-    & $InstallerExe @InstallerArgs
+    & $InstallerExe @ForwardArgs
 } else {
-    & $VenvPython -m se_installer.cli @InstallerArgs
+    & $VenvPython -m se_installer.cli @ForwardArgs
 }
-exit $LASTEXITCODE
+$InstallerExitCode = $LASTEXITCODE
+if ($InstallerExitCode -ne 0) { exit $InstallerExitCode }
+
+$Command = if ($ForwardArgs.Count -gt 0) { $ForwardArgs[0] } else { "" }
+# A custom `-c/--components` selection may not include every SE MCP server, so
+# registering all of them would leave broken entries. Default/recommended and
+# --all installs do include the full set.
+$HasExplicitComponents = (
+    (Test-InstallerArg "--components") -or
+    (Test-InstallerArg "-c") -or
+    (@($InstallerArgs | Where-Object { $_ -match '^--components=' }).Count -gt 0)
+)
+$ShouldRegister = (
+    ($Command -ieq "install") -and
+    (-not (Test-InstallerArg "--dry-run")) -and
+    (-not $SkipMcpRegistration) -and
+    (-not $HasExplicitComponents) -and
+    (Test-OpenCodeRuntimeRequested)
+)
+
+if ($ShouldRegister) {
+    if (-not (Test-Path $SeCli)) {
+        Write-Warning "bootstrap: $SeCli not found; skipping MCP registration."
+    } else {
+        Write-Host "bootstrap: registering MCP servers with se install ..."
+        & $VenvPython $SeCli install --project $RepoRoot
+        $RegisterExitCode = $LASTEXITCODE
+        if ($RegisterExitCode -ne 0) {
+            Write-Warning "bootstrap: MCP registration failed (exit $RegisterExitCode); components are installed."
+            Write-Warning "bootstrap: fix the issue and rerun: `"$VenvPython`" `"$SeCli`" install --project `"$RepoRoot`""
+            exit $RegisterExitCode
+        }
+    }
+}
+
+exit 0

@@ -255,8 +255,8 @@ def test_bootstrap_ps1_forwards_positional_arguments():
     assert "ValueFromRemainingArguments" in src, (
         "bootstrap.ps1 must declare a catch-all for the forwarded arguments"
     )
-    assert "@InstallerArgs" in src, (
-        "bootstrap.ps1 must splat the bound catch-all parameter"
+    assert "@ForwardArgs" in src, (
+        "bootstrap.ps1 must splat the filtered catch-all parameter"
     )
     assert "@args" not in src, (
         "bootstrap.ps1 must not splat the automatic $args (unbound under "
@@ -264,7 +264,17 @@ def test_bootstrap_ps1_forwards_positional_arguments():
     )
 
 
+def test_bootstrap_ps1_registers_mcp_servers_after_install():
+    """The one-command install must not leave OpenCode MCPs unregistered."""
+    src = (INSTALLER_ROOT / "bootstrap.ps1").read_text(encoding="utf-8")
+    assert "SCRIPTS\\se.py" in src
+    assert "install --project" in src
+    assert "--skip-mcp-registration" in src
+    assert "--dry-run" in src
+
+
 def test_bootstrap_sh_forwards_positional_arguments():
-    """The POSIX entry point must forward every argument verbatim to the CLI."""
+    """The POSIX entry point must forward every argument to the CLI."""
     src = (INSTALLER_ROOT / "install.sh").read_text(encoding="utf-8")
-    assert '"$@"' in src, "install.sh must forward its arguments verbatim"
+    assert '"${ARGS[@]}"' in src, "install.sh must splat the filtered arguments"
+    assert "--skip-mcp-registration" in src
