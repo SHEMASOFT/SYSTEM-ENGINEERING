@@ -54,7 +54,7 @@ VECTORS = """# synthetic space for tests (never a real model)
 auth 1.0 0.0
 deploy 0.0 1.0
 core 0.70710678 0.70710678
-near_deploy 0.2 0.98
+nearby 0.2 0.98
 """
 
 

@@ -141,12 +141,13 @@ class SkillCatalogMcpTests(unittest.TestCase):
     """Tests for skill catalog MCP tools (via subprocess)."""
 
     def setUp(self):
-        import shutil
         self.catalog_path = Path(support.REPO_ROOT) / "CATALOG" / "skills.json"
-        self.catalog_backup = self.catalog_path.read_text(encoding="utf-8")
+        # Capture bytes, not text: tearDown must restore the file exactly, and
+        # write_text would re-encode newlines as CRLF on Windows.
+        self.catalog_bytes = self.catalog_path.read_bytes()
 
     def tearDown(self):
-        self.catalog_path.write_text(self.catalog_backup, encoding="utf-8")
+        self.catalog_path.write_bytes(self.catalog_bytes)
 
     def _call_tool(self, tool_name, args):
         import subprocess, json

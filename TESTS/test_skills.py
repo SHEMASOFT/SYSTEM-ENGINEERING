@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
 
-from se_core.opencode.validators import audit_contracts, validate_skill  # noqa: E402
+from se_core.opencode.validators import audit_contracts, parse_frontmatter, validate_skill  # noqa: E402
 from se_core.paths import load_json  # noqa: E402
 from se_core.schemas import validate  # noqa: E402
 
@@ -296,6 +296,16 @@ class SkillValidatorRuleTests(unittest.TestCase):
             skill_dir = self._corpus(tmp, text, sidecar=self.sidecar())
             errors = validate_skill(skill_dir / "SKILL.md", "alpha")
             self.assertTrue(any("values must be strings" in e for e in errors), errors)
+
+    def test_frontmatter_parser_returns_typed_scalars(self):
+        text = (
+            "---\nname: alpha\ndescription: A skill.\n"
+            "metadata:\n  count: 3\n  quoted: \"3\"\n  flag: true\n---\n# alpha\n"
+        )
+        front = parse_frontmatter(text)
+        self.assertEqual(front["metadata"]["count"], 3)
+        self.assertEqual(front["metadata"]["quoted"], "3")
+        self.assertIs(front["metadata"]["flag"], True)
 
     def test_resource_entry_that_is_not_a_directory_is_rejected(self):
         text = self.body("name: alpha\ndescription: A skill.\nmetadata:\n  a: b\n")

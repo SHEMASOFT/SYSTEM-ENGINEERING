@@ -49,14 +49,14 @@ from se_core.memory.engine import MemoryEngine  # noqa: E402
 ALPHA = "PRJ-TEST-001"
 
 # A synthetic 2-D space. `core` sits on the diagonal (the direction of the
-# query `auth deploy`), `near_deploy` sits near, but not on, it. Two dimensions
+# query `auth deploy`), `nearby` sits near, but not on, it. Two dimensions
 # are enough to make the intended ranking decidable by hand.
 VECTORS = """# synthetic space for tests (never a real model)
 4 2
 auth 1.0 0.0
 deploy 0.0 1.0
 core 0.70710678 0.70710678
-near_deploy 0.2 0.98
+nearby 0.2 0.98
 """
 
 
@@ -403,12 +403,16 @@ class SearchRerankTests(EmbeddingTestCase):
         Semantic order is Y, Z, X.
         Fused order must be Y, X, Z: Y is promoted past X, and only the semantic
         signal can explain that.
+
+        Z deliberately uses `nearby` rather than `near_deploy`: FTS5 splits on
+        the underscore, so the latter would add a second `deploy` term, tie Y
+        on bm25 and make the fixture depend on the creation timestamps.
         """
         root = self.make_root(tmp)
         engine = MemoryEngine(root=root)
         x = engine.add(ALPHA, "decision", {"summary": "auth auth auth deploy"}, "t")["memory_id"]
         y = engine.add(ALPHA, "decision", {"summary": "auth auth deploy core"}, "t")["memory_id"]
-        z = engine.add(ALPHA, "decision", {"summary": "auth deploy near_deploy"}, "t")["memory_id"]
+        z = engine.add(ALPHA, "decision", {"summary": "auth deploy nearby"}, "t")["memory_id"]
         w = engine.add(ALPHA, "discovery", {"summary": "core core core"}, "t")["memory_id"]
         return root, engine, x, y, z, w
 
