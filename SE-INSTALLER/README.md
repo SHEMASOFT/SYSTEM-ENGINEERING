@@ -56,8 +56,10 @@ ejecuta la ayuda del CLI.
 Tras un `install` correcto (y salvo que se use `--dry-run`), el bootstrap también
 ejecuta `se install` sobre el repositorio para registrar los MCP de SE en OpenCode.
 Usa `--skip-mcp-registration` para omitir ese paso, por ejemplo si solo vas a
-configurar otro runtime. El modo `tui` y la instalación manual con `se-installer`
-no hacen ese registro automático: ejecuta `se install` después.
+configurar otro runtime. También se omite si usas `-c/--components` (para no
+registrar MCPs que no has instalado) o si `--runtimes` no incluye `opencode`.
+El modo `tui` y la instalación manual con `se-installer` no hacen ese registro
+automático: ejecuta `se install` después.
 
 ### Instalación manual
 

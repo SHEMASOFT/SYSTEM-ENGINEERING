@@ -137,10 +137,19 @@ $InstallerExitCode = $LASTEXITCODE
 if ($InstallerExitCode -ne 0) { exit $InstallerExitCode }
 
 $Command = if ($ForwardArgs.Count -gt 0) { $ForwardArgs[0] } else { "" }
+# A custom `-c/--components` selection may not include every SE MCP server, so
+# registering all of them would leave broken entries. Default/recommended and
+# --all installs do include the full set.
+$HasExplicitComponents = (
+    (Test-InstallerArg "--components") -or
+    (Test-InstallerArg "-c") -or
+    (@($InstallerArgs | Where-Object { $_ -match '^--components=' }).Count -gt 0)
+)
 $ShouldRegister = (
     ($Command -ieq "install") -and
     (-not (Test-InstallerArg "--dry-run")) -and
     (-not $SkipMcpRegistration) -and
+    (-not $HasExplicitComponents) -and
     (Test-OpenCodeRuntimeRequested)
 )
 

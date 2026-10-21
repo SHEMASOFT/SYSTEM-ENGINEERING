@@ -80,9 +80,12 @@ if [ "${ARGS[0]:-}" != "install" ]; then
     want_register=0
 fi
 for arg in ${ARGS[@]+"${ARGS[@]}"}; do
-    if [ "$arg" = "--dry-run" ]; then
-        want_register=0
-    fi
+    case "$arg" in
+        --dry-run|--components|-c|--components=*)
+            # A custom component selection may not include every SE MCP server.
+            want_register=0
+            ;;
+    esac
 done
 
 opencode_requested=1
