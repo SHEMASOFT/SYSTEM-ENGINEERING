@@ -54,8 +54,9 @@ python3 SCRIPTS/se.py doctor      # structure, contracts, dependencies, git
 
 **Unified installer (recommended).** The `se-installer` package installs SE Core +
 Console + the selected MCP servers + runtime adapters in one step, into an isolated
-virtual environment. The one-command entry points create that venv and forward every
-argument to the CLI:
+virtual environment. The one-command entry points create that venv, forward every
+argument to the CLI, and after a successful `install` also register the SE MCP
+servers in `opencode.jsonc`:
 
 ```bash
 # Windows (PowerShell)
@@ -64,8 +65,10 @@ powershell -ExecutionPolicy Bypass -File SE-INSTALLER\bootstrap.ps1 install --re
 bash SE-INSTALLER/install.sh install --recommended
 ```
 
-Add `--dry-run` to plan without installing, or pass `tui` for the interactive
-selector. From an already-cloned checkout you can also chain it through the CLI with
+Add `--dry-run` to plan without installing. The interactive selector is launched
+with `tui` (Windows `bootstrap.ps1 tui`; Linux/macOS `install.sh tui`); it does not
+run the automatic MCP registration, so run `se install` once afterwards. From an
+already-cloned checkout you can also chain it through the CLI with
 `se install --bootstrap` (see §7).
 
 > **Where to put a virtualenv.** The one-command entry points keep their venv at
@@ -101,14 +104,14 @@ This deploys `agents/`, `commands/`, `skills/` and `mcp/` under `.opencode/`
 OpenCode V2's discovery paths. The output is **generated only** — never edit
 `.opencode/` by hand; regenerate instead.
 
-- `coordinator` is generated as the **primary** agent, so it appears in the runtime's
-  agent selector; the other 11 roles are generated as **subagents** the primary agent
-  can launch. This keeps sessions token-efficient: each subagent runs in its own fresh
-  context and only its result returns to the parent.
+- `shema-ai-coordinador` is generated as the **primary** agent, so it appears in the
+  runtime's agent selector; the other 11 roles are generated as **subagents** the
+  primary agent can launch. This keeps sessions token-efficient: each subagent runs in
+  its own fresh context and only its result returns to the parent.
 - Commands render into `.opencode/commands/*.md`; skills render into `.opencode/skills/`.
 
-To start new sessions as the orchestrator, add `"default_agent": "coordinator"` to
-`opencode.jsonc`.
+To start new sessions as the orchestrator, add
+`"default_agent": "shema-ai-coordinador"` to `opencode.jsonc`.
 
 > All three adapters ship today: `se adapter opencode`, `se adapter claude-code` and
 > `se adapter codex` (or `se adapter all` for every runtime at one output root).
@@ -154,6 +157,8 @@ then continues with the registration below. The one-command entry points are
 [`SE-INSTALLER/bootstrap.ps1`](../../SE-INSTALLER/bootstrap.ps1) (Windows) and
 [`SE-INSTALLER/install.sh`](../../SE-INSTALLER/install.sh) (Linux/macOS), which create an
 isolated venv, install `se-installer` into it, and forward the arguments to the CLI.
+After a successful `install` they also run this registration automatically; `tui`,
+custom `-c/--components` selections and `--skip-mcp-registration` skip it.
 
 ```bash
 python3 SCRIPTS/se.py install --dry-run     # plan only: writes nothing

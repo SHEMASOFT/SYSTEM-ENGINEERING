@@ -338,7 +338,34 @@ through a Desktop symlink would resolve to the Desktop instead of the console.
 
 ## TUI
 
-The Textual TUI (`se-installer tui`) provides:
+Launch it through the bootstrap, which creates the installer venv:
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File SE-INSTALLER\bootstrap.ps1 tui
+```
+
+```bash
+# Linux / macOS
+bash SE-INSTALLER/install.sh tui
+```
+
+Inside an activated installer venv, `se-installer tui` does the same. Controls:
+`Space` selects, `A` selects the recommended set, `Enter` installs, `D` toggles
+dry-run, `R` refreshes and `Q` quits.
+
+The TUI installs components directly and does **not** run the repository's
+`se install`, so register the MCP servers once afterwards:
+
+```powershell
+SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
+```
+
+```bash
+SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
+```
+
+The Textual TUI provides:
 - Collapsible tree by category (Core, Memory, Documentation, File Operations, Browser, Web Scraping, Code Intelligence, Runtime)
 - Checkbox selection with dependency auto-resolution
 - Desktop shortcut opt-in (one checkbox: *Crear acceso directo en el Escritorio (SE Console)*)

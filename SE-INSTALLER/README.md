@@ -42,7 +42,7 @@ Instalador unificado para **System Engineering Master System (SE)**.
 ```bash
 # Windows (PowerShell)
 git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git
-powershell -ExecutionPolicy Bypass -File SYSTEM-ENGINEERING/SE-INSTALLER/bootstrap.ps1 tui
+powershell -ExecutionPolicy Bypass -File SYSTEM-ENGINEERING/SE-INSTALLER/bootstrap.ps1 install --recommended
 
 # Linux / macOS
 git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git
@@ -53,13 +53,36 @@ El script crea un virtualenv aislado (`.venv`), instala el paquete `se-installer
 dentro y reenvía los argumentos restantes a la CLI (`se-installer`). Sin argumentos,
 ejecuta la ayuda del CLI.
 
+### TUI (selección interactiva)
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File SYSTEM-ENGINEERING/SE-INSTALLER/bootstrap.ps1 tui
+```
+
+```bash
+# Linux / macOS
+bash SYSTEM-ENGINEERING/SE-INSTALLER/install.sh tui
+```
+
+En la TUI: `Space` selecciona, `A` marca los recomendados, `Enter` instala,
+`D` alterna dry-run, `R` refresca y `Q` sale. La TUI no ejecuta el registro
+automático de MCPs; al terminar, regístralos una vez:
+
+```powershell
+SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
+```
+
+```bash
+SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
+```
+
 Tras un `install` correcto (y salvo que se use `--dry-run`), el bootstrap también
 ejecuta `se install` sobre el repositorio para registrar los MCP de SE en OpenCode.
 Usa `--skip-mcp-registration` para omitir ese paso, por ejemplo si solo vas a
 configurar otro runtime. También se omite si usas `-c/--components` (para no
 registrar MCPs que no has instalado) o si `--runtimes` no incluye `opencode`.
-El modo `tui` y la instalación manual con `se-installer` no hacen ese registro
-automático: ejecuta `se install` después.
+La instalación manual con `se-installer` tampoco hace ese registro automático.
 
 ### Instalación manual
 
@@ -90,10 +113,13 @@ se-installer doctor                    # Health checks
 ## Uso en Windows
 
 ```powershell
-# Instalador interactivo
+# Instalador interactivo (TUI)
+.\bootstrap.ps1 tui
+
+# Ayuda del CLI (sin argumentos)
 .\bootstrap.ps1
 
-# O usando el CLI
+# O usando el CLI directamente
 python -m se_installer.cli tui
 ```
 

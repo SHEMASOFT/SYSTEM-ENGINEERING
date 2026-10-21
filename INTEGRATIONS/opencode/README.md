@@ -14,9 +14,9 @@ This adapter is **implemented** since v0.6.0 (`se adapter opencode`).
 | schemas (`SCHEMAS/`) | validation tool calls |
 | doctor | a command that runs `SCRIPTS/se.py doctor` |
 
-`coordinator` is generated with `mode: primary` (selectable in the runtime); every other
-role is generated with `mode: subagent`, so the primary agent launches them in fresh,
-isolated contexts.
+`shema-ai-coordinador` is generated with `mode: primary` (selectable in the runtime);
+every other role is generated with `mode: subagent`, so the primary agent launches them
+in fresh, isolated contexts.
 
 ## Constraints
 
