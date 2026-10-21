@@ -53,4 +53,4 @@ HUMAN-CONTROLLED, AUTOMATION-FRIENDLY, TOOL-INDEPENDENT.
 - **Evidence over trust.** Claims must be backed by evidence artifacts.
 - **Additive extension.** Domain packs extend CORE; they never override it.
 
-See [`adr/`](adr) for recorded decisions and [`core-model.md`](core-model.md) for the model.
+See [`adr/`](../adr/) for recorded decisions and [`core-model.md`](core-model.md) for the model.

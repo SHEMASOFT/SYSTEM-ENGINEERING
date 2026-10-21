@@ -1,7 +1,7 @@
 # Versioning Strategy
 
 Applies to the SYSTEM-ENGINEERING Master System (the "master product"). Coherent with
-`DOCS/versioning.md`; this document is the operational strategy for bumps and compatibility.
+`DOCS/reference/versioning.md`; this document is the operational strategy for bumps and compatibility.
 
 ## Version source
 
