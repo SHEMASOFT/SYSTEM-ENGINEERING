@@ -182,6 +182,14 @@ def cmd_status(args) -> int:
     # returns unprobed components and always reports PENDING).
     components = get_all_components()
     for comp in components:
+        # SE Core and SE Console are vendored: they live in this repository, so
+        # there is no external installation to probe. Without this branch they
+        # stayed PENDING forever even after a successful install.
+        if comp.component_type.value in ("se_core", "se_console"):
+            comp.status = InstallStatus.SUCCESS
+            comp.installed_version = "vendored"
+            continue
+
         if comp.component_type.value in ("mcp", "runtime"):
             try:
                 if comp.component_type.value == "mcp":
@@ -238,6 +246,13 @@ def cmd_doctor(args) -> int:
     # Check required components
     components = get_all_components()
     for comp in components:
+        # Vendored components are part of the repository; report them instead
+        # of silently skipping them, so doctor covers the whole recommended set.
+        if comp.component_type.value in ("se_core", "se_console"):
+            if comp.recommended:
+                print(f"[OK] {comp.name} vvendored")
+            continue
+
         if comp.component_type.value in ("mcp", "runtime") and comp.recommended:
             try:
                 if comp.component_type.value == "mcp":
