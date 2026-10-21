@@ -55,6 +55,34 @@ VALID_COMPATIBILITY = {"opencode", "claude-code", "cursor", "vscode", "other"}
 STANDARD_RESOURCE_DIRS = {"scripts", "references", "assets"}
 
 
+def _coerce_scalar(value: str):
+    """Return ``value`` as the nearest YAML scalar (str, int, float, bool or None).
+
+    The fallback parser exists for environments without PyYAML. Without this
+    coercion every value stays a string, so rules such as "metadata values must
+    be strings" never fire for ``count: 3``. Quoted values stay strings, as a
+    YAML parser returns them.
+    """
+    text = value.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
+        return text[1:-1]
+    lowered = text.lower()
+    if lowered in ("true", "yes", "on"):
+        return True
+    if lowered in ("false", "no", "off"):
+        return False
+    if lowered in ("null", "~", ""):
+        return None
+    try:
+        return int(text, 10)
+    except ValueError:
+        pass
+    try:
+        return float(text)
+    except ValueError:
+        return text
+
+
 def parse_frontmatter(text: str):
     """Return a dict of frontmatter keys or ``None`` if no frontmatter block.
     
@@ -102,7 +130,7 @@ def parse_frontmatter(text: str):
                     if next_line and (next_line.startswith("  ") or next_line.startswith("\t")):
                         if ":" in next_line.lstrip():
                             nk, nv = next_line.lstrip().split(":", 1)
-                            nested[nk.strip()] = nv.strip().strip('"')
+                            nested[nk.strip()] = _coerce_scalar(nv)
                         else:
                             break
                     else:
@@ -110,9 +138,9 @@ def parse_frontmatter(text: str):
                 if nested:
                     front[key.strip()] = nested
                 else:
-                    front[key.strip()] = value.strip().strip('"')
+                    front[key.strip()] = _coerce_scalar(value)
             else:
-                front[key.strip()] = value.strip().strip('"')
+                front[key.strip()] = _coerce_scalar(value)
         i += 1
     return front or None
 
