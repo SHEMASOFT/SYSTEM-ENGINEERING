@@ -14,6 +14,16 @@ Instalador unificado para **System Engineering Master System (SE)**.
 - **Estado persistente**: Guarda progreso y permite reanudar
 - **Paridad con el registro**: el catálogo de componentes se verifica contra `CORE/capabilities/capabilities.json` (fuente de verdad única)
 
+## Requisitos
+
+- **Python 3.10+**. En Windows, si no lo encuentra, el bootstrap intenta instalar
+  Python 3.12 con winget, Chocolatey o Scoop. En Linux/macOS instala `python3` y
+  el paquete `python3-venv` antes de empezar.
+- **Git** para clonar el repositorio.
+- **Un gestor de paquetes** (winget, Chocolatey o Scoop) si Node.js u OpenCode
+  no están ya instalados.
+- **Red** para `pip` y para los MCPs que `npx` descarga en el primer arranque.
+
 ## Componentes incluidos
 
 ### Core (requeridos)
@@ -83,6 +93,14 @@ Usa `--skip-mcp-registration` para omitir ese paso, por ejemplo si solo vas a
 configurar otro runtime. También se omite si usas `-c/--components` (para no
 registrar MCPs que no has instalado) o si `--runtimes` no incluye `opencode`.
 La instalación manual con `se-installer` tampoco hace ese registro automático.
+
+Si el bootstrap instaló Node u OpenCode en esta ejecución y el comando todavía no
+aparece, abre una terminal nueva para cargar el `PATH` actualizado. Después
+autentica OpenCode una vez antes de abrir una sesión:
+
+```bash
+opencode auth login
+```
 
 ### Instalación manual
 

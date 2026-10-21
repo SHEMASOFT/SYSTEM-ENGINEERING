@@ -29,16 +29,27 @@ PYTHON="${PYTHON:-python3}"
 # know it, so strip it before forwarding and remember the intent.
 ARGS=()
 SKIP_MCP_REGISTRATION=0
+DRY_RUN=0
+CUSTOM_COMPONENTS=0
 for arg in "$@"; do
     if [ "$arg" = "--skip-mcp-registration" ]; then
         SKIP_MCP_REGISTRATION=1
     else
+        if [ "$arg" = "--dry-run" ]; then
+            DRY_RUN=1
+        fi
         ARGS+=("$arg")
     fi
 done
 
 if ! command -v "$PYTHON" >/dev/null 2>&1; then
     echo "bootstrap: Python 3.10+ is required (set PYTHON=... if python3 is not on PATH)." >&2
+    echo "bootstrap: Debian/Ubuntu: sudo apt install python3 python3-venv" >&2
+    echo "bootstrap: macOS: brew install python@3.12" >&2
+    exit 1
+fi
+if ! "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then
+    echo "bootstrap: $PYTHON is older than 3.10; set PYTHON=... to a 3.10+ interpreter." >&2
     exit 1
 fi
 
@@ -81,42 +92,44 @@ if [ "${ARGS[0]:-}" != "install" ]; then
 fi
 for arg in ${ARGS[@]+"${ARGS[@]}"}; do
     case "$arg" in
-        --dry-run|--components|-c|--components=*)
+        --dry-run)
+            want_register=0
+            ;;
+        --components|-c|--components=*)
             # A custom component selection may not include every SE MCP server.
             want_register=0
+            CUSTOM_COMPONENTS=1
             ;;
     esac
 done
 
 opencode_requested=1
-if [ "$want_register" -eq 1 ]; then
-    i=0
-    while [ "$i" -lt "${#ARGS[@]}" ]; do
-        case "${ARGS[$i]}" in
-            --runtimes)
-                opencode_requested=0
-                j=$((i + 1))
-                while [ "$j" -lt "${#ARGS[@]}" ]; do
-                    case "${ARGS[$j]}" in
-                        -*) break ;;
-                    esac
-                    if [ "${ARGS[$j]}" = "opencode" ]; then
-                        opencode_requested=1
-                    fi
-                    j=$((j + 1))
-                done
-                i=$j
-                ;;
-            --runtimes=*)
-                opencode_requested=0
-                case ",${ARGS[$i]#--runtimes=}," in
-                    *,opencode,*) opencode_requested=1 ;;
+i=0
+while [ "$i" -lt "${#ARGS[@]}" ]; do
+    case "${ARGS[$i]}" in
+        --runtimes)
+            opencode_requested=0
+            j=$((i + 1))
+            while [ "$j" -lt "${#ARGS[@]}" ]; do
+                case "${ARGS[$j]}" in
+                    -*) break ;;
                 esac
-                ;;
-        esac
-        i=$((i + 1))
-    done
-fi
+                if [ "${ARGS[$j]}" = "opencode" ]; then
+                    opencode_requested=1
+                fi
+                j=$((j + 1))
+            done
+            i=$j
+            ;;
+        --runtimes=*)
+            opencode_requested=0
+            case ",${ARGS[$i]#--runtimes=}," in
+                *,opencode,*) opencode_requested=1 ;;
+            esac
+            ;;
+    esac
+    i=$((i + 1))
+done
 
 if [ "$want_register" -eq 1 ] && [ "$opencode_requested" -eq 1 ]; then
     if [ -f "$REPO/SCRIPTS/se.py" ]; then
@@ -132,6 +145,18 @@ if [ "$want_register" -eq 1 ] && [ "$opencode_requested" -eq 1 ]; then
     else
         echo "bootstrap: $REPO/SCRIPTS/se.py not found; skipping MCP registration." >&2
     fi
+fi
+
+if [ "${ARGS[0]:-}" = "install" ] && [ "$opencode_requested" -eq 1 ] && [ "$DRY_RUN" -eq 0 ] && [ "$CUSTOM_COMPONENTS" -eq 0 ]; then
+    echo "bootstrap: next steps"
+    echo "  1. Authenticate OpenCode if it has no provider yet: opencode auth login"
+    echo "  2. Start OpenCode from this repository: opencode"
+fi
+
+if [ "${ARGS[0]:-}" = "tui" ]; then
+    echo "bootstrap: after a TUI install, register the MCP servers once:"
+    echo "  \"$VENV/bin/python\" \"$REPO/SCRIPTS/se.py\" install --project \"$REPO\""
+    echo "bootstrap: then authenticate OpenCode: opencode auth login"
 fi
 
 exit 0

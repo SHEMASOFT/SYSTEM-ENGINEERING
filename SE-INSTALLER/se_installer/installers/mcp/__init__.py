@@ -6,7 +6,7 @@ from typing import Optional
 from pathlib import Path
 import shutil
 
-from ..base import BaseInstaller, InstallResult, run_tool
+from ..base import BaseInstaller, InstallResult, refresh_process_path, run_tool
 from ...models import InstallableComponent, InstallStatus, OSType
 
 
@@ -243,6 +243,7 @@ class NodeInstaller(BaseInstaller):
         return "unknown"
     
     def _post_install(self) -> InstallResult:
+        refresh_process_path()
         result = run_tool("node", ["--version"], timeout=10)
         if result and result.returncode == 0:
             npx_result = run_tool("npx", ["--version"], timeout=10)

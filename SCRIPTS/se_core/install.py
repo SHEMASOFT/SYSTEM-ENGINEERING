@@ -69,8 +69,8 @@ DEPENDENCIES = (
     },
     {
         "name": "node",
-        "commands": ("npx", "node"),
-        "purpose": "Runs the npx-based MCP servers (context7, filesystem). Only required when those servers are selected.",
+        "commands": ("npx",),
+        "purpose": "Runs the npx-based MCP servers (context7, filesystem). Only required when those servers are selected; the launcher is npx, not node alone.",
         "guidance": {
             "windows": "Install Node.js LTS: winget install OpenJS.NodeJS.LTS "
                        "(provides node and npx).",

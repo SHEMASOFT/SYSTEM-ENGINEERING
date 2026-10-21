@@ -21,6 +21,7 @@ These lock in behaviour that previously broke silently:
 from __future__ import annotations
 
 import ast
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -244,6 +245,44 @@ def test_orchestrator_fails_cleanly_when_no_installer_is_registered():
 INSTALLER_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_merge_path_entries_deduplicates_in_order():
+    from se_installer.installers.base import _merge_path_entries
+
+    sep = os.pathsep
+    merged = _merge_path_entries([sep.join(["alpha", "beta"]), sep.join(["beta", "gamma"])])
+    assert merged.split(sep) == ["alpha", "beta", "gamma"]
+
+
+def test_opencode_post_install_refreshes_path(monkeypatch):
+    """A package manager updates PATH, but the running process does not.
+
+    ``_post_install`` must refresh before probing, otherwise a successful
+    winget/choco/scoop install is reported as failed.
+    """
+    from se_installer.installers import runtime as runtime_module
+
+    calls: list[bool] = []
+
+    class _Result:
+        returncode = 0
+        stdout = "1.2.3"
+
+    monkeypatch.setattr(runtime_module, "refresh_process_path", lambda: calls.append(True))
+    monkeypatch.setattr(runtime_module, "run_tool", lambda *args, **kwargs: _Result())
+
+    component = InstallableComponent(
+        id="opencode",
+        name="OpenCode",
+        description="d",
+        component_type=ComponentType.RUNTIME,
+        category="Runtime",
+    )
+    result = runtime_module.OpenCodeInstaller(component)._post_install()
+
+    assert result.success is True
+    assert calls == [True]
+
+
 def test_bootstrap_ps1_forwards_positional_arguments():
     """`[CmdletBinding()]` rejects unbound positional arguments, so the Windows
     bootstrap must declare a remaining-args catch-all and splat it. Without the
@@ -273,8 +312,18 @@ def test_bootstrap_ps1_registers_mcp_servers_after_install():
     assert "--dry-run" in src
 
 
+def test_bootstrap_ps1_installs_python_and_refreshes_path():
+    """A clean Windows box may not have Python, Node or OpenCode yet."""
+    src = (INSTALLER_ROOT / "bootstrap.ps1").read_text(encoding="utf-8")
+    assert "Python.Python.3.12" in src, "bootstrap must be able to install Python"
+    assert "Update-ProcessPath" in src, "bootstrap must refresh PATH after installs"
+    assert "opencode auth login" in src, "bootstrap must point at provider auth"
+
+
 def test_bootstrap_sh_forwards_positional_arguments():
     """The POSIX entry point must forward every argument to the CLI."""
     src = (INSTALLER_ROOT / "install.sh").read_text(encoding="utf-8")
     assert '"${ARGS[@]}"' in src, "install.sh must splat the filtered arguments"
     assert "--skip-mcp-registration" in src
+    assert "sys.version_info" in src, "install.sh must enforce Python 3.10+"
+    assert "opencode auth login" in src, "install.sh must point at provider auth"

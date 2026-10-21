@@ -22,6 +22,83 @@ class InstallResult:
     error: Optional[str] = None
 
 
+#: Directories that Windows package managers populate after the current process
+#: started. The registry PATH is the primary source; these cover installers that
+#: only create a per-user shim/link.
+_WINDOWS_PATH_HINTS = (
+    r"%ProgramFiles%\nodejs",
+    r"%APPDATA%\npm",
+    r"%LOCALAPPDATA%\Microsoft\WinGet\Links",
+    r"C:\ProgramData\chocolatey\bin",
+    r"%USERPROFILE%\scoop\shims",
+)
+
+
+def _merge_path_entries(entries: list[str], *, case_insensitive: bool = False) -> str:
+    """Join PATH fragments, dropping empty and duplicate entries in order."""
+    merged: list[str] = []
+    seen: set[str] = set()
+    for entry in entries:
+        for part in str(entry).split(os.pathsep):
+            part = part.strip()
+            if not part:
+                continue
+            key = part.lower() if case_insensitive else part
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(part)
+    return os.pathsep.join(merged)
+
+
+def _windows_registry_path_entries() -> list[str]:
+    """Read the machine and user PATH values Windows installers update."""
+    try:
+        import winreg
+    except ImportError:  # pragma: no cover - only reachable on non-Windows
+        return []
+    entries: list[str] = []
+    locations = (
+        (
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment",
+        ),
+        (winreg.HKEY_CURRENT_USER, "Environment"),
+    )
+    for root, subkey in locations:
+        try:
+            with winreg.OpenKey(root, subkey) as key:
+                value, _ = winreg.QueryValueEx(key, "Path")
+        except OSError:
+            continue
+        if value:
+            entries.append(str(value))
+    return entries
+
+
+def refresh_process_path() -> None:
+    """Refresh ``PATH`` after a package manager installs a tool.
+
+    ``winget``/``choco``/``scoop`` update the machine or user PATH, but the
+    running Python process keeps the environment it started with. Without this
+    refresh, ``_post_install`` cannot find the tool it just installed and the
+    component is reported as failed. On POSIX the process normally already has
+    the right PATH; the function still deduplicates and preserves it.
+    """
+    is_windows = sys.platform.startswith("win")
+    entries = [os.environ.get("PATH", "")]
+    if is_windows:
+        entries.extend(_windows_registry_path_entries())
+        for hint in _WINDOWS_PATH_HINTS:
+            expanded = os.path.expandvars(hint)
+            if os.path.isdir(expanded):
+                entries.append(expanded)
+        entries = [os.path.expandvars(entry) for entry in entries]
+    merged = _merge_path_entries(entries, case_insensitive=is_windows)
+    if merged:
+        os.environ["PATH"] = merged
+
+
 def run_tool(
     name: str,
     args: Optional[list[str]] = None,

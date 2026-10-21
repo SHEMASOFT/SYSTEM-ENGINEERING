@@ -21,6 +21,11 @@ On Windows the interpreter is `python`, so throughout this guide read `python3` 
 | `requests` | optional | `local` LLM provider (Ollama / vLLM / OpenAI-compatible) |
 | `openai`, `anthropic` | optional | `openai` / `anthropic` LLM providers |
 
+The Windows one-command bootstrap installs Python 3.12 when no 3.10+ interpreter
+is found and winget, Chocolatey or Scoop is available (`--dry-run` never installs
+prerequisites). On Linux/macOS install `python3` (and `python3-venv` on
+Debian/Ubuntu) first.
+
 Validate the runtime at any time:
 
 ```bash
@@ -70,6 +75,12 @@ with `tui` (Windows `bootstrap.ps1 tui`; Linux/macOS `install.sh tui`); it does 
 run the automatic MCP registration, so run `se install` once afterwards. From an
 already-cloned checkout you can also chain it through the CLI with
 `se install --bootstrap` (see §7).
+
+The Windows bootstrap installs Node/OpenCode through a package manager when they
+are missing and refreshes the process `PATH` before running `se install`. If a
+tool was installed but is still not found, open a new terminal and rerun. `se
+install` registers only servers whose launcher is present (`npx` for
+`context7`/`filesystem`); a skipped server is reported, not marked installed.
 
 > **Where to put a virtualenv.** The one-command entry points keep their venv at
 > `SE-INSTALLER/.venv`, which `se doctor` audits cleanly. If you create your own venv,
@@ -139,6 +150,20 @@ variables named in `provider_options.api_key_env`.
 
 > A dedicated CLI command to set this is not implemented yet; edit the contract and
 > re-run `se adapter opencode`.
+
+### OpenCode provider auth
+
+SE generates the agent files but does not store provider credentials. Authenticate
+the runtime once before starting a session:
+
+```bash
+opencode auth login
+opencode auth list      # verify the configured provider
+```
+
+Without a provider, OpenCode starts but agent model calls fail. Environment
+variables named by the agent contract (for example `OPENAI_API_KEY`) are the
+alternative to the interactive login.
 
 ---
 
