@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -62,18 +63,29 @@ _FTS_INDEXED = ("tags", "content_text")
 FTS_COLUMNS = _FTS_UNINDEXED + _FTS_INDEXED
 CONTENT_COLUMN_INDEX = FTS_COLUMNS.index("content_text")
 
-_TOKEN_RE = re.compile(r"[0-9a-z_]+")
+# Term characters: Unicode letters and digits, but not the underscore. This is
+# what FTS5's default ``unicode61`` tokenizer treats as a token: punctuation
+# (including ``_``) separates terms, and non-ASCII letters are terms rather than
+# noise.
+_TOKEN_RE = re.compile(r"[^\W_]+", re.UNICODE)
 
 
 def tokenize(text: Any) -> List[str]:
-    """Lowercase alphanumeric terms; the single definition shared by both backends.
+    """Lowercase Unicode terms, mirroring FTS5's ``unicode61`` tokenizer.
 
     The FTS5 query and the Python fallback must agree on what a term is, or the
-    same search would answer differently depending on which backend ran.
+    same search would answer differently depending on which backend ran. Terms
+    are case-folded and diacritic-insensitive (``decisión`` and ``decision`` are
+    the same term), ``_`` and punctuation separate terms (``user_id`` is
+    ``user`` and ``id``), and scripts without separators (such as CJK) stay
+    whole. Canonical decomposition is enough: ``unicode61`` also drops
+    diacritics by canonical decomposition, not by compatibility folding.
     """
     if text is None:
         return []
-    return _TOKEN_RE.findall(str(text).lower())
+    folded = unicodedata.normalize("NFD", str(text)).lower()
+    stripped = "".join(char for char in folded if not unicodedata.combining(char))
+    return _TOKEN_RE.findall(stripped)
 
 
 def flatten_content(content: Any) -> str:
