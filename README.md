@@ -100,14 +100,26 @@ the foreground and with no timeout. Details:
 
 ## Use it with OpenCode
 
-Generate the agent layer from the canonical contracts:
+On a fresh clone, register the runtime and generate the agent layer with the
+installer venv (it already contains `jsonschema`):
 
-```bash
-python SCRIPTS/se.py adapter opencode
+```powershell
+# Windows
+SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
+SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py adapter opencode
 ```
 
-This writes `.opencode/` with **12 agents, 24 commands and 7 skills**, all generated —
-never edit them by hand, regenerate instead.
+```bash
+# Linux / macOS
+SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
+SE-INSTALLER/.venv/bin/python SCRIPTS/se.py adapter opencode
+```
+
+`se install` registers the SE MCP servers with the interpreter available on this
+host (`python` on Windows, `python3` elsewhere) and rewrites only the MCP entries
+in `opencode.jsonc`. `se adapter opencode` writes `.opencode/` with **12 agents,
+24 commands and 7 skills**, all generated — never edit them by hand, regenerate
+instead.
 
 - **`shema-ai-coordinador`** is the primary agent: it orchestrates the lifecycle and routes work
   to the other roles (`planner`, `implementer`, `tester`, `reviewer`, ...), each of
@@ -127,10 +139,6 @@ To make new sessions start as the coordinator, set its generated agent ID in
 MCP servers are optional; none is required by SE. See
 [`DOCS/reference/installation.md`](DOCS/reference/installation.md) for registration
 and lifecycle commands (`se install`, `se sync`, `se update`, `se uninstall`).
-
-On Windows there is no `python3`; run `se install` once in the project so the SE
-MCP entries are registered with `python`. The command rewrites only the MCP
-entries in `opencode.jsonc` and keeps the rest of the file intact.
 
 ---
 
