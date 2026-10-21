@@ -44,6 +44,33 @@ class TestCmdStatus:
         data = json.loads(captured.out)
         assert isinstance(data, list)
 
+    def test_status_marks_vendored_components_installed(self, capsys):
+        args = Mock(json=True)
+
+        def component(cid, name, component_type):
+            comp = Mock()
+            comp.id = cid
+            comp.name = name
+            comp.component_type = Mock(value=component_type)
+            comp.category = "Core"
+            comp.status = InstallStatus.PENDING
+            comp.installed_version = None
+            return comp
+
+        core = component("se_core", "SE Core", "se_core")
+        console = component("se_console", "SE Console", "se_console")
+
+        with patch('se_installer.cli.InstallerOrchestrator'):
+            with patch('se_installer.cli.get_all_components', return_value=[core, console]):
+                exit_code = cmd_status(args)
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert [(item["id"], item["status"], item["version"]) for item in data] == [
+            ("se_core", "success", "vendored"),
+            ("se_console", "success", "vendored"),
+        ]
+
 
 class TestCmdDoctor:
     """Tests for cmd_doctor."""
@@ -71,6 +98,29 @@ class TestCmdDoctor:
         assert "issues" in data
         assert "warnings" in data
         assert "ok" in data
+
+    def test_doctor_reports_vendored_components(self, capsys):
+        args = Mock(json=False)
+
+        def component(cid, name, component_type):
+            comp = Mock()
+            comp.id = cid
+            comp.name = name
+            comp.component_type = Mock(value=component_type)
+            comp.recommended = True
+            return comp
+
+        core = component("se_core", "SE Core", "se_core")
+        console = component("se_console", "SE Console", "se_console")
+
+        with patch('se_installer.cli.InstallerOrchestrator'):
+            with patch('se_installer.cli.get_all_components', return_value=[core, console]):
+                exit_code = cmd_doctor(args)
+
+        out = capsys.readouterr().out
+        assert exit_code == 0
+        assert "[OK] SE Core vvendored" in out
+        assert "[OK] SE Console vvendored" in out
 
 
 class TestCmdInstall:
