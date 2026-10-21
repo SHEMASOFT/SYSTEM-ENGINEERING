@@ -58,8 +58,8 @@ python SCRIPTS/se.py validate    # schemas, agents, domains — must report PASS
 On Windows use `python SCRIPTS\se.py ...` (not `python3`).
 
 **One command (recommended on a fresh machine)** — installs SE Core + the web console
-+ the selected MCP servers + runtime adapters into an isolated venv, and generates a
-portable runtime config:
++ the selected MCP servers + runtime adapters into an isolated venv, and registers
+the SE MCP servers in `opencode.jsonc`:
 
 ```powershell
 # Windows (PowerShell)
@@ -71,9 +71,31 @@ powershell -ExecutionPolicy Bypass -File SE-INSTALLER\bootstrap.ps1 install --re
 bash SE-INSTALLER/install.sh install --recommended
 ```
 
-Add `--dry-run` to plan without installing, or pass `tui` for the interactive
-selector. See [`DOCS/reference/installation.md`](DOCS/reference/installation.md)
-for the full path.
+Add `--dry-run` to plan without installing. For the interactive selector:
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File SE-INSTALLER\bootstrap.ps1 tui
+```
+
+```bash
+# Linux / macOS
+bash SE-INSTALLER/install.sh tui
+```
+
+In the TUI, `Space` selects, `A` selects the recommended set, `Enter` installs,
+`D` toggles dry-run, `R` refreshes and `Q` quits. The TUI does **not** run the
+automatic MCP registration; after it finishes, register the servers once:
+
+```powershell
+SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
+```
+
+```bash
+SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
+```
+
+See [`DOCS/reference/installation.md`](DOCS/reference/installation.md) for the full path.
 
 > **Where the venv goes.** The installer keeps its own venv at `SE-INSTALLER/.venv`,
 > which `se doctor` audits cleanly. If you create your own venv, either keep it
@@ -100,26 +122,40 @@ the foreground and with no timeout. Details:
 
 ## Use it with OpenCode
 
-On a fresh clone, register the runtime and generate the agent layer with the
-installer venv (it already contains `jsonschema`):
+The generated agent layer (`.opencode/`) is versioned in this repository, and the
+one-command install above already registers the SE MCP servers. To regenerate the
+agent layer after changing contracts, use the installer venv (it contains
+`jsonschema`):
 
 ```powershell
 # Windows
-SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
 SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py adapter opencode
 ```
 
 ```bash
 # Linux / macOS
-SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
 SE-INSTALLER/.venv/bin/python SCRIPTS/se.py adapter opencode
+```
+
+`se adapter opencode` writes `.opencode/` with **12 agents, 24 commands and 7
+skills**, all generated — never edit them by hand, regenerate instead.
+
+If you installed with `tui`, a custom `-c/--components` selection, or
+`--skip-mcp-registration`, register the MCP servers once:
+
+```powershell
+# Windows
+SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
+```
+
+```bash
+# Linux / macOS
+SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
 ```
 
 `se install` registers the SE MCP servers with the interpreter available on this
 host (`python` on Windows, `python3` elsewhere) and rewrites only the MCP entries
-in `opencode.jsonc`. `se adapter opencode` writes `.opencode/` with **12 agents,
-24 commands and 7 skills**, all generated — never edit them by hand, regenerate
-instead.
+in `opencode.jsonc`.
 
 - **`shema-ai-coordinador`** is the primary agent: it orchestrates the lifecycle and routes work
   to the other roles (`planner`, `implementer`, `tester`, `reviewer`, ...), each of
