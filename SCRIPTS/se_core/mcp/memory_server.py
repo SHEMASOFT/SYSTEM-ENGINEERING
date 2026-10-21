@@ -322,6 +322,12 @@ def main():
         req_id = request.get("id")
         params = request.get("params", {})
 
+        # JSON-RPC 2.0: notifications (no "id") never get a response. Replying
+        # to e.g. "notifications/initialized" with "id": null makes strict MCP
+        # clients such as OpenCode V2 log a transport error.
+        if req_id is None:
+            continue
+
         if method == "tools/list":
             tools = server.list_tools()
             print(json.dumps(_reply(req_id, result={"tools": tools})), flush=True)
@@ -330,6 +336,8 @@ def main():
             arguments = params.get("arguments", {})
             result = server.call_tool(tool_name, arguments)
             print(json.dumps(_reply(req_id, result={"content": [{"type": "text", "text": json.dumps(result)}]})), flush=True)
+        elif method == "ping":
+            print(json.dumps(_reply(req_id, result={})), flush=True)
         else:
             print(json.dumps(_reply(req_id, error=_error(-32601, f"Method not found: {method}"))), flush=True)
 
