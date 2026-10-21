@@ -11,6 +11,7 @@ import contextlib
 import hashlib
 import io
 import json
+import re
 import shlex
 import sys
 import tempfile
@@ -518,6 +519,59 @@ class AgentOverviewNotInstructionSourceTests(unittest.TestCase):
             self.assertNotIn(keyword, agents_md, f"AGENTS.md must not contain '{keyword}'")
         self.assertIn("## Delegation", agent_md)
         self.assertIn("## Communication", agent_md)
+
+
+class PolicyLinkRebaseTests(unittest.TestCase):
+    """Policies are deployed one level deeper than their canonical source.
+
+    Canonical policies live in ``POLICIES/``; the adapter writes them to
+    ``.opencode/policies/``. A link that climbs to the repository root must gain
+    one ``../`` there, or it resolves inside ``.opencode/`` and is broken.
+    """
+
+    def test_generated_policy_links_are_rebased(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = generate(support.REPO_ROOT, Path(tmp))
+            self.assertEqual(result["status"], "PASS")
+            generated = (Path(tmp) / "policies" / "README.md").read_text(encoding="utf-8")
+            canonical = (Path(support.REPO_ROOT) / "POLICIES" / "README.md").read_text(
+                encoding="utf-8"
+            )
+        self.assertIn("](../CORE/policies/permissions.json)", canonical)
+        self.assertIn("](../../CORE/policies/permissions.json)", generated)
+        self.assertNotIn("](../CORE/", generated)
+
+    def test_no_generated_policy_link_escapes_the_deployed_root(self):
+        link = re.compile(r"\]\(([^)\s]+)\)")
+        with tempfile.TemporaryDirectory() as tmp:
+            generate(support.REPO_ROOT, Path(tmp))
+            for policy in (Path(tmp) / "policies").glob("*.md"):
+                for target in link.findall(policy.read_text(encoding="utf-8")):
+                    if not target.startswith("../"):
+                        continue
+                    self.assertTrue(
+                        target.startswith("../../"),
+                        f"{policy.name}: '{target}' resolves inside .opencode/",
+                    )
+                    self.assertFalse(
+                        target.startswith("../../../"),
+                        f"{policy.name}: '{target}' escapes the repository root",
+                    )
+
+    def test_rebased_link_resolves_in_a_deployed_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            generate(support.REPO_ROOT, repo / ".opencode")
+            policy = repo / ".opencode" / "policies" / "README.md"
+            self.assertIn(
+                "(../../CORE/policies/permissions.json)",
+                policy.read_text(encoding="utf-8"),
+            )
+            resolved = (policy.parent / "../../CORE/policies/permissions.json").resolve()
+            self.assertEqual(
+                resolved,
+                (repo / "CORE" / "policies" / "permissions.json").resolve(),
+            )
 
 
 if __name__ == "__main__":

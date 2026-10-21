@@ -1,7 +1,7 @@
 # POLICIES
 
 Readable by both humans and agents. Machine-readable permission model:
-[`../CORE/policies/permissions.json`](../CORE/policies/permissions.json).
+[`../CORE/policies/permissions.json`](../../CORE/policies/permissions.json).
 
 | Policy | Scope |
 |--------|-------|

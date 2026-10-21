@@ -55,6 +55,17 @@ def _guard_output(output: Path) -> None:
         )
 
 
+def _rebase_policy_links(text: str) -> str:
+    """Re-root relative links for the deployed policy directory.
+
+    Canonical policies live in ``POLICIES/``; the adapter deploys them to
+    ``.opencode/policies/``, one level deeper. A link that climbs to the
+    repository root (``../CORE/...``) must climb one more level
+    (``../../CORE/...``) or it resolves inside ``.opencode/`` instead.
+    """
+    return text.replace("](../", "](../../")
+
+
 def _build_plan(root: Path, schemas, errors, counts):
     """Return (planned_files, output_artifacts, generated_files, input_sources)."""
     root = Path(root)
@@ -76,11 +87,13 @@ def _build_plan(root: Path, schemas, errors, counts):
         name = path.parent.name
         planned[f"{mappings.SKILL_DIR}/{name}/SKILL.md"] = path.read_text(encoding="utf-8")
 
-    # Policy files (canonical governance, copied verbatim)
+    # Policy files (canonical governance, copied verbatim except for link re-rooting)
     policies_dir = root / "POLICIES"
     if policies_dir.exists():
         for path in sorted(policies_dir.glob("*.md")):
-            planned[f"policies/{path.name}"] = path.read_text(encoding="utf-8")
+            planned[f"policies/{path.name}"] = _rebase_policy_links(
+                path.read_text(encoding="utf-8")
+            )
 
     # MCP configuration files
     mcp_dir = root / "TEMPLATES" / "mcp"
