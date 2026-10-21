@@ -1,5 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "default_agent": "shema-ai-coordinador",
   "mcp": {
     "servers": {
       "context7": {
@@ -47,8 +48,4 @@
       "startup": 60000
     }
   }
-  // The SE orchestrator "coordinator" is generated as mode: primary in
-  // .opencode/agents/coordinator.md, so it appears in the agent selector.
-  // To make new sessions start with it, add:
-  //   "default_agent": "coordinator",
 }
