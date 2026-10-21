@@ -10,8 +10,8 @@ import json
 import hashlib
 import os
 import random
-import re
 import time
+import unicodedata
 import contextlib
 from collections import Counter
 from pathlib import Path
@@ -584,22 +584,71 @@ class MemoryEngine:
         return hits
 
     @staticmethod
+    def _fold_with_offsets(text: str) -> Tuple[str, List[int]]:
+        """The tokenizer's view of ``text`` plus each folded char's origin.
+
+        ``offsets[i]`` is the index in ``text`` of the character that produced
+        folded character ``i``, so a match found on folded text can be
+        highlighted in the original spelling (``decision`` -> ``decisión``).
+        """
+        chars: List[str] = []
+        offsets: List[int] = []
+        for position, char in enumerate(text):
+            for folded in unicodedata.normalize("NFD", char).lower():
+                if unicodedata.combining(folded):
+                    continue
+                chars.append(folded)
+                offsets.append(position)
+        return "".join(chars), offsets
+
+    @staticmethod
     def _snippet(text: str, terms: List[str], width: int = 90) -> str:
         """A short highlighted window around the first matching term.
 
         Mirrors the shape of FTS5 ``snippet()`` (``[match]``, ``…`` at the cut)
-        so a caller cannot tell which backend produced it.
+        so a caller cannot tell which backend produced it. Matching uses the
+        same folded terms as the search, so an unaccented query brackets the
+        accented word it matched rather than returning a window with no mark.
         """
         if not text:
             return ""
-        lowered = text.lower()
-        found = [pos for pos in (lowered.find(term) for term in terms) if pos >= 0]
-        start = max(0, min(found) - width // 3) if found else 0
+        folded, offsets = MemoryEngine._fold_with_offsets(text)
+        found = [
+            position
+            for position in (folded.find(term) for term in terms)
+            if position >= 0
+        ]
+        start = max(0, offsets[min(found)] - width // 3) if found else 0
         window = text[start:start + width].strip()
-        pattern = re.compile(
-            "|".join(re.escape(term) for term in terms), re.IGNORECASE
-        )
-        window = pattern.sub(lambda match: f"[{match.group(0)}]", window)
+
+        if window:
+            folded_window, window_offsets = MemoryEngine._fold_with_offsets(window)
+            spans: List[Tuple[int, int]] = []
+            for term in terms:
+                position = folded_window.find(term)
+                while position >= 0:
+                    spans.append(
+                        (
+                            window_offsets[position],
+                            window_offsets[position + len(term) - 1] + 1,
+                        )
+                    )
+                    position = folded_window.find(term, position + len(term))
+            merged: List[Tuple[int, int]] = []
+            for span in sorted(spans):
+                if merged and span[0] <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(merged[-1][1], span[1]))
+                else:
+                    merged.append(span)
+            for span_start, span_end in reversed(merged):
+                window = (
+                    window[:span_start]
+                    + "["
+                    + window[span_start:span_end]
+                    + "]"
+                    + window[span_end:]
+                )
+
         if start > 0:
             window = "…" + window
         if start + width < len(text):

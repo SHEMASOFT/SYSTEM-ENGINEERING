@@ -419,6 +419,99 @@ class DegradationTests(unittest.TestCase):
             self.assertFalse(_index_path(root).exists())
 
 
+class TokenizerTests(unittest.TestCase):
+    """The shared term definition must mirror FTS5's default tokenizer."""
+
+    def test_terms_are_lowercased(self):
+        self.assertEqual(index_module.tokenize("MiXeD CaSe"), ["mixed", "case"])
+
+    def test_punctuation_and_underscores_separate_terms(self):
+        self.assertEqual(
+            index_module.tokenize("user_id auth_token foo-bar C++"),
+            ["user", "id", "auth", "token", "foo", "bar", "c"],
+        )
+        self.assertEqual(
+            index_module.tokenize("trailing_ _leading under__score"),
+            ["trailing", "leading", "under", "score"],
+        )
+
+    def test_terms_are_diacritic_insensitive(self):
+        for text, expected in (
+            ("decisión", ["decision"]),
+            ("État déjà vu", ["etat", "deja", "vu"]),
+            ("naïve café", ["naive", "cafe"]),
+            ("İstanbul IĞDIR", ["istanbul", "igdir"]),
+            ("e\u0301 combining", ["e", "combining"]),
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(index_module.tokenize(text), expected)
+
+    def test_letters_without_separators_stay_whole(self):
+        self.assertEqual(index_module.tokenize("記憶 測試"), ["記憶", "測試"])
+
+    def test_a_query_of_punctuation_only_has_no_terms(self):
+        self.assertEqual(index_module.tokenize("--- ___ … !!!"), [])
+
+
+class TokenizerParityTests(unittest.TestCase):
+    """Every term shape must return the same records from either backend."""
+
+    CORPUS = (
+        "Use the user_id column when joining",
+        "La decisión de despliegue ya está tomada",
+        "A naïve café is near_deploy",
+        "記憶 測試 notes",
+        "État déjà vu",
+        "İstanbul IĞDIR",
+    )
+
+    def test_the_same_query_answers_the_same_on_both_backends(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _alpha, _beta = _master(tmp)
+            engine = MemoryEngine(root=root)
+            for text in self.CORPUS:
+                _add(engine, ALPHA, text)
+
+            queries = (
+                "user_id", "user", "id",
+                "decisión", "decision",
+                "naïve", "naive", "café", "cafe",
+                "記憶", "測試",
+                "État", "etat", "déjà", "deja",
+                "İstanbul", "istanbul", "IĞDIR", "igdir",
+                "near_deploy", "deploy",
+            )
+            for query in queries:
+                with self.subTest(query=query):
+                    indexed = [
+                        hit["memory_id"] for hit in engine.search(query)["hits"]
+                    ]
+                    with mock.patch.object(
+                        index_module, "fts5_available", return_value=False
+                    ):
+                        scanned = [
+                            hit["memory_id"] for hit in engine.search(query)["hits"]
+                        ]
+                    self.assertEqual(indexed, scanned)
+                    self.assertTrue(indexed, f"{query!r} matched nothing")
+
+    def test_a_folded_term_is_highlighted_in_the_original_spelling(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _alpha, _beta = _master(tmp)
+            engine = MemoryEngine(root=root)
+            _add(engine, ALPHA, "La decisión de desplegar ya está tomada")
+
+            for query in ("decision", "decisión"):
+                with self.subTest(query=query):
+                    indexed = engine.search(query)["hits"][0]["snippet"]
+                    with mock.patch.object(
+                        index_module, "fts5_available", return_value=False
+                    ):
+                        scanned = engine.search(query)["hits"][0]["snippet"]
+                    self.assertIn("[decisión]", indexed)
+                    self.assertEqual(indexed, scanned)
+
+
 class CliGuardTests(unittest.TestCase):
     """The CLI fails closed on an unusable search request (no index work done)."""
 
