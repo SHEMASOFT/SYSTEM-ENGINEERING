@@ -39,6 +39,7 @@ from se_installer.installers.mcp import (
     RustInstaller,
     SequentialThinkingInstaller,
 )
+from se_installer.installers.runtime import OpenCodeInstaller
 from se_installer.models import (
     ComponentType,
     InstallationPlan,
@@ -58,6 +59,228 @@ def _make_component(component_id: str = "x") -> InstallableComponent:
         component_type=ComponentType.MCP,
         category="Cat",
     )
+
+
+def _make_runtime_component(component_id: str = "opencode") -> InstallableComponent:
+    return InstallableComponent(
+        id=component_id,
+        name=component_id,
+        description="d",
+        component_type=ComponentType.RUNTIME,
+        category="Runtime",
+    )
+
+
+def test_opencode_windows_installs_with_npm(monkeypatch):
+    """Windows OpenCode v2 comes from @opencode/cli, not a package manager."""
+    from se_installer.installers import runtime as runtime_module
+
+    calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def fake_which(name: str):
+        return "/usr/bin/npm" if name == "npm" else None
+
+    def fake_run_tool(name: str, args=None, timeout=30, **kwargs):
+        calls.append((name, tuple(args or ())))
+        if name == "npm":
+            return subprocess.CompletedProcess([name], 0, "", "")
+        if name == "opencode":
+            return subprocess.CompletedProcess([name], 0, "opencode 2.1.1\n", "")
+        raise AssertionError(f"unexpected tool: {name}")
+
+    monkeypatch.setattr(runtime_module.shutil, "which", fake_which)
+    monkeypatch.setattr(runtime_module, "run_tool", fake_run_tool)
+
+    result = OpenCodeInstaller(_make_runtime_component())._install_windows()
+
+    assert result.success is True
+    assert result.version == "opencode 2.1.1"
+    assert [name for name, _ in calls] == ["npm", "opencode"]
+    assert ("npm", ("install", "-g", "@opencode/cli")) in calls
+
+
+def test_opencode_windows_falls_back_to_binary_when_npm_fails(monkeypatch, tmp_path):
+    from se_installer.installers import runtime as runtime_module
+
+    calls: list[str] = []
+    added_paths: list[str] = []
+
+    def fake_which(name: str):
+        return "/usr/bin/npm" if name == "npm" else None
+
+    def fake_run_tool(name: str, args=None, timeout=30, **kwargs):
+        calls.append(name)
+        if name == "npm":
+            return subprocess.CompletedProcess([name], 1, "", "EACCES")
+        if name == "opencode":
+            return subprocess.CompletedProcess([name], 0, "opencode 2.1.1\n", "")
+        raise AssertionError(f"unexpected tool: {name}")
+
+    def fake_extract(archive, dest):
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "opencode.exe").write_text("", encoding="utf-8")
+        return True
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr(runtime_module.shutil, "which", fake_which)
+    monkeypatch.setattr(runtime_module, "run_tool", fake_run_tool)
+    monkeypatch.setattr(runtime_module.platform, "machine", lambda: "AMD64")
+    monkeypatch.setattr(
+        runtime_module.WindowsInstallerMixin,
+        "add_to_user_path",
+        lambda path: added_paths.append(path) or True,
+    )
+
+    installer = OpenCodeInstaller(_make_runtime_component())
+    installer._download_windows_binary = lambda url, dest: True
+    installer.extract_archive = fake_extract
+    installer.ensure_in_path = lambda path: added_paths.append(str(path)) or True
+
+    result = installer._install_windows()
+
+    assert result.success is True
+    assert calls == ["npm", "opencode"]
+    assert str(tmp_path / "Programs" / "opencode") in added_paths
+
+
+def test_opencode_windows_reports_binary_failure(monkeypatch):
+    from se_installer.installers import runtime as runtime_module
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("no installation tool should run")
+
+    monkeypatch.setattr(runtime_module.shutil, "which", lambda name: None)
+    monkeypatch.setattr(runtime_module, "run_tool", unexpected)
+
+    installer = OpenCodeInstaller(_make_runtime_component())
+    installer._download_windows_binary = lambda *args, **kwargs: (_ for _ in ()).throw(
+        RuntimeError("offline")
+    )
+
+    result = installer._install_windows()
+
+    assert result.success is False
+    assert "standalone binary install failed" in (result.error or "")
+    assert "npm" in (result.error or "")
+
+
+def test_opencode_windows_binary_download_sets_user_agent(monkeypatch, tmp_path):
+    from se_installer.installers import runtime as runtime_module
+
+    captured: dict[str, str] = {}
+
+    class _Response:
+        def __init__(self):
+            self._sent = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self, size=-1):
+            if self._sent:
+                return b""
+            self._sent = True
+            return b"zip-bytes"
+
+    def fake_urlopen(request, timeout=300):
+        captured["user_agent"] = request.get_header("User-agent") or ""
+        return _Response()
+
+    monkeypatch.setattr(runtime_module.urllib.request, "urlopen", fake_urlopen)
+
+    dest = tmp_path / "opencode.zip"
+    OpenCodeInstaller(_make_runtime_component())._download_windows_binary(
+        "https://example.invalid/opencode.zip", dest
+    )
+
+    assert dest.read_bytes() == b"zip-bytes"
+    assert "SE-Installer" in captured["user_agent"]
+
+
+def test_opencode_macos_uses_v2_brew_formula(monkeypatch):
+    from se_installer.installers import runtime as runtime_module
+
+    calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def fake_run_tool(name: str, args=None, timeout=30, **kwargs):
+        calls.append((name, tuple(args or ())))
+        if name == "brew":
+            return subprocess.CompletedProcess([name], 0, "", "")
+        if name == "opencode":
+            return subprocess.CompletedProcess([name], 0, "opencode 2.1.1\n", "")
+        raise AssertionError(f"unexpected tool: {name}")
+
+    monkeypatch.setattr(runtime_module.shutil, "which", lambda name: "/usr/bin/brew")
+    monkeypatch.setattr(runtime_module, "run_tool", fake_run_tool)
+
+    result = OpenCodeInstaller(_make_runtime_component())._install_macos()
+
+    assert result.success is True
+    assert ("brew", ("install", "anomalyco/tap/opencode-v2")) in calls
+
+
+def test_opencode_linux_script_adds_install_dir_to_path(monkeypatch):
+    from se_installer.installers import runtime as runtime_module
+
+    paths: list[Path] = []
+
+    class _OkScript:
+        returncode = 0
+
+    def fake_run_tool(name: str, args=None, timeout=30, **kwargs):
+        if name == "opencode":
+            return subprocess.CompletedProcess([name], 0, "opencode 2.1.1\n", "")
+        raise AssertionError(f"unexpected tool: {name}")
+
+    monkeypatch.setattr(runtime_module, "run_tool", fake_run_tool)
+    monkeypatch.setattr(runtime_module.subprocess, "run", lambda *a, **k: _OkScript())
+
+    installer = OpenCodeInstaller(_make_runtime_component())
+    installer.ensure_in_path = lambda path: paths.append(path) or True
+
+    result = installer._install_linux()
+
+    assert result.success is True
+    assert Path.home() / ".opencode" / "bin" in paths
+
+
+def test_opencode_linux_falls_back_to_npm_after_script_failure(monkeypatch):
+    from se_installer.installers import runtime as runtime_module
+
+    script_calls: list[list[str]] = []
+    calls: list[tuple[str, tuple[str, ...]]] = []
+
+    class _FailedScript:
+        returncode = 1
+
+    def fake_which(name: str):
+        return "/usr/bin/npm" if name == "npm" else None
+
+    def fake_run_tool(name: str, args=None, timeout=30, **kwargs):
+        calls.append((name, tuple(args or ())))
+        if name == "npm":
+            return subprocess.CompletedProcess([name], 0, "", "")
+        if name == "opencode":
+            return subprocess.CompletedProcess([name], 0, "opencode 2.1.1\n", "")
+        raise AssertionError(f"unexpected tool: {name}")
+
+    def fake_subprocess_run(args, **kwargs):
+        script_calls.append(args)
+        return _FailedScript()
+
+    monkeypatch.setattr(runtime_module.shutil, "which", fake_which)
+    monkeypatch.setattr(runtime_module, "run_tool", fake_run_tool)
+    monkeypatch.setattr(runtime_module.subprocess, "run", fake_subprocess_run)
+
+    result = OpenCodeInstaller(_make_runtime_component())._install_linux()
+
+    assert result.success is True
+    assert result.version == "opencode 2.1.1"
+    assert "https://opencode.ai/v2/install" in script_calls[0][-1]
+    assert ("npm", ("install", "-g", "@opencode/cli")) in calls
 
 
 def test_cli_has_no_duplicate_top_level_definitions():

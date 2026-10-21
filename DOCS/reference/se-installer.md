@@ -49,11 +49,17 @@ se_installer/
 | `codegraph` | CodeGraph | `mcp` | Code Intelligence | ❌ | cargo (Rust) |
 | `node` | Node.js / npx | `mcp` | Runtime | ✅ | auto (fnm/winget/brew) |
 | `rust` | Rust / Cargo | `mcp` | Runtime | ❌ | rustup |
-| `opencode` | OpenCode | `runtime` | Runtime | ✅ | auto (winget/scoop/brew/script) |
+| `opencode` | OpenCode | `runtime` | Runtime | ✅ | auto (npm/standalone/brew/script) |
 | `codex` | Codex CLI | `runtime` | Runtime | ❌ | npm |
 | `claude_code` | Claude Code | `runtime` | Runtime | ❌ | npm |
 
 > **Note**: MCPs requiring Node.js (`context7`, `filesystem`, `playwright`, `firecrawl`, `sequential-thinking`) declare `requires: ["node"]`. The installer auto-installs Node.js only when at least one of these is selected.
+
+> **OpenCode v2**: Windows package managers are not supported by OpenCode v2.
+> The installer uses `npm install -g @opencode/cli` and, when npm is unavailable
+> or fails, downloads the standalone Windows binary to `%LOCALAPPDATA%\Programs\opencode`
+> (adding it to the user PATH). macOS uses `brew install anomalyco/tap/opencode-v2`;
+> Linux uses `https://opencode.ai/v2/install`. Both fall back to npm.
 
 ---
 
