@@ -109,23 +109,28 @@ python SCRIPTS/se.py adapter opencode
 This writes `.opencode/` with **12 agents, 24 commands and 7 skills**, all generated —
 never edit them by hand, regenerate instead.
 
-- **`coordinator`** is the primary agent: it orchestrates the lifecycle and routes work
+- **`shema-ai-coordinador`** is the primary agent: it orchestrates the lifecycle and routes work
   to the other roles (`planner`, `implementer`, `tester`, `reviewer`, ...), each of
   which runs as a subagent.
 - Commands (for example `/plan`, `/implement`, `/review`) are reusable prompt templates.
 - Skills (for example `impl-tdd`, `rev-adversarial`) are loaded only when relevant.
 
-To make new sessions start as the coordinator, add to `opencode.jsonc`:
+To make new sessions start as the coordinator, set its generated agent ID in
+`opencode.jsonc` (the master repository already does this):
 
 ```jsonc
 {
-  "default_agent": "coordinator",
+  "default_agent": "shema-ai-coordinador",
 }
 ```
 
 MCP servers are optional; none is required by SE. See
 [`DOCS/reference/installation.md`](DOCS/reference/installation.md) for registration
 and lifecycle commands (`se install`, `se sync`, `se update`, `se uninstall`).
+
+On Windows there is no `python3`; run `se install` once in the project so the SE
+MCP entries are registered with `python`. The command rewrites only the MCP
+entries in `opencode.jsonc` and keeps the rest of the file intact.
 
 ---
 
