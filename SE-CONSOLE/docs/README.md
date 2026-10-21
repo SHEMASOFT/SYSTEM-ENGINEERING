@@ -1,6 +1,6 @@
 # SE-CONSOLE-POC-001
 
-A **local-first, read-only console** over [SYSTEM-ENGINEERING](../../SYSTEM-ENGINEERING).
+A **local-first, read-only console** over [SYSTEM-ENGINEERING](../..).
 It answers, in one interface, what SYSTEM-ENGINEERING is, what state it is in,
 what it is made of, what its projects are, and what needs attention.
 

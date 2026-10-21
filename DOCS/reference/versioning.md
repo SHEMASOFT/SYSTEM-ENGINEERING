@@ -1,7 +1,7 @@
 # Versioning
 
-The Master System follows semantic versioning. Current version: **0.4.0**
-(status: FOUNDATION / DEVELOPMENT).
+The Master System follows semantic versioning. Current version: **0.10.1**
+(see [`VERSION`](../../VERSION); status: FOUNDATION / DEVELOPMENT).
 
 While the version is `0.x`:
 
