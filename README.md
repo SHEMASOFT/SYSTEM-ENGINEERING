@@ -39,6 +39,10 @@ In short: SE makes AI work **cheaper (tokens), clearer and auditable**.
 | [OpenCode](https://opencode.ai) *(optional)* | Running the generated agent layer |
 | Node.js *(optional)* | MCP servers that use `npx` |
 
+> On Windows, `bootstrap.ps1` installs Python 3.12, Node.js LTS and OpenCode when
+> they are missing and winget, Chocolatey or Scoop is available. On Linux/macOS,
+> install `python3` (and `python3-venv` on Debian/Ubuntu) first.
+
 ---
 
 ## Quickstart
@@ -69,6 +73,14 @@ powershell -ExecutionPolicy Bypass -File SE-INSTALLER\bootstrap.ps1 install --re
 ```bash
 # Linux / macOS
 bash SE-INSTALLER/install.sh install --recommended
+```
+
+If the bootstrap installed Node or OpenCode during this run and the command is not
+found afterwards, open a new terminal so the updated `PATH` is loaded. Then
+authenticate OpenCode once, before starting a session:
+
+```bash
+opencode auth login
 ```
 
 Add `--dry-run` to plan without installing. For the interactive selector:

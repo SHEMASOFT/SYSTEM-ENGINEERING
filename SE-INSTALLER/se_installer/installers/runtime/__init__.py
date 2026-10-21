@@ -8,7 +8,7 @@ import json
 import subprocess
 import shutil
 
-from ..base import BaseInstaller, InstallResult, run_tool
+from ..base import BaseInstaller, InstallResult, refresh_process_path, run_tool
 from ...models import InstallableComponent, InstallStatus, OSType
 
 
@@ -78,6 +78,7 @@ class OpenCodeInstaller(BaseInstaller):
         return InstallResult(success=False, error="OpenCode install script failed")
     
     def _post_install(self) -> 'InstallResult':
+        refresh_process_path()
         result = run_tool("opencode", ["--version"], timeout=10)
         if result and result.returncode == 0:
             self.component.status = InstallStatus.SUCCESS

@@ -230,6 +230,16 @@ class PreflightTests(unittest.TestCase):
             self.assertEqual(item["status"], "PASS", item)
             self.assertTrue(item["guidance"])
 
+    def test_node_requires_npx_not_just_node(self):
+        # `node` alone cannot launch the npx-based servers. Registering them when
+        # only node.exe exists leaves a config that fails at runtime.
+        which = lambda name: "/usr/bin/node" if name == "node" else None
+        items = {i["name"]: i for i in install.preflight_dependencies(
+            "linux", which=which, selected_servers=["context7"]
+        )}
+        self.assertEqual(items["node"]["status"], "WARN")
+        self.assertIn("npx", items["node"]["detail"])
+
     def test_node_skipped_when_not_needed(self):
         which = lambda name: "/usr/bin/" + name
         # Without context7/filesystem, node should be skipped
