@@ -19,7 +19,6 @@ from pathlib import Path
 from .install import (
     load_mcp_templates,
     read_project_id,
-    resolve_python_interpreter,
     resolved_server_spec,
 )
 
@@ -51,7 +50,6 @@ def _load_skills(root: Path) -> dict[str, str]:
 def mcp_entries(root: Path, project: Path | None = None) -> dict:
     """Portable MCP server entries for a runtime config (no host paths)."""
     project = Path(project or root)
-    interpreter = resolve_python_interpreter()
     project_id = read_project_id(project)
     entries = {}
     for template in load_mcp_templates(root):
@@ -60,7 +58,7 @@ def mcp_entries(root: Path, project: Path | None = None) -> dict:
             se_root=root,
             project=project,
             project_id=project_id,
-            interpreter=interpreter,
+            interpreter=None,
             portable=True,
         )
         entries[spec["name"]] = spec

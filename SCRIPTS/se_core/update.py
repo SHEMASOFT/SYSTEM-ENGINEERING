@@ -278,8 +278,10 @@ def cmd_update(args, *, platform_name=None, runner=None, which=None) -> int:
     state_bytes_before = state_path.read_bytes()
 
     changed_names = [entry["name"] for entry in diff["changed"]]
-    preflight = install.preflight_dependencies(os_name, which=which, selected_servers=changed_names)
     selected = [t for t in templates if t["name"] in set(changed_names)]
+    preflight = install.preflight_dependencies(
+        os_name, which=which, selected_servers=[t["key"] for t in selected]
+    )
     registrations = install.build_registrations(
         selected,
         se_root=se_root,

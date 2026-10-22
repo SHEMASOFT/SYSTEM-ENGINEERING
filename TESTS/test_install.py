@@ -225,7 +225,6 @@ class ResolvePythonInterpreterTests(unittest.TestCase):
     def test_none_when_missing(self):
         self.assertIsNone(install.resolve_python_interpreter(lambda name: None))
 
-
 class PreflightTests(unittest.TestCase):
     def test_all_present_in_declared_order(self):
         which = lambda name: "/usr/bin/" + name
@@ -233,26 +232,35 @@ class PreflightTests(unittest.TestCase):
         items = install.preflight_dependencies("linux", which=which, selected_servers=["context7", "filesystem"])
         self.assertEqual(
             [i["name"] for i in items],
-            ["python", "node", "opencode"],
+            ["python", "node", "npx", "opencode"],
         )
         for item in items:
             self.assertEqual(item["status"], "PASS", item)
             self.assertTrue(item["guidance"])
 
-    def test_node_requires_npx_not_just_node(self):
-        # `node` alone cannot launch the npx-based servers. Registering them when
-        # only node.exe exists leaves a config that fails at runtime.
-        which = lambda name: "/usr/bin/node" if name == "node" else None
+    def test_node_is_required_for_selected_mcp_servers(self):
+        which = lambda name: "/usr/bin/python3" if name == "python3" else None
         items = {i["name"]: i for i in install.preflight_dependencies(
             "linux", which=which, selected_servers=["context7"]
         )}
         self.assertEqual(items["node"]["status"], "WARN")
-        self.assertIn("npx", items["node"]["detail"])
+        self.assertIn("node", items["node"]["detail"])
+        self.assertEqual(items["npx"]["status"], "WARN")
+        self.assertIn("npx", items["npx"]["detail"])
 
-    def test_node_skipped_when_not_needed(self):
+    def test_node_is_required_by_the_python_launcher(self):
         which = lambda name: "/usr/bin/" + name
-        # Without context7/filesystem, node should be skipped
-        items = install.preflight_dependencies("linux", which=which, selected_servers=["skill-server"])
+        items = install.preflight_dependencies(
+            "linux", which=which, selected_servers=["skill-server"]
+        )
+        self.assertEqual(
+            [i["name"] for i in items],
+            ["python", "node", "opencode"],
+        )
+
+    def test_node_skipped_when_no_mcp_is_selected(self):
+        which = lambda name: "/usr/bin/" + name
+        items = install.preflight_dependencies("linux", which=which, selected_servers=[])
         self.assertEqual(
             [i["name"] for i in items],
             ["python", "opencode"],
@@ -451,7 +459,7 @@ class BuildRegistrationsTests(unittest.TestCase):
         return [
             {"name": name, "status": "WARN" if name in missing else "PASS",
              "detail": "x", "guidance": "g", "purpose": "p"}
-            for name in ("python", "node", "opencode", "codegraph")
+            for name in ("python", "node", "npx", "opencode", "codegraph")
         ]
 
     def _build(self, keys, **over):
@@ -468,9 +476,11 @@ class BuildRegistrationsTests(unittest.TestCase):
         self.assertEqual(
             reg["command"],
             ["opencode", "mcp", "add", "se-skill-server", "--",
-             "python3", "/se/SCRIPTS/se_core/mcp/skill_server.py"],
+             "node", "/se/SCRIPTS/se_core/mcp/launch.mjs",
+             "/se/SCRIPTS/se_core/mcp/skill_server.py"],
         )
         self.assertEqual(reg["status"], "planned")
+        self.assertEqual(reg["requires"], ["node", "python"])
 
     def test_args_placeholder_resolved(self):
         by_key = {r["server"]: r for r in self._build(["filesystem"])}
@@ -507,9 +517,18 @@ class BuildRegistrationsTests(unittest.TestCase):
         self.assertIn("--env", reg["command"])
         self.assertIn("CONTEXT7_API_KEY={env:CONTEXT7_API_KEY}", reg["command"])
 
-    def test_interpreter_python_fallback(self):
-        reg = self._build(["skill-server"], interpreter="python")[0]
-        self.assertEqual(reg["command"][reg["command"].index("--") + 1], "python")
+    def test_interpreter_substituted_for_legacy_python_templates(self):
+        template = {
+            "key": "legacy", "name": "legacy", "command": "python3",
+            "args": ["${SE_ROOT}/legacy.py"], "env": {},
+        }
+        [reg] = install.build_registrations(
+            [template],
+            se_root="/se", project="/proj", project_id="PRJ-X",
+            interpreter="python", scope="project", register=True,
+            preflight=self._preflight(),
+        )
+        self.assertEqual(reg["command"][-2:], ["python", "/se/legacy.py"])
 
     def test_global_scope_inserts_flag(self):
         reg = self._build(["filesystem"], scope="global")[0]
@@ -520,6 +539,16 @@ class BuildRegistrationsTests(unittest.TestCase):
         reg = self._build(["context7"], preflight=self._preflight(missing=("node",)))[0]
         self.assertEqual(reg["status"], "skipped")
         self.assertIn("missing dependency: node", reg["reason"])
+
+    def test_python_server_checks_both_node_and_python(self):
+        missing_node = self._build(
+            ["skill-server"], preflight=self._preflight(missing=("node",))
+        )[0]
+        self.assertIn("missing dependency: node", missing_node["reason"])
+        missing_python = self._build(
+            ["skill-server"], preflight=self._preflight(missing=("python",))
+        )[0]
+        self.assertIn("missing dependency: python", missing_python["reason"])
 
     def test_failed_server_probe_skips_server(self):
         reg = self._build(
@@ -604,7 +633,7 @@ class RunServerVerificationTests(unittest.TestCase):
                 code = install.run(
                     args,
                     platform_name="windows",
-                    which=lambda name: name if name in ("python3", "npx", "opencode") else None,
+                    which=lambda name: name if name in ("python3", "node", "npx", "opencode") else None,
                     server_probe=lambda spec, **kwargs: (
                         False, "node exited 1"
                     ) if spec["name"] == "context7" else (True, "ok"),
@@ -745,7 +774,7 @@ class RecordLifecycleStateTests(unittest.TestCase):
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
                 code = install.run(args, platform_name="windows", runner=runner,
-                                   which=lambda name: name in ("python", "opencode"))
+                                   which=lambda name: name in ("python", "node", "npx", "opencode"))
             self.assertEqual(code, 0, buffer.getvalue())
             self.assertTrue(lc.state_path(project).exists())
             state = lc.load_state(project)
@@ -765,7 +794,7 @@ class RecordLifecycleStateTests(unittest.TestCase):
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
                 code = install.run(args, platform_name="windows", runner=FakeRunner(),
-                                   which=lambda name: name in ("python", "opencode"))
+                                   which=lambda name: name in ("python", "node", "npx", "opencode"))
             self.assertEqual(code, 0, buffer.getvalue())
             self.assertFalse(lc.state_path(project).exists())
 
@@ -798,7 +827,7 @@ class GlobalScopeRunTests(unittest.TestCase):
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
                 code = install.run(self._args(project, True), platform_name="windows",
-                                   runner=runner, which=lambda name: name in ("python", "opencode"))
+                                   runner=runner, which=lambda name: name in ("python", "node", "npx", "opencode"))
             self.assertEqual(code, 0, buffer.getvalue())
             self.assertTrue(lc.state_path(project).exists())
             state = lc.load_state(project)
@@ -811,7 +840,7 @@ class GlobalScopeRunTests(unittest.TestCase):
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
                 code = install.run(self._args(project, True), platform_name="windows",
-                                   runner=runner, which=lambda name: name in ("python", "opencode"))
+                                   runner=runner, which=lambda name: name in ("python", "node", "npx", "opencode"))
             self.assertEqual(code, 1, buffer.getvalue())
             self.assertIn("does not support --global", buffer.getvalue())
             self.assertEqual(len(runner.calls), 1)
@@ -849,9 +878,9 @@ class EnvironmentTargetTests(unittest.TestCase):
         self.assertIsNone(install.path_mapper_for("windows", "auto"))
         self.assertIsNotNone(install.path_mapper_for("windows", "wsl"))
 
-    def test_python_interpreter_prefers_portable_spelling(self):
+    def test_python_interpreter_prefers_native_spelling(self):
         both = lambda name: name in ("python", "python3")
-        self.assertEqual(install.resolve_python_interpreter(both, env_target="windows"), "python3")
+        self.assertEqual(install.resolve_python_interpreter(both, env_target="windows"), "python")
         self.assertEqual(install.resolve_python_interpreter(both, env_target="wsl"), "python3")
         only_python = lambda name: name == "python"
         self.assertEqual(install.resolve_python_interpreter(only_python, env_target="windows"), "python")

@@ -14,8 +14,9 @@ This module implements the setup pipeline behind the ``se install`` command:
    server and require a JSON-RPC ``initialize`` response, so a server that
    cannot launch is skipped instead of being written to the runtime config;
 6. translate ``TEMPLATES/mcp/*.json.tmpl`` into ``opencode mcp add`` registrations,
-   resolving ``${SE_ROOT}`` / ``${SE_PROJECT_ROOT}`` placeholders and the
-   ``python3`` -> ``python`` interpreter name at registration time;
+   resolving ``${SE_ROOT}`` / ``${SE_PROJECT_ROOT}`` placeholders; the Python
+   MCP servers run through the portable Node launcher, which resolves the host
+   interpreter at startup;
 7. summarize registered / skipped / missing pieces plus the environment variables
    the user must provide (``SE_ROOT``, ``SE_PROJECT_ROOT``, ``CONTEXT7_API_KEY``, ...).
 
@@ -80,14 +81,14 @@ _MCP_INITIALIZED_NOTIFICATION = {
 #: candidate executable names to probe and per-OS install guidance. v1 never
 #: installs anything automatically; it reports and guides.
 #:
-#: ``node`` is special: it is only required when MCP servers that depend on it
-#: (``context7``, ``filesystem``) are selected. The preflight logic handles this
-#: conditionally based on the selected servers.
+#: ``node`` is special: it is only required when MCP servers are selected. It
+#: runs both the npx-based servers and the portable launcher used by the SE
+#: Python MCP servers. The preflight logic handles this conditionally.
 DEPENDENCIES = (
     {
         "name": "python",
         "commands": ("python3", "python"),
-        "purpose": "Runs the SE reference CLI and the SE skill-server MCP.",
+        "purpose": "Runs the SE reference CLI and the SE Python MCP servers.",
         "guidance": {
             "windows": "Install Python 3 from https://www.python.org/downloads/ "
                        "(winget install Python.Python.3.12) and ensure it is on PATH.",
@@ -98,13 +99,23 @@ DEPENDENCIES = (
     },
     {
         "name": "node",
-        "commands": ("npx",),
-        "purpose": "Runs the npx-based MCP servers (context7, filesystem). Only required when those servers are selected; the launcher is npx, not node alone.",
+        "commands": ("node",),
+        "purpose": "Runs the portable MCP launcher. Required when any MCP server is selected.",
         "guidance": {
             "windows": "Install Node.js LTS: winget install OpenJS.NodeJS.LTS "
                        "(provides node and npx).",
             "linux": "Install Node.js with your package manager (apt install nodejs npm).",
             "macos": "Install Node.js (brew install node).",
+        },
+    },
+    {
+        "name": "npx",
+        "commands": ("npx",),
+        "purpose": "Runs the npx-based MCP servers (context7, filesystem).",
+        "guidance": {
+            "windows": "npx ships with Node.js LTS; reinstall Node.js if it is missing.",
+            "linux": "Install npm (usually packaged with Node.js): apt install npm.",
+            "macos": "npx ships with Node.js; reinstall it with brew install node.",
         },
     },
     {
@@ -119,11 +130,14 @@ DEPENDENCIES = (
     },
 )
 
-#: MCP server key -> dependency name required to launch it (see :data:`DEPENDENCIES`).
-SERVER_DEPENDENCY = {
-    "context7": "node",
-    "filesystem": "node",
-    "skill-server": "python",
+#: MCP server key -> dependency names required to launch it (see
+#: :data:`DEPENDENCIES`). The Python servers need both Node (for the portable
+#: launcher) and Python (for the server itself).
+SERVER_DEPENDENCIES = {
+    "context7": ("node", "npx"),
+    "filesystem": ("node", "npx"),
+    "memory-server": ("node", "python"),
+    "skill-server": ("node", "python"),
 }
 
 
@@ -497,11 +511,11 @@ def verify_mcp_servers(
 ) -> list[dict]:
     """Probe selected npx-based MCP servers and return per-server results.
 
-    Only servers that declare the ``node`` dependency are probed: the Python
-    servers are covered by the interpreter preflight and do not download a
-    package on first launch. A failed probe is a ``WARN`` item, never an
-    exception; :func:`build_registrations` turns it into a skipped server so a
-    broken entry is not written to the runtime config.
+    Only npx-based servers are probed: the Python servers are covered by the
+    dependency preflight and are launched through the portable Node launcher.
+    A failed probe is a ``WARN`` item, never an exception;
+    :func:`build_registrations` turns it into a skipped server so a broken entry
+    is not written to the runtime config.
     """
     state_by_dependency = {item["name"]: item for item in (preflight or [])}
     if state_by_dependency.get("node", {}).get("status") != "PASS":
@@ -509,7 +523,7 @@ def verify_mcp_servers(
     probe = probe or probe_mcp_server
     results = []
     for template in templates:
-        if SERVER_DEPENDENCY.get(template["key"]) != "node":
+        if template["command"] != "npx":
             continue
         spec = resolved_server_spec(
             template,
@@ -636,17 +650,17 @@ def select_servers(
 
 
 def resolve_python_interpreter(which=None, env_target: str | None = None) -> str | None:
-    """Return the python command to register.
+    """Return the Python command for the dependency preflight.
 
-    ``python3`` is preferred everywhere: it is the portable spelling (present on
-    Linux/WSL and, as an alias, on Windows) and the one the version-tracked
-    configuration uses, so install/sync/update all resolve the same command.
-    ``python`` is the fallback for Windows installs that only provide it.
-    ``env_target`` is accepted for symmetry with the other resolvers and does not
-    change the order. ``which`` is injectable for tests.
+    The MCP servers themselves are launched by the portable Node launcher,
+    which resolves the interpreter at startup. This resolver only decides what
+    ``se install`` reports: prefer the native spelling for the target
+    (``python`` on Windows, ``python3`` elsewhere) and fall back to the other
+    one. ``which`` is injectable for tests.
     """
     which = which or shutil.which
-    for candidate in ("python3", "python"):
+    candidates = ("python", "python3") if env_target == "windows" else ("python3", "python")
+    for candidate in candidates:
         if which(candidate):
             return candidate
     return None
@@ -662,8 +676,8 @@ def preflight_dependencies(
     "purpose"}``. ``which`` (executable lookup) and ``interpreter`` (pre-resolved
     python name) are injectable for tests. Nothing is ever installed.
 
-    ``selected_servers`` controls conditional dependencies: ``node`` is only
-    probed when ``context7`` or ``filesystem`` are in the selected servers.
+    ``selected_servers`` controls conditional dependencies: ``node`` is probed
+    when any selected MCP server needs it (the portable launcher or ``npx``).
 
     ``probe`` is an optional ``command -> (ok, version, detail)`` callable
     (see :func:`probe_command_version`). When provided, node/opencode are
@@ -674,14 +688,15 @@ def preflight_dependencies(
     which = which or shutil.which
     items = []
 
-    # Determine if node is needed (context7 or filesystem selected)
-    node_needed = False
-    if selected_servers:
-        node_needed = any(s in selected_servers for s in ("context7", "filesystem"))
+    # Python and OpenCode are always relevant. MCP-specific tools are added
+    # only for the selected servers (Node for the launcher, npx for the
+    # package-based servers).
+    required = {"python", "opencode"}
+    for server in (selected_servers or ()):
+        required.update(SERVER_DEPENDENCIES.get(server, ()))
 
     for dep in DEPENDENCIES:
-        # Skip node if not needed
-        if dep["name"] == "node" and not node_needed:
+        if dep["name"] not in required:
             continue
 
         if dep["name"] == "python":
@@ -768,9 +783,10 @@ def build_registrations(
 
     Each record carries the exact ``command`` argv, ``status`` (``planned`` /
     ``skipped`` / ``registered``) and a ``reason`` when skipped. A server whose
-    declared dependency is missing, whose runtime probe failed, or all servers
-    when ``--no-register`` is used, are ``skipped``. The python interpreter name
-    is substituted into the command.
+    declared dependencies are missing, whose runtime probe failed, or all
+    servers when ``--no-register`` is used, are ``skipped``. A template that
+    still declares a ``python*`` command has the resolved interpreter
+    substituted; the SE Python servers use the portable Node launcher instead.
     """
     context = {
         "se_root": str(se_root),
@@ -782,13 +798,13 @@ def build_registrations(
     registrations = []
     for template in templates:
         key = template["key"]
-        dependency = SERVER_DEPENDENCY.get(key)
+        dependencies = list(SERVER_DEPENDENCIES.get(key, ()))
         registration = {
             "server": key,
             "name": template["name"],
             "status": "planned",
             "reason": None,
-            "requires": [dependency] if dependency else [],
+            "requires": dependencies,
             "command": [],
         }
         if not register:
@@ -796,9 +812,17 @@ def build_registrations(
             registration["reason"] = "registration disabled (--no-register)"
             registrations.append(registration)
             continue
-        if dependency and state_by_dependency.get(dependency, {}).get("status") != "PASS":
+        missing = next(
+            (
+                dependency
+                for dependency in dependencies
+                if state_by_dependency.get(dependency, {}).get("status") != "PASS"
+            ),
+            None,
+        )
+        if missing:
             registration["status"] = "skipped"
-            registration["reason"] = f"missing dependency: {dependency}"
+            registration["reason"] = f"missing dependency: {missing}"
             registrations.append(registration)
             continue
         probe = probe_by_server.get(key)

@@ -204,9 +204,9 @@ class RenderSyncTests(unittest.TestCase):
 class CmdSyncTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        self.project = Path(self._tmp.name)
+        self.project = Path(self._tmp.name).resolve()
         self.runner = FakeRunner()
-        self.which = lambda name: name in ("python", "opencode")
+        self.which = lambda name: name in ("python", "node", "npx", "opencode")
 
     def tearDown(self):
         self._tmp.cleanup()

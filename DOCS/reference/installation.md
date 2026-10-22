@@ -15,7 +15,9 @@ On Windows the interpreter is `python`, so throughout this guide read `python3` 
 
 | Dependency | Required | Purpose |
 |---|---|---|
-| `python3` | **yes** | Runs the reference CLI (`SCRIPTS/se.py`) |
+| `python3` | **yes** | Runs the reference CLI (`SCRIPTS/se.py`) and the SE Python MCP servers |
+| `node` | **yes for MCP** | Runs the portable Python MCP launcher |
+| `npx` | **yes for MCP** | Runs the package-based MCP servers (`context7`, `filesystem`) |
 | `jsonschema` | **yes** | Schema validation; `se doctor` reports FAIL without it |
 | `PyYAML` | optional | Skill frontmatter parsing (falls back to a line parser if absent) |
 | `requests` | optional | `local` LLM provider (Ollama / vLLM / OpenAI-compatible) |
@@ -82,9 +84,9 @@ are missing and refreshes the process `PATH` before running `se install`. If no
 winget/Chocolatey/Scoop is available, Node falls back to the official LTS ZIP from
 nodejs.org (SHA256 verified, installed under `%LOCALAPPDATA%\Programs\node`) and
 OpenCode to its standalone binary. If a tool was installed but is still not found,
-open a new terminal and rerun. `se install` registers only servers whose launcher
-is present (`npx` for `context7`/`filesystem`); a skipped server is reported, not
-marked installed.
+open a new terminal and rerun. `se install` registers only servers whose dependencies
+are present (`node` + `npx` for `context7`/`filesystem`; `node` + Python for the SE
+servers); a skipped server is reported, not marked installed.
 
 > **Where to put a virtualenv.** The one-command entry points keep their venv at
 > `SE-INSTALLER/.venv`, which `se doctor` audits cleanly. If you create your own venv,
@@ -218,6 +220,7 @@ python3 SCRIPTS/se.py install --bootstrap   # run se-installer, then register
 | `context7` | Up-to-date library documentation | yes |
 | `filesystem` | Read/write files under a root (MCP reference server) | yes |
 | `skill-server` | SE's own stdio skill server (SDD/ODD/RDD + skill catalog tools) | SE-owned |
+| `memory-server` | SE's shared memory engine over MCP | SE-owned |
 
 ### skill_catalog_install
 
@@ -262,9 +265,11 @@ A server whose external binary is missing (for example `context7` before its CLI
 available) is **skipped** with per-OS install guidance; a server that fails the
 `initialize` handshake is also skipped with the probe output. `se install` never installs
 third-party tools itself (the handshake only lets `npx` fetch its own package into its
-cache). The python interpreter name is resolved at registration time (`python3`, else
-`python`), and `se install` only registers a server when its dependency is present and,
-unless disabled, its runtime probe passes.
+cache). The SE Python servers are launched through
+`SCRIPTS/se_core/mcp/launch.mjs`, a portable Node launcher that resolves `python3` or
+`python` at startup; `SE_PYTHON` can pin a specific interpreter. `se install` only
+registers a server when its dependencies are present and, unless disabled, its runtime
+probe passes.
 
 ### Configuration shape (OpenCode V2)
 
@@ -293,10 +298,11 @@ field — a server is active unless `disabled` is `true`. Environment values sup
 **Portability rule.** Configuration committed to a repository is host-independent:
 relative paths (`"."`, `SCRIPTS/...`) and `{env:NAME}` references, never absolute host
 paths. Host-specific resolution (absolute paths, interpreter names, credentials) belongs
-to the machine, not the repo — it lives in the runtime's global configuration or in
-environment variables. `se doctor`'s self-containment check fails any absolute host path
-that reaches an operational surface (`opencode.jsonc`, `SCRIPTS/`, `CORE/`, ...), so the
-tracked config keeps working on Windows, WSL and Linux alike.
+to the machine, not the repo; it lives in the runtime's global configuration or in
+environment variables. The Python MCP entries therefore invoke the Node launcher instead
+of naming a host-specific Python interpreter, so the tracked config keeps working on
+Windows, WSL and Linux alike. `se doctor`'s self-containment check fails any absolute host path
+that reaches an operational surface (`opencode.jsonc`, `SCRIPTS/`, `CORE/`, ...).
 
 ### Lifecycle
 

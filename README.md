@@ -160,9 +160,10 @@ SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
 SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
 ```
 
-`se install` registers the SE MCP servers with the interpreter available on this
-host (`python` on Windows, `python3` elsewhere) and rewrites only the MCP entries
-in `opencode.jsonc`.
+`se install` registers the SE MCP servers through the portable Node launcher
+`SCRIPTS/se_core/mcp/launch.mjs`, which resolves `python3` or `python` at startup,
+and rewrites only the MCP entries in `opencode.jsonc`. Set `SE_PYTHON` to pin a
+specific interpreter.
 
 - **`shema-ai-coordinador`** is the primary agent: it orchestrates the lifecycle and routes work
   to the other roles (`planner`, `implementer`, `tester`, `reviewer`, ...), each of

@@ -180,12 +180,18 @@ and save memories without duplicating the engine.
 ### Registration
 
 The adapter generates `.opencode/mcp/memory-server.json` (portable, `${SE_ROOT}`
-placeholders). To activate in OpenCode, add to `opencode.jsonc`:
+placeholders). The Node launcher resolves `python3` or `python` at startup, so the
+same entry works on Windows, WSL, Linux and macOS. To activate in OpenCode, add to
+`opencode.jsonc`:
 
 ```json
 "se-memory-server": {
   "type": "local",
-  "command": ["python3", "SCRIPTS/se_core/mcp/memory_server.py"],
+  "command": [
+    "node",
+    "SCRIPTS/se_core/mcp/launch.mjs",
+    "SCRIPTS/se_core/mcp/memory_server.py"
+  ],
   "environment": {},
   "cwd": "."
 }
@@ -196,7 +202,11 @@ For global config (any directory), use absolute paths:
 ```json
 "se-memory-server": {
   "type": "local",
-  "command": ["python3", "D:/servidor-ia/SYSTEM-ENGINEERING/SCRIPTS/se_core/mcp/memory_server.py"],
+  "command": [
+    "node",
+    "D:/servidor-ia/SYSTEM-ENGINEERING/SCRIPTS/se_core/mcp/launch.mjs",
+    "D:/servidor-ia/SYSTEM-ENGINEERING/SCRIPTS/se_core/mcp/memory_server.py"
+  ],
   "environment": {},
   "cwd": "D:/servidor-ia/SYSTEM-ENGINEERING"
 }
