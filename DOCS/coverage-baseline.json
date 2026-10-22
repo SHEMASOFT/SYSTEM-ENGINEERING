@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-10-22T14:13:06Z",
+  "created_at": "2026-10-22T16:03:47Z",
   "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
   "minimums": {
     "reference": 30
@@ -161,7 +161,7 @@
       },
       {
         "path": "DOCS/reference/versioning-strategy.md",
-        "hash": "fc4925ef05f4f796"
+        "hash": "ffdafa32cfbdb2fe"
       },
       {
         "path": "DOCS/reference/versioning.md",
