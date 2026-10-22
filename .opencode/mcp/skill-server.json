@@ -1,6 +1,9 @@
 {
   "name": "se-skill-server",
   "type": "mcp",
-  "command": "python3",
-  "args": ["${SE_ROOT}/SCRIPTS/se_core/mcp/skill_server.py"]
+  "command": "node",
+  "args": [
+    "${SE_ROOT}/SCRIPTS/se_core/mcp/launch.mjs",
+    "${SE_ROOT}/SCRIPTS/se_core/mcp/skill_server.py"
+  ]
 }

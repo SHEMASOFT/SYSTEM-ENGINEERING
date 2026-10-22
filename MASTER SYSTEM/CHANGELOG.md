@@ -9,6 +9,12 @@ Versions are normalized SemVer (see `DOCS/VERSIONING_STRATEGY.md`).
 
 ### Added
 
+- **Portable MCP Python launcher**: `SCRIPTS/se_core/mcp/launch.mjs` resolves
+  `python3`/`python` at runtime and launches the SE Python MCP servers. The tracked
+  `opencode.jsonc`, MCP templates and generated runtime configs now invoke the launcher
+  through `node`, so the same configuration works on Windows, WSL, Linux and macOS
+  without a host-specific interpreter name. Set `SE_PYTHON` to pin an interpreter.
+
 - **Ecosystem capability set (ARCH-ECOSYSTEM-002/003)**: three new canonical skills plus
   documentation and informational automation, no CORE changes, no release.
   - **Canonical skills** (each `SKILL.md` + `SKILL.json`): `dbg-systematic` (SK-0004, workflow;

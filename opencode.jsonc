@@ -28,7 +28,8 @@
       "se-skill-server": {
         "type": "local",
         "command": [
-          "python3",
+          "node",
+          "SCRIPTS/se_core/mcp/launch.mjs",
           "SCRIPTS/se_core/mcp/skill_server.py"
         ],
         "environment": {},
@@ -37,7 +38,8 @@
       "se-memory-server": {
         "type": "local",
         "command": [
-          "python3",
+          "node",
+          "SCRIPTS/se_core/mcp/launch.mjs",
           "SCRIPTS/se_core/mcp/memory_server.py"
         ],
         "environment": {},

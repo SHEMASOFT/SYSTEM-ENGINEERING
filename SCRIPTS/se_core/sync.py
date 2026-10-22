@@ -259,8 +259,10 @@ def cmd_sync(args, *, platform_name=None, runner=None, which=None) -> int:
     }
 
     if apply_names and not dry_run:
-        preflight = install.preflight_dependencies(os_name, which=which)
         selected = [t for t in templates if t["name"] in set(apply_names)]
+        preflight = install.preflight_dependencies(
+            os_name, which=which, selected_servers=[t["key"] for t in selected]
+        )
         registrations = install.build_registrations(
             selected,
             se_root=se_root,

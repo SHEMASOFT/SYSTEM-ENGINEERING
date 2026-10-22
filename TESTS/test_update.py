@@ -308,7 +308,7 @@ class LifecycleUpdateCmdTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.project = Path(self._tmp.name)
         self.runner = FakeRunner()
-        self.which = lambda name: name in ("python", "opencode")
+        self.which = lambda name: name in ("python", "node", "npx", "opencode")
 
     def tearDown(self):
         self._tmp.cleanup()
