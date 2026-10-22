@@ -29,6 +29,35 @@ Semver normalization: `VERSION` files store the **normalized** form (`0.4.0`) wi
 
 A documentation-only change that does not affect behavior must NOT bump.
 
+## Release automation
+
+`SCRIPTS/release_master.py` automates the mechanical part of a release without
+deciding the bump:
+
+```powershell
+python SCRIPTS/release_master.py --check
+python SCRIPTS/release_master.py --bump patch --reason "fix: describe the change"
+python SCRIPTS/release_master.py --bump minor --reason "feat: describe the change"
+```
+
+- `--check` verifies `VERSION`, `SYSTEM.json`, `MASTER SYSTEM/VERSION`,
+  `MASTER SYSTEM/MANIFEST.json`, the generated OpenCode adapter manifest, and
+  the current-version markers in `README.md` and `DOCS/reference/versioning.md`.
+- `--bump` updates those references, inserts the release in
+  `MASTER SYSTEM/CHANGELOG.md`, regenerates the OpenCode adapter, rebases the
+  documentation coverage baseline, and runs `se validate`, `se doctor`, and the
+  full test suite.
+- `--dry-run` prints the planned transition without writing.
+- The script refuses a dirty working tree unless `--allow-dirty` is passed, and
+  refuses a major bump while the system is still on `0.x`.
+- Historical references are never rewritten. The operator still commits the
+  result and creates the `vX.Y.Z` tag after review.
+
+The same flow is available from GitHub Actions: **Release Master System** ->
+**Run workflow**, with `patch`/`minor` and a reason. The workflow opens a release
+pull request; review and merge it, then create the `vX.Y.Z` tag. The workflow
+does not run the full suite itself; CI does that on the resulting pull request.
+
 ## Master System compatibility pinning
 
 - `PROJECT.json.master_system_version` declares the floor version a project expects.

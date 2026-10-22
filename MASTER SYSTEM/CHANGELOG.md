@@ -9,6 +9,12 @@ Versions are normalized SemVer (see `DOCS/VERSIONING_STRATEGY.md`).
 
 ### Added
 
+- **Release automation**: `SCRIPTS/release_master.py` now checks the active version
+  references (`--check`) and applies a controlled `patch`/`minor` release
+  (`--bump`), including mirrors, current-version docs, CHANGELOG, generated
+  OpenCode adapter, coverage baseline, and validation. The decision to bump
+  remains manual; historical references are never rewritten.
+
 - **Ecosystem capability set (ARCH-ECOSYSTEM-002/003)**: three new canonical skills plus
   documentation and informational automation, no CORE changes, no release.
   - **Canonical skills** (each `SKILL.md` + `SKILL.json`): `dbg-systematic` (SK-0004, workflow;

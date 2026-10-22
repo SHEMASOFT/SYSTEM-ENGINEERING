@@ -32,6 +32,9 @@ jobs:
       - name: Validate contracts and coverage
         run: python SCRIPTS/se.py validate
 
+      - name: Release version consistency
+        run: python SCRIPTS/release_master.py --check
+
       - name: Tests
         shell: bash
         run: |

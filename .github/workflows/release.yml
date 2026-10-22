@@ -1,0 +1,75 @@
+name: Release Master System
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump kind
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+      reason:
+        description: Release reason recorded in MASTER SYSTEM/CHANGELOG.md
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-master
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare release pull request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install jsonschema PyYAML requests
+
+      - name: Prepare release
+        env:
+          RELEASE_REASON: ${{ inputs.reason }}
+        run: |
+          python SCRIPTS/release_master.py \
+            --bump "${{ inputs.bump }}" \
+            --reason "$RELEASE_REASON" \
+            --skip-tests
+
+      - name: Read release version
+        id: release
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit release branch
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "release/v${VERSION}-${RUN_ID}"
+          git add -A
+          git commit -m "release: v${VERSION}"
+          git push origin "HEAD:release/v${VERSION}-${RUN_ID}"
+
+      - name: Open release pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "release/v${VERSION}-${RUN_ID}" \
+            --title "release: v${VERSION}" \
+            --body "Automated release preparation for v${VERSION}. Review the version references, changelog, generated adapter, and coverage ledger; CI will run the full suite."
