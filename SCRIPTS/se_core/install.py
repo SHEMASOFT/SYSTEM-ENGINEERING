@@ -10,10 +10,13 @@ This module implements the setup pipeline behind the ``se install`` command:
 3. optionally run the unified SE installer (``se-installer``) via ``--bootstrap``
    to install SE Core, Console, MCPs, runtimes, and generate runtime configs;
 4. optionally generate the OpenCode adapter for the target project;
-5. translate ``TEMPLATES/mcp/*.json.tmpl`` into ``opencode mcp add`` registrations,
+5. unless ``--no-verify-servers`` is used, start each selected npx-based MCP
+   server and require a JSON-RPC ``initialize`` response, so a server that
+   cannot launch is skipped instead of being written to the runtime config;
+6. translate ``TEMPLATES/mcp/*.json.tmpl`` into ``opencode mcp add`` registrations,
    resolving ``${SE_ROOT}`` / ``${SE_PROJECT_ROOT}`` placeholders and the
    ``python3`` -> ``python`` interpreter name at registration time;
-6. summarize registered / skipped / missing pieces plus the environment variables
+7. summarize registered / skipped / missing pieces plus the environment variables
    the user must provide (``SE_ROOT``, ``SE_PROJECT_ROOT``, ``CONTEXT7_API_KEY``, ...).
 
 Every boundary that touches the outside world (subprocess execution, executable
@@ -23,10 +26,15 @@ lookup, the current platform) is injectable so the unit tests never spawn the re
 
 from __future__ import annotations
 
+import json
+import os
+import queue
 import re
 import shutil
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 from .paths import load_json, repo_root
@@ -46,6 +54,27 @@ _ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 #: Environment variables every registered runtime needs.
 ALWAYS_REPORTED_ENV_VARS = ("SE_ROOT", "SE_PROJECT_ROOT")
+
+#: MCP stdio handshake used to prove that an npx server actually starts. The
+#: server is asked to ``initialize`` and must answer with a JSON-RPC result.
+MCP_PROTOCOL_VERSION = "2024-11-05"
+MCP_PROBE_TIMEOUT = 120
+
+_MCP_INITIALIZE_REQUEST = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": MCP_PROTOCOL_VERSION,
+        "capabilities": {},
+        "clientInfo": {"name": "se-install", "version": "1"},
+    },
+}
+_MCP_INITIALIZED_NOTIFICATION = {
+    "jsonrpc": "2.0",
+    "method": "notifications/initialized",
+    "params": {},
+}
 
 #: External tools probed by preflight, in report order. Each entry declares the
 #: candidate executable names to probe and per-OS install guidance. v1 never
@@ -288,6 +317,224 @@ def probe_command_version(command: str, *, runner=None, timeout: int = 20):
     return False, None, output[:300] or f"exit {getattr(result, 'returncode', 'unknown')}"
 
 
+def _readline_with_timeout(stream, timeout: float):
+    """Return one line from ``stream``, or ``None`` when the timeout expires."""
+    result: queue.Queue = queue.Queue(maxsize=1)
+
+    def read_line() -> None:
+        try:
+            result.put(stream.readline())
+        except Exception as exc:  # noqa: BLE001 - surfaced by the caller
+            result.put(exc)
+
+    threading.Thread(target=read_line, daemon=True).start()
+    try:
+        return result.get(timeout=timeout)
+    except queue.Empty:
+        return None
+
+
+def _kill_process_tree(proc) -> None:
+    """Kill a probe server and its children (``npx`` is a shim plus Node)."""
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True,
+                timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            return
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
+
+
+def probe_mcp_server(spec: dict, *, timeout: float = MCP_PROBE_TIMEOUT,
+                     cwd=None, env: dict | None = None) -> tuple[bool, str]:
+    """Start an MCP stdio server and prove it answers ``initialize``.
+
+    A server can be "installed" (``npx`` exists, the package is cached) and still
+    fail to start: a moved Node install, a broken shim, a package that needs a
+    native addon, or a project path that no longer exists. ``--help`` cannot be
+    used as a universal probe (the filesystem server treats it as a directory),
+    so the probe speaks the protocol instead.
+
+    Returns ``(ok, detail)``. The process is always reaped; a slow or silent
+    server is reported as a probe failure instead of being registered.
+    """
+    command = list(spec.get("command") or [])
+    if not command:
+        return False, "empty command"
+
+    executable = shutil.which(command[0])
+    if not executable:
+        return False, f"{command[0]} not found on PATH"
+    argv = [executable, *command[1:]]
+    if os.name == "nt" and executable.lower().endswith((".cmd", ".bat")):
+        # ``CreateProcess`` cannot launch a .cmd shim directly. ``cmd /c`` also
+        # handles the quotes npx puts around paths with spaces.
+        argv = [
+            os.environ.get("COMSPEC", "cmd.exe"),
+            "/d",
+            "/s",
+            "/c",
+            subprocess.list2cmdline(argv),
+        ]
+
+    process_env = os.environ.copy()
+    process_env.update(env or {})
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    try:
+        proc = subprocess.Popen(
+            argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+            cwd=str(cwd) if cwd else None,
+            env=process_env,
+            creationflags=creationflags,
+        )
+    except OSError as exc:
+        return False, f"could not start {command[0]}: {exc}"
+
+    deadline = time.monotonic() + timeout
+    detail = "server did not answer initialize"
+    try:
+        assert proc.stdin is not None
+        proc.stdin.write(json.dumps(_MCP_INITIALIZE_REQUEST) + "\n")
+        proc.stdin.flush()
+        while time.monotonic() < deadline:
+            line = _readline_with_timeout(proc.stdout, max(0.1, deadline - time.monotonic()))
+            if line is None:
+                break
+            if isinstance(line, Exception):
+                detail = f"could not read server output: {line}"
+                break
+            text = line.strip()
+            if not text:
+                continue
+            try:
+                message = json.loads(text)
+            except json.JSONDecodeError:
+                # npx/npm notices and server logging can share stdout; keep
+                # reading until the JSON-RPC response or the deadline.
+                continue
+            if not isinstance(message, dict) or message.get("id") != 1:
+                continue
+            if message.get("error"):
+                detail = f"initialize failed: {message['error']}"
+                return False, detail
+            result = message.get("result")
+            if isinstance(result, dict):
+                info = result.get("serverInfo") or {}
+                name = info.get("name") or spec.get("name") or command[0]
+                version = info.get("version")
+                detail = " ".join(str(part) for part in (name, version) if part)
+                try:
+                    proc.stdin.write(json.dumps(_MCP_INITIALIZED_NOTIFICATION) + "\n")
+                    proc.stdin.flush()
+                except OSError:
+                    pass
+                return True, detail
+        return False, detail
+    except OSError as exc:
+        return False, f"could not talk to {command[0]}: {exc}"
+    finally:
+        try:
+            if proc.stdin and not proc.stdin.closed:
+                proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            _kill_process_tree(proc)
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                pass
+        for stream in (proc.stdout, proc.stderr):
+            try:
+                if stream and not stream.closed:
+                    stream.close()
+            except OSError:
+                pass
+
+
+def _probe_environment(values: dict) -> dict:
+    """Turn declared ``{env:NAME}`` references into the caller's real values."""
+    resolved = {}
+    for name, value in (values or {}).items():
+        if isinstance(value, str) and value.startswith("{env:") and value.endswith("}"):
+            actual = os.environ.get(name)
+            if actual:
+                resolved[name] = actual
+        else:
+            resolved[name] = value
+    return resolved
+
+
+def verify_mcp_servers(
+    templates: list[dict],
+    *,
+    se_root: Path | str,
+    project: Path | str,
+    project_id: str,
+    interpreter: str | None,
+    preflight: list[dict] | None = None,
+    probe=None,
+    timeout: float = MCP_PROBE_TIMEOUT,
+) -> list[dict]:
+    """Probe selected npx-based MCP servers and return per-server results.
+
+    Only servers that declare the ``node`` dependency are probed: the Python
+    servers are covered by the interpreter preflight and do not download a
+    package on first launch. A failed probe is a ``WARN`` item, never an
+    exception; :func:`build_registrations` turns it into a skipped server so a
+    broken entry is not written to the runtime config.
+    """
+    state_by_dependency = {item["name"]: item for item in (preflight or [])}
+    if state_by_dependency.get("node", {}).get("status") != "PASS":
+        return []
+    probe = probe or probe_mcp_server
+    results = []
+    for template in templates:
+        if SERVER_DEPENDENCY.get(template["key"]) != "node":
+            continue
+        spec = resolved_server_spec(
+            template,
+            se_root=se_root,
+            project=project,
+            project_id=project_id,
+            interpreter=interpreter,
+        )
+        spec = {
+            "name": template["key"],
+            "command": spec["command"],
+            "environment": _probe_environment(spec["environment"]),
+        }
+        try:
+            ok, detail = probe(spec, timeout=timeout, cwd=str(project))
+        except Exception as exc:  # noqa: BLE001 - a probe failure is reportable
+            ok, detail = False, f"probe raised: {exc}"
+        results.append({
+            "server": template["key"],
+            "status": "PASS" if ok else "WARN",
+            "detail": detail or ("server answered initialize" if ok else "server did not start"),
+        })
+    return results
+
+
 _OPENCODE_BROKEN_HINTS = ("postinstall", "not a valid application", "is not recognized", "no such file")
 _OPENCODE_VERSION_RE = re.compile(r"(\d+)\.(\d+)")
 
@@ -515,13 +762,15 @@ def build_registrations(
     scope: str = "project",
     register: bool = True,
     preflight: list[dict] | None = None,
+    server_probes: list[dict] | None = None,
 ) -> list[dict]:
     """Build the ``opencode mcp add`` registration records for the selected servers.
 
     Each record carries the exact ``command`` argv, ``status`` (``planned`` /
     ``skipped`` / ``registered``) and a ``reason`` when skipped. A server whose
-    declared dependency is missing, or all servers when ``--no-register`` is used,
-    are ``skipped``. The python interpreter name is substituted into the command.
+    declared dependency is missing, whose runtime probe failed, or all servers
+    when ``--no-register`` is used, are ``skipped``. The python interpreter name
+    is substituted into the command.
     """
     context = {
         "se_root": str(se_root),
@@ -529,6 +778,7 @@ def build_registrations(
         "project_id": project_id,
     }
     state_by_dependency = {item["name"]: item for item in (preflight or [])}
+    probe_by_server = {item["server"]: item for item in (server_probes or [])}
     registrations = []
     for template in templates:
         key = template["key"]
@@ -549,6 +799,14 @@ def build_registrations(
         if dependency and state_by_dependency.get(dependency, {}).get("status") != "PASS":
             registration["status"] = "skipped"
             registration["reason"] = f"missing dependency: {dependency}"
+            registrations.append(registration)
+            continue
+        probe = probe_by_server.get(key)
+        if probe is not None and probe.get("status") != "PASS":
+            registration["status"] = "skipped"
+            registration["reason"] = (
+                f"server probe failed: {probe.get('detail') or 'server did not start'}"
+            )
             registrations.append(registration)
             continue
 
@@ -888,16 +1146,19 @@ def build_plan(
     templates: list[dict] | None = None,
     preflight: list[dict] | None = None,
     registrations: list[dict] | None = None,
+    server_probes: list[dict] | None = None,
     adapter: dict | None = None,
 ) -> dict:
     """Build the deterministic install plan (a plain JSON-serializable dict).
 
-    ``preflight``, ``registrations`` and ``adapter`` are produced by earlier pipeline
-    stages; the envelope and renderer stay stable regardless of their presence.
+    ``preflight``, ``registrations``, ``server_probes`` and ``adapter`` are produced
+    by earlier pipeline stages; the envelope and renderer stay stable regardless of
+    their presence.
     """
     templates = templates if templates is not None else load_mcp_templates(se_root)
     servers = selected if selected is not None else [t["key"] for t in templates]
     preflight = list(preflight or [])
+    server_probes = list(server_probes or [])
     plan_adapter = (
         adapter
         if adapter is not None
@@ -918,6 +1179,7 @@ def build_plan(
         "adapter": plan_adapter,
         "servers": servers,
         "preflight": preflight,
+        "server_probes": server_probes,
         "registrations": list(registrations or []),
         "missing_dependencies": sorted(
             {item["name"] for item in preflight if item["status"] != "PASS"}
@@ -960,6 +1222,10 @@ def render_plan(plan: dict) -> str:
             lines.append(f"  [{item['status']}] {item['name']}: {item['detail']}")
             if item["status"] != "PASS" and item.get("guidance"):
                 lines.append(f"    -> {item['guidance']}")
+    if plan.get("server_probes"):
+        lines.append("Server runtime probes:")
+        for item in plan["server_probes"]:
+            lines.append(f"  [{item['status']}] {item['server']}: {item['detail']}")
     if plan.get("registrations"):
         lines.append("Registrations:")
         for item in plan["registrations"]:
@@ -983,13 +1249,15 @@ def render_plan(plan: dict) -> str:
     return "\n".join(lines)
 
 
-def run(args, *, platform_name: str | None = None, runner=None, which=None, probe=None) -> int:
+def run(args, *, platform_name: str | None = None, runner=None, which=None, probe=None,
+        server_probe=None) -> int:
     """Execute the ``se install`` pipeline.
 
-    ``platform_name``, ``runner``, ``which`` and ``probe`` are injectable test
-    seams; production callers pass nothing and get the current platform, the real
-    subprocess runner, the real executable lookup and the real ``--version``
-    probe. Exit codes: 0 success, 1 failure/BLOCKED report, 2 usage.
+    ``platform_name``, ``runner``, ``which``, ``probe`` and ``server_probe`` are
+    injectable test seams; production callers pass nothing and get the current
+    platform, the real subprocess runner, the real ``--version`` probe and the
+    real MCP ``initialize`` handshake. Exit codes: 0 success, 1 failure/BLOCKED
+    report, 2 usage.
     """
     se_root = repo_root()
     project = Path(getattr(args, "project", None) or ".").resolve()
@@ -1078,6 +1346,18 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None, prob
     dry_run = bool(getattr(args, "dry_run", False))
     project_id = read_project_id(project)
 
+    server_probes = []
+    if bool(getattr(args, "verify_servers", False)) and not dry_run and register:
+        server_probes = verify_mcp_servers(
+            selected_templates,
+            se_root=se_root,
+            project=project,
+            project_id=project_id,
+            interpreter=interpreter,
+            preflight=preflight,
+            probe=server_probe,
+        )
+
     registrations = build_registrations(
         selected_templates,
         se_root=se_root,
@@ -1087,6 +1367,7 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None, prob
         scope=scope,
         register=register,
         preflight=preflight,
+        server_probes=server_probes,
     )
     adapter = plan_adapter_selection(se_root, project, generate=generate_adapter)
     plan = build_plan(
@@ -1101,6 +1382,7 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None, prob
         templates=templates,
         preflight=preflight,
         registrations=registrations,
+        server_probes=server_probes,
         adapter=adapter,
     )
     plan["env_target"] = env_target
