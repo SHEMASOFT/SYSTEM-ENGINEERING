@@ -9,6 +9,12 @@ Versions are normalized SemVer (see `DOCS/VERSIONING_STRATEGY.md`).
 
 ### Added
 
+- **Release automation**: `SCRIPTS/release_master.py` now checks the active version
+  references (`--check`) and applies a controlled `patch`/`minor` release
+  (`--bump`), including mirrors, current-version docs, CHANGELOG, generated
+  OpenCode adapter, coverage baseline, and validation. The decision to bump
+  remains manual; historical references are never rewritten.
+
 - **Portable MCP Python launcher**: `SCRIPTS/se_core/mcp/launch.mjs` resolves
   `python3`/`python` at runtime and launches the SE Python MCP servers. The tracked
   `opencode.jsonc`, MCP templates and generated runtime configs now invoke the launcher
