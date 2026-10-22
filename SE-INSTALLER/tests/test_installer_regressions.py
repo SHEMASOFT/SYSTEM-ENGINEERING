@@ -517,8 +517,9 @@ def test_bootstrap_ps1_forwards_positional_arguments():
     assert "ValueFromRemainingArguments" in src, (
         "bootstrap.ps1 must declare a catch-all for the forwarded arguments"
     )
-    assert "@ForwardArgs" in src, (
-        "bootstrap.ps1 must splat the filtered catch-all parameter"
+    assert "@RunArgs" in src, (
+        "bootstrap.ps1 must splat the filtered catch-all parameter "
+        "(plus the TUI-only opt-out)"
     )
     assert "@args" not in src, (
         "bootstrap.ps1 must not splat the automatic $args (unbound under "
@@ -550,3 +551,16 @@ def test_bootstrap_sh_forwards_positional_arguments():
     assert "--skip-mcp-registration" in src
     assert "sys.version_info" in src, "install.sh must enforce Python 3.10+"
     assert "opencode auth login" in src, "install.sh must point at provider auth"
+
+
+def test_tui_bootstrap_forwards_the_registration_opt_out():
+    """The TUI does its own registration, so both bootstraps must pass the opt-out."""
+    ps1 = (INSTALLER_ROOT / "bootstrap.ps1").read_text(encoding="utf-8")
+    sh = (INSTALLER_ROOT / "install.sh").read_text(encoding="utf-8")
+
+    assert "RunArgs" in ps1
+    assert "TUI finished" in ps1
+    assert "after a TUI install" not in ps1
+    assert "RUN_ARGS" in sh
+    assert "TUI finished" in sh
+    assert "after a TUI install" not in sh

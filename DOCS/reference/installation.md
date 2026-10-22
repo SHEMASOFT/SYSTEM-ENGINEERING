@@ -71,10 +71,10 @@ bash SE-INSTALLER/install.sh install --recommended
 ```
 
 Add `--dry-run` to plan without installing. The interactive selector is launched
-with `tui` (Windows `bootstrap.ps1 tui`; Linux/macOS `install.sh tui`); it does not
-run the automatic MCP registration, so run `se install` once afterwards. From an
-already-cloned checkout you can also chain it through the CLI with
-`se install --bootstrap` (see §7).
+with `tui` (Windows `bootstrap.ps1 tui`; Linux/macOS `install.sh tui`). After a
+successful install it registers the selected MCPs that have a template; pass
+`--skip-mcp-registration` to opt out. From an already-cloned checkout you can
+also chain it through the CLI with `se install --bootstrap` (see §7).
 
 The Windows bootstrap installs Node/OpenCode through a package manager when they
 are missing and refreshes the process `PATH` before running `se install`. If a
@@ -190,8 +190,9 @@ then continues with the registration below. The one-command entry points are
 [`SE-INSTALLER/bootstrap.ps1`](../../SE-INSTALLER/bootstrap.ps1) (Windows) and
 [`SE-INSTALLER/install.sh`](../../SE-INSTALLER/install.sh) (Linux/macOS), which create an
 isolated venv, install `se-installer` into it, and forward the arguments to the CLI.
-After a successful `install` they also run this registration automatically; `tui`,
-custom `-c/--components` selections and `--skip-mcp-registration` skip it.
+After a successful `install` they also run this registration automatically. The
+TUI does the same for the selected MCPs. Custom `-c/--components` selections on
+`install` and `--skip-mcp-registration` skip it.
 
 ```bash
 python3 SCRIPTS/se.py install --dry-run     # plan only: writes nothing
