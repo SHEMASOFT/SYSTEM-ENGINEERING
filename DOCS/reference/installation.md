@@ -72,10 +72,10 @@ bash SE-INSTALLER/install.sh install --recommended
 ```
 
 Add `--dry-run` to plan without installing. The interactive selector is launched
-with `tui` (Windows `bootstrap.ps1 tui`; Linux/macOS `install.sh tui`); it does not
-run the automatic MCP registration, so run `se install` once afterwards. From an
-already-cloned checkout you can also chain it through the CLI with
-`se install --bootstrap` (see §7).
+with `tui` (Windows `bootstrap.ps1 tui`; Linux/macOS `install.sh tui`). After a
+successful install it registers the selected MCPs that have a template; pass
+`--skip-mcp-registration` to opt out. From an already-cloned checkout you can
+also chain it through the CLI with `se install --bootstrap` (see §7).
 
 The Windows bootstrap installs Node/OpenCode through a package manager when they
 are missing and refreshes the process `PATH` before running `se install`. If no
@@ -188,14 +188,21 @@ the external tools (never installing them for you), writes the servers declared 
 `opencode` CLI is not needed for registration), and reports what was registered, skipped or
 still missing.
 
+Before registration, every selected `npx` server is started and asked for an MCP
+`initialize` response. This catches a broken Node install, a bad shim or a package that
+cannot start; a server that does not answer is reported and **skipped** instead of being
+written into the config. The check may download the package into the `npx` cache on first
+use. Pass `--no-verify-servers` to skip the handshake (for example, offline).
+
 For a full bootstrap — SE Core + Console + MCPs + runtimes installed, then the MCP servers
 registered — pass `--bootstrap`: it runs the unified installer (`se-installer`) first and
 then continues with the registration below. The one-command entry points are
 [`SE-INSTALLER/bootstrap.ps1`](../../SE-INSTALLER/bootstrap.ps1) (Windows) and
 [`SE-INSTALLER/install.sh`](../../SE-INSTALLER/install.sh) (Linux/macOS), which create an
 isolated venv, install `se-installer` into it, and forward the arguments to the CLI.
-After a successful `install` they also run this registration automatically; `tui`,
-custom `-c/--components` selections and `--skip-mcp-registration` skip it.
+After a successful `install` they also run this registration automatically. The
+TUI does the same for the selected MCPs. Custom `-c/--components` selections on
+`install` and `--skip-mcp-registration` skip it.
 
 The reproducible clean-Windows check (Windows Sandbox or disposable VM) is documented in
 [clean-machine-smoke.md](clean-machine-smoke.md).
@@ -233,6 +240,7 @@ Known limitations: no catalog lock for concurrent installs; no dependency resolu
 | `--all` | Register every server (default; mutually exclusive with `--with`) |
 | `--with a,b,c` | Register only the listed servers |
 | `--no-register` | Preflight and plan only; perform no registration |
+| `--no-verify-servers` | Skip the MCP `initialize` handshake before registering (offline/faster; a broken server may be written) |
 | `--generate-adapter` | Also generate the OpenCode adapter for the target project |
 | `--env-target {auto,windows,wsl,linux,macos}` | Runtime environment to target when resolving paths (default: `auto`; `wsl` translates Windows paths to `/mnt/<drive>`) |
 | `--bootstrap` | Run the unified `se-installer` (SE Core + Console + MCPs + runtimes, and runtime configs) first, then register |
@@ -251,10 +259,12 @@ python3 SCRIPTS/se.py install --generate-adapter --project PROJECTS/MyApp
 ```
 
 A server whose external binary is missing (for example `context7` before its CLI is
-available) is **skipped** with per-OS install guidance; `se install` never installs
-third-party tools itself. The python interpreter name is resolved at registration time
-(`python3`, else `python`), and `se install` only registers a server when its dependency
-is present.
+available) is **skipped** with per-OS install guidance; a server that fails the
+`initialize` handshake is also skipped with the probe output. `se install` never installs
+third-party tools itself (the handshake only lets `npx` fetch its own package into its
+cache). The python interpreter name is resolved at registration time (`python3`, else
+`python`), and `se install` only registers a server when its dependency is present and,
+unless disabled, its runtime probe passes.
 
 ### Configuration shape (OpenCode V2)
 

@@ -98,16 +98,9 @@ bash SE-INSTALLER/install.sh tui
 ```
 
 In the TUI, `Space` selects, `A` selects the recommended set, `Enter` installs,
-`D` toggles dry-run, `R` refreshes and `Q` quits. The TUI does **not** run the
-automatic MCP registration; after it finishes, register the servers once:
-
-```powershell
-SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
-```
-
-```bash
-SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
-```
+`D` toggles dry-run, `R` refreshes and `Q` quits. After a successful install, the
+TUI registers the selected MCPs that have a template, just like the one-command
+`install`. Pass `--skip-mcp-registration` to opt out.
 
 See [`DOCS/reference/installation.md`](DOCS/reference/installation.md) for the full path.
 

@@ -79,23 +79,17 @@ bash SYSTEM-ENGINEERING/SE-INSTALLER/install.sh tui
 ```
 
 En la TUI: `Space` selecciona, `A` marca los recomendados, `Enter` instala,
-`D` alterna dry-run, `R` refresca y `Q` sale. La TUI no ejecuta el registro
-automático de MCPs; al terminar, regístralos una vez:
-
-```powershell
-SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
-```
-
-```bash
-SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
-```
+`D` alterna dry-run, `R` refresca y `Q` sale. Tras una instalación correcta, la
+TUI registra automáticamente en OpenCode los MCP seleccionados que tengan
+plantilla en `TEMPLATES/mcp`. Usa `--skip-mcp-registration` para omitir ese paso.
 
 Tras un `install` correcto (y salvo que se use `--dry-run`), el bootstrap también
 ejecuta `se install` sobre el repositorio para registrar los MCP de SE en OpenCode.
-Usa `--skip-mcp-registration` para omitir ese paso, por ejemplo si solo vas a
-configurar otro runtime. También se omite si usas `-c/--components` (para no
-registrar MCPs que no has instalado) o si `--runtimes` no incluye `opencode`.
-La instalación manual con `se-installer` tampoco hace ese registro automático.
+La TUI hace lo mismo para su selección. Usa `--skip-mcp-registration` para omitir
+ese paso, por ejemplo si solo vas a configurar otro runtime. En `install` también
+se omite si usas `-c/--components` (para no registrar MCPs que no has instalado)
+o si `--runtimes` no incluye `opencode`. El subcomando `se-installer install`
+por sí solo no hace ese registro; usa el bootstrap o la TUI.
 
 Si el bootstrap instaló Node u OpenCode en esta ejecución y el comando todavía no
 aparece, abre una terminal nueva para cargar el `PATH` actualizado. Después

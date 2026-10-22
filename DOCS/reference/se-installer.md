@@ -366,16 +366,11 @@ Inside an activated installer venv, `se-installer tui` does the same. Controls:
 `Space` selects, `A` selects the recommended set, `Enter` installs, `D` toggles
 dry-run, `R` refreshes and `Q` quits.
 
-The TUI installs components directly and does **not** run the repository's
-`se install`, so register the MCP servers once afterwards:
-
-```powershell
-SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py install
-```
-
-```bash
-SE-INSTALLER/.venv/bin/python SCRIPTS/se.py install
-```
+After a successful install, the TUI registers the selected MCPs that have a
+template in `TEMPLATES/mcp` through the repository's `se install`. Pass
+`--skip-mcp-registration` to opt out. The bootstrap forwards that switch to the
+TUI, so `bootstrap.ps1 tui --skip-mcp-registration` and
+`install.sh tui --skip-mcp-registration` work as expected.
 
 The Textual TUI provides:
 - Collapsible tree by category (Core, Memory, Documentation, File Operations, Browser, Web Scraping, Code Intelligence, Runtime)

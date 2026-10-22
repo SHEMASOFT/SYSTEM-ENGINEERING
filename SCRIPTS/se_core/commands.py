@@ -3495,10 +3495,15 @@ def cmd_gate(args) -> int:
 def cmd_install(args) -> int:
     from . import install
 
-    # Production path: probe real binaries (``--version``) so a broken npm
-    # install or a v1 CLI is reported instead of a false PASS. Tests call
-    # install.run directly with their own seams and leave probe=None.
-    return install.run(args, probe=install.probe_command_version)
+    # Production path: probe real binaries (``--version``) and perform the MCP
+    # initialize handshake, so a broken npm install, a v1 CLI or a server that
+    # cannot start is reported instead of a false PASS. Tests call install.run
+    # directly with their own seams and leave the probes disabled.
+    return install.run(
+        args,
+        probe=install.probe_command_version,
+        server_probe=install.probe_mcp_server,
+    )
 
 
 def cmd_sync(args) -> int:

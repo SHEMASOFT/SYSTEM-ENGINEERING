@@ -6,7 +6,8 @@
 # the `se-installer` CLI. This is the one-command entry point on POSIX hosts.
 #
 # After a successful `install` (and unless --dry-run is used), it also runs the
-# repository's `se install` to register the SE MCP servers for OpenCode. Pass
+# repository's `se install` to register the SE MCP servers for OpenCode. The TUI
+# performs the same registration for the selected MCPs. Pass
 # --skip-mcp-registration to opt out, for example when installing only another
 # runtime.
 #
@@ -25,8 +26,9 @@ REPO="$(cd "$ROOT/.." && pwd)"
 VENV="$ROOT/.venv"
 PYTHON="${PYTHON:-python3}"
 
-# `--skip-mcp-registration` is a bootstrap-only switch: se-installer does not
-# know it, so strip it before forwarding and remember the intent.
+# `--skip-mcp-registration` is a bootstrap-only switch for `install`: strip it
+# before forwarding and remember the intent. The TUI accepts it directly as an
+# opt-out, so add it back to the TUI invocation below.
 ARGS=()
 SKIP_MCP_REGISTRATION=0
 DRY_RUN=0
@@ -41,6 +43,12 @@ for arg in "$@"; do
         ARGS+=("$arg")
     fi
 done
+
+RUN_ARGS=()
+RUN_ARGS+=(${ARGS[@]+"${ARGS[@]}"})
+if [ "${ARGS[0]:-}" = "tui" ] && [ "$SKIP_MCP_REGISTRATION" -eq 1 ]; then
+    RUN_ARGS+=("--skip-mcp-registration")
+fi
 
 if ! command -v "$PYTHON" >/dev/null 2>&1; then
     echo "bootstrap: Python 3.10+ is required (set PYTHON=... if python3 is not on PATH)." >&2
@@ -62,15 +70,15 @@ echo "bootstrap: installing se-installer into the venv ..."
 "$VENV/bin/python" -m pip install --quiet --upgrade pip
 "$VENV/bin/python" -m pip install --quiet -e "$ROOT"
 
-echo "bootstrap: running se-installer ${ARGS[*]:-}"
+echo "bootstrap: running se-installer ${RUN_ARGS[*]:-}"
 if [ -x "$VENV/bin/se-installer" ]; then
-    if "$VENV/bin/se-installer" ${ARGS[@]+"${ARGS[@]}"}; then
+    if "$VENV/bin/se-installer" ${RUN_ARGS[@]+"${RUN_ARGS[@]}"}; then
         status=0
     else
         status=$?
     fi
 else
-    if "$VENV/bin/python" -m se_installer.cli ${ARGS[@]+"${ARGS[@]}"}; then
+    if "$VENV/bin/python" -m se_installer.cli ${RUN_ARGS[@]+"${RUN_ARGS[@]}"}; then
         status=0
     else
         status=$?
@@ -154,9 +162,8 @@ if [ "${ARGS[0]:-}" = "install" ] && [ "$opencode_requested" -eq 1 ] && [ "$DRY_
 fi
 
 if [ "${ARGS[0]:-}" = "tui" ]; then
-    echo "bootstrap: after a TUI install, register the MCP servers once:"
-    echo "  \"$VENV/bin/python\" \"$REPO/SCRIPTS/se.py\" install --project \"$REPO\""
-    echo "bootstrap: then authenticate OpenCode: opencode auth login"
+    echo "bootstrap: TUI finished; selected MCPs are registered automatically after a successful install."
+    echo "bootstrap: if OpenCode was installed, authenticate it: opencode auth login"
 fi
 
 exit 0

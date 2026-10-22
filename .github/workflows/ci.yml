@@ -62,7 +62,9 @@ jobs:
       - name: Installer tests (SE-INSTALLER)
         shell: bash
         run: |
-          python -m pip install --quiet pytest
+          # The installer's TUI tests import the real package, so install its
+          # runtime dependencies (textual/rich/...) instead of only pytest.
+          python -m pip install --quiet -e SE-INSTALLER pytest
           set +e
           PYTHONPATH=SE-INSTALLER python -m pytest SE-INSTALLER/tests -q 2>&1 | tee installer-tests.log
           status=${PIPESTATUS[0]}
