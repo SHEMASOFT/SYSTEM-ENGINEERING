@@ -10,7 +10,8 @@
 
     After a successful `install` (and unless --dry-run is used), it also runs
     the repository's `se install` to register the SE MCP servers for OpenCode.
-    Pass --skip-mcp-registration to opt out, for example when installing only
+    The TUI performs the same registration for the selected MCPs. Pass
+    --skip-mcp-registration to opt out, for example when installing only
     another runtime.
 
 .EXAMPLE
@@ -234,19 +235,25 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $VenvPython -m pip install --quiet -e $InstallerRoot
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+$Command = if ($ForwardArgs.Count -gt 0) { $ForwardArgs[0] } else { "" }
+$RunArgs = @($ForwardArgs)
+# The TUI registers the selected MCPs itself. Forward the bootstrap-only opt-out
+# so `bootstrap.ps1 tui --skip-mcp-registration` reaches the TUI.
+if (($Command -ieq "tui") -and $SkipMcpRegistration) {
+    $RunArgs += "--skip-mcp-registration"
+}
+
 Write-Host "bootstrap: running se-installer ..."
 if (Test-Path $InstallerExe) {
-    & $InstallerExe @ForwardArgs
+    & $InstallerExe @RunArgs
 } else {
-    & $VenvPython -m se_installer.cli @ForwardArgs
+    & $VenvPython -m se_installer.cli @RunArgs
 }
 $InstallerExitCode = $LASTEXITCODE
 # Node/OpenCode may have been installed by this run. Refresh before the MCP
 # registration child process probes npx/opencode.
 Update-ProcessPath
 if ($InstallerExitCode -ne 0) { exit $InstallerExitCode }
-
-$Command = if ($ForwardArgs.Count -gt 0) { $ForwardArgs[0] } else { "" }
 # A custom `-c/--components` selection may not include every SE MCP server, so
 # registering all of them would leave broken entries. Default/recommended and
 # --all installs do include the full set.
@@ -297,9 +304,8 @@ if (($Command -ieq "install") -and (-not $DryRun) -and (-not $HasExplicitCompone
 
 if ($Command -ieq "tui") {
     Write-Host ""
-    Write-Host "bootstrap: after a TUI install, register the MCP servers once:"
-    Write-Host "  `"$VenvPython`" `"$SeCli`" install --project `"$RepoRoot`""
-    Write-Host "bootstrap: then authenticate OpenCode: opencode auth login"
+    Write-Host "bootstrap: TUI finished; selected MCPs are registered automatically after a successful install."
+    Write-Host "bootstrap: if OpenCode was installed, authenticate it: opencode auth login"
 }
 
 exit 0
