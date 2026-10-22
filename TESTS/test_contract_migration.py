@@ -75,6 +75,20 @@ class ContractMigrationTests(unittest.TestCase):
             errors = validate(agent, legacy)
             self.assertEqual(errors, [], f"{name}: {errors}")
 
+    def test_llm_config_is_accepted_by_both_schemas(self):
+        agent = dict(self.agents["implementer"])
+        agent["llm_config"] = {
+            "provider": "openai",
+            "model": "gpt-4o",
+            "temperature": 0.3,
+            "max_tokens": 4096,
+            "provider_options": {"api_key_env": "OPENAI_API_KEY"},
+        }
+        legacy = load_json(support.REPO_ROOT / "AGENTS" / "_contract" / "agent.schema.json")
+
+        self.assertEqual(validate(agent, self.schemas["agent"]), [])
+        self.assertEqual(validate(agent, legacy), [])
+
     def test_index_agent_points_at_canonical_schema(self):
         self.assertEqual(self.index["agent"], "SCHEMAS/agent-contract.schema.json")
 
