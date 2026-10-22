@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from __future__ import annotations
 
-from typing import Optional, Callable
+import subprocess
+import sys
+from typing import Callable, Iterable, Optional
 from pathlib import Path
 
 from textual.app import App, ComposeResult
@@ -23,6 +25,82 @@ from .components import get_all_components, get_components_by_category
 from .models import InstallableComponent, InstallStatus, OSType, ComponentType
 from .orchestrator import InstallerOrchestrator
 from .state import InstallationState
+
+
+def register_mcps(
+    selected_ids: Iterable[str],
+    *,
+    repo_root: Path | str | None = None,
+    project: Path | str | None = None,
+    runner: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> int:
+    """Register the selected MCP servers with the repository's ``se install``.
+
+    The TUI can install MCPs that do not have a registration template yet, so
+    only the selected IDs present in ``TEMPLATES/mcp`` are passed to ``--with``.
+    """
+    repo = Path(repo_root).resolve() if repo_root else Path(__file__).resolve().parents[2]
+    target = Path(project).resolve() if project else repo
+    se_cli = repo / "SCRIPTS" / "se.py"
+    templates_dir = repo / "TEMPLATES" / "mcp"
+
+    if not se_cli.is_file():
+        print(
+            "MCP registration skipped: SCRIPTS/se.py was not found.",
+            file=sys.stderr,
+        )
+        return 0
+
+    available = {
+        path.name[: -len(".json.tmpl")]
+        for path in templates_dir.glob("*.json.tmpl")
+    }
+    keys = sorted(set(selected_ids) & available)
+    if not keys:
+        print("MCP registration skipped: no selected MCP has a registration template.")
+        return 0
+
+    command = [
+        sys.executable,
+        str(se_cli),
+        "install",
+        "--project",
+        str(target),
+        "--with",
+        ",".join(keys),
+    ]
+    print(f"Registering MCP servers: {', '.join(keys)}")
+
+    run = runner or subprocess.run
+    try:
+        completed = run(
+            command,
+            cwd=str(target),
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        print("MCP registration timed out after 300 seconds.", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"MCP registration failed: {exc}", file=sys.stderr)
+        return 1
+
+    stdout = getattr(completed, "stdout", "") or ""
+    stderr = getattr(completed, "stderr", "") or ""
+    if stdout:
+        print(stdout, end="" if stdout.endswith("\n") else "\n")
+    if stderr:
+        print(stderr, file=sys.stderr, end="" if stderr.endswith("\n") else "\n")
+
+    if completed.returncode != 0:
+        print(
+            f"MCP registration failed (exit {completed.returncode}).",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
 
 
 class ComponentTree(Tree):
@@ -225,6 +303,12 @@ class InstallerApp(App):
         self.dry_run = False
         self.selected_ids = set()
         self.installation_running = False
+        # The CLI needs to know whether the last run succeeded before it can
+        # decide the exit code and register the selected MCPs.
+        self.installation_attempted = False
+        self.install_succeeded = False
+        self.install_was_dry_run = False
+        self.installed_mcp_ids: list[str] = []
     
     def compose(self) -> ComposeResult:
         yield Header()
@@ -326,7 +410,12 @@ class InstallerApp(App):
     
     def _start_installation(self) -> None:
         from .orchestrator import InstallerOrchestrator
-        
+
+        self.installation_attempted = True
+        self.install_succeeded = False
+        self.install_was_dry_run = self.dry_run
+        self.installed_mcp_ids = []
+
         self.orchestrator = InstallerOrchestrator(
             dry_run=self.dry_run,
             progress_callback=self._on_progress
@@ -357,6 +446,14 @@ class InstallerApp(App):
     async def _run_installation(self) -> None:
         success = self.orchestrator.run_installation()
         self.installation_running = False
+        self.install_succeeded = success
+        if success:
+            self.installed_mcp_ids = [
+                comp.id
+                for comp in self.orchestrator.plan.components
+                if comp.component_type == ComponentType.MCP
+                and comp.status == InstallStatus.SUCCESS
+            ]
         
         # Re-enable buttons
         self.query_one("#btn-install", Button).disabled = False

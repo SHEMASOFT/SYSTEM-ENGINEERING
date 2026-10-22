@@ -88,6 +88,12 @@ def create_parser() -> argparse.ArgumentParser:
 
     # tui command
     tui_parser = subparsers.add_parser("tui", help="Launch interactive TUI")
+    tui_parser.add_argument(
+        "--skip-mcp-registration",
+        dest="skip_mcp_registration",
+        action="store_true",
+        help="Do not register the selected MCPs in OpenCode after a successful install",
+    )
 
     # doctor command
     doctor_parser = subparsers.add_parser("doctor", help="Run health checks")
@@ -385,10 +391,23 @@ def cmd_install(args) -> int:
 
 
 def cmd_tui(args) -> int:
-    from .tui import InstallerApp
+    from .tui import InstallerApp, register_mcps
+
     app = InstallerApp()
     app.run()
-    return 0
+
+    if not app.installation_attempted:
+        return 0
+    if not app.install_succeeded:
+        return 1
+    if getattr(app, "install_was_dry_run", False):
+        print("MCP registration skipped (dry run).")
+        return 0
+    if getattr(args, "skip_mcp_registration", False):
+        print("MCP registration skipped (--skip-mcp-registration).")
+        return 0
+
+    return register_mcps(app.installed_mcp_ids)
 
 
 def main() -> int:
