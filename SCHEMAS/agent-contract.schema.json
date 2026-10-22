@@ -76,7 +76,20 @@
         "superseded_by": { "type": "string", "pattern": "^AG-\\d{4}$" }
       }
     },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "llm_config": {
+      "description": "Optional per-agent model configuration. The runtime adapters render it (OpenCode as provider/model, Codex as model).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model"],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+        "max_tokens": { "type": "integer", "minimum": 1 },
+        "provider_options": { "type": "object", "additionalProperties": true }
+      }
+    }
   },
   "allOf": [
     {
