@@ -31,6 +31,45 @@ def agent_mode(role: str) -> str:
     return _MODE_PRIMARY if role in PRIMARY_AGENTS else _MODE_SUBAGENT
 
 
+# The contract's provider vocabulary predates OpenCode's provider IDs. ``free``
+# models are served through OpenRouter and local models through Ollama, so the
+# adapter maps those two aliases; every other value is already a provider ID.
+_PROVIDER_ALIASES = {"free": "openrouter", "local": "ollama"}
+
+
+def agent_model(agent: dict) -> str:
+    """Return the OpenCode ``model`` string for an agent contract.
+
+    OpenCode wants ``provider/model-id``. Contracts may either write the fully
+    qualified model (for example ``deepseek/deepseek-r1:free``) or split it into
+    ``provider`` and ``model``. Empty/invalid configs render no ``model`` line.
+    """
+    llm = agent.get("llm_config")
+    if not isinstance(llm, dict):
+        return ""
+    model = str(llm.get("model") or "").strip()
+    if not model:
+        return ""
+    provider = str(llm.get("provider") or "").strip().lower()
+    if provider and "/" not in model:
+        provider = _PROVIDER_ALIASES.get(provider, provider)
+        return f"{provider}/{model}"
+    return model
+
+
+def agent_temperature(agent: dict) -> float | None:
+    """Return a valid temperature from ``llm_config``, if one is declared."""
+    llm = agent.get("llm_config")
+    if not isinstance(llm, dict):
+        return None
+    value = llm.get("temperature")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if 0 <= value <= 2:
+        return float(value)
+    return None
+
+
 def _yaml_scalar(value: str) -> str:
     """Render a string as a safe YAML scalar (quoted when necessary)."""
     needs_quote = (
@@ -53,12 +92,22 @@ def build_agent_markdown(agent: dict, role: str) -> str:
     description = agent.get('description') or agent.get('purpose', '')
     display_name = description.split(':')[0].strip() if ':' in description else role.replace('-', ' ').title()
     
-    lines = [
+    frontmatter = [
         "---",
         f"description: {_yaml_scalar(agent.get('description') or agent.get('purpose', ''))}",
+    ]
+    model = agent_model(agent)
+    if model:
+        frontmatter.append(f"model: {_yaml_scalar(model)}")
+    temperature = agent_temperature(agent)
+    if temperature is not None:
+        frontmatter.append(f"temperature: {temperature:g}")
+    frontmatter += [
         f"mode: {agent_mode(role)}",
         f"name: {_yaml_scalar(display_name)}",
         "---",
+    ]
+    lines = frontmatter + [
         "",
         f"# {display_name}",
         "",
