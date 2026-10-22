@@ -4824,6 +4824,10 @@ def cmd_health(args) -> int:
     if getattr(args, "scope", "identity") == "consistency":
         return run_consistency_checks(project, repo_root(), args)
 
+    # Handle conformance scope separately (AUTO-07/08 - B3)
+    if getattr(args, "scope", "identity") == "conformance":
+        return run_conformance_checks(project, repo_root(), args)
+
     # Run all health checks and collect their results
     doctor_report = run_doctor()
 
@@ -5388,6 +5392,323 @@ def run_consistency_checks(project: Path, root: Path, args) -> int:
 
     # Human-readable output
     print("Consistency Check Summary")
+    print("=========================")
+    print(f"Overall: {overall_status}")
+    print(f"Checks: {checks_passed} passed, {checks_failed} failed, {checks_skipped} skipped")
+    print()
+
+    for f in findings:
+        status_char = "[OK]" if f["status"] == "PASS" else "[FAIL]" if f["status"] == "FAIL" else "~"
+        obj_str = f" [{f['object']}]" if f["object"] else ""
+        print(f"  {status_char} {f['control']}{obj_str}: {f['detail']}")
+
+    if overall_status == "FAIL":
+        return 1
+    return 0
+
+
+def run_conformance_checks(project: Path, root: Path, args) -> int:
+    """Run conformance checks (CONF-01 through CONF-06) for a project.
+
+    Verifies skill conformance (AUTO-07) and adapter conformance (AUTO-08).
+    Returns exit code: 0=PASS, 1=FAIL, 2=usage error, 3=operational error.
+    """
+    from .capabilities import load_registry, check_policies as cap_check_policies
+    from .opencode.validators import validate_skill, parse_frontmatter, audit_contracts
+    from .paths import load_json, repo_root
+
+    findings = []
+    checks_passed = 0
+    checks_failed = 0
+    checks_skipped = 0
+
+    def add_finding(control_id: str, status: str, detail: str, obj: str = ""):
+        nonlocal checks_passed, checks_failed, checks_skipped
+        findings.append({
+            "control": control_id,
+            "object": obj,
+            "status": status,
+            "detail": detail,
+        })
+        if status == "PASS":
+            checks_passed += 1
+        elif status == "FAIL":
+            checks_failed += 1
+        else:
+            checks_skipped += 1
+
+    # CONF-01: Skill frontmatter + schema validation
+    try:
+        skills_dir = root / "SKILLS"
+        if not skills_dir.exists():
+            add_finding("CONF-01", "SKIP", "SKILLS directory not found", obj="skills")
+        else:
+            skill_errors = []
+            skill_count = 0
+            for skill_dir in sorted(skills_dir.iterdir()):
+                if not skill_dir.is_dir():
+                    continue
+                skill_md = skill_dir / "SKILL.md"
+                if not skill_md.exists():
+                    continue
+                skill_count += 1
+                try:
+                    content = skill_md.read_text(encoding="utf-8")
+                    front = parse_frontmatter(content)
+                    errors = validate_skill(skill_md, skill_dir.name)
+                    if errors:
+                        skill_errors.append(f"{skill_dir.name}: {errors}")
+                except Exception as exc:
+                    skill_errors.append(f"{skill_dir.name}: parse error: {exc}")
+
+            if skill_errors:
+                add_finding("CONF-01", "FAIL", f"Skill validation errors: {skill_errors}", obj="skills")
+            else:
+                add_finding("CONF-01", "PASS", f"All {skill_count} skills valid (frontmatter + schema)", obj="skills")
+    except Exception as exc:
+        add_finding("CONF-01", "FAIL", f"Error validating skills: {exc}", obj="skills")
+
+    # CONF-02: CATALOG/skills.json <-> SKILLS/* bidireccional
+    try:
+        catalog_path = root / "CATALOG" / "skills.json"
+        if not catalog_path.exists():
+            add_finding("CONF-02", "FAIL", "CATALOG/skills.json not found", obj="catalog")
+        else:
+            catalog = load_json(catalog_path)
+            catalog_skills = {s.get("name"): s for s in catalog.get("skills", []) if s.get("name")}
+            
+            skills_dir = root / "SKILLS"
+            fs_skills = set()
+            if skills_dir.exists():
+                for skill_dir in skills_dir.iterdir():
+                    if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+                        fs_skills.add(skill_dir.name)
+
+            missing_in_catalog = fs_skills - set(catalog_skills.keys())
+            missing_in_fs = set(catalog_skills.keys()) - fs_skills
+
+            errors = []
+            if missing_in_catalog:
+                errors.append(f"In filesystem but not catalog: {missing_in_catalog}")
+            if missing_in_fs:
+                errors.append(f"In catalog but not in filesystem: {missing_in_fs}")
+
+            if errors:
+                add_finding("CONF-02", "FAIL", f"Catalog/FS mismatch: {errors}", obj="catalog")
+            else:
+                add_finding("CONF-02", "PASS", f"Catalog and filesystem in sync ({len(catalog_skills)} skills)", obj="catalog")
+    except Exception as exc:
+        add_finding("CONF-02", "FAIL", f"Error checking catalog/FS sync: {exc}", obj="catalog")
+
+    # CONF-03: Adapter hashes (content_hashes) match .opencode/ files
+    try:
+        manifest_path = root / ".opencode" / "adapter-manifest.json"
+        if not manifest_path.exists():
+            add_finding("CONF-03", "FAIL", "adapter-manifest.json not found", obj="adapter")
+        else:
+            manifest = load_json(manifest_path)
+            content_hashes = manifest.get("metadata", {}).get("content_hashes", {})
+            hash_errors = []
+            for rel_path, expected_hash in content_hashes.items():
+                file_path = root / ".opencode" / rel_path
+                if not file_path.exists():
+                    hash_errors.append(f"{rel_path}: file missing")
+                    continue
+                import hashlib
+                actual_hash = hashlib.sha256(file_path.read_bytes()).hexdigest()
+                if actual_hash != expected_hash:
+                    hash_errors.append(f"{rel_path}: hash mismatch (expected {expected_hash[:16]}..., got {actual_hash[:16]}...)")
+
+            if hash_errors:
+                add_finding("CONF-03", "FAIL", f"Adapter hash mismatches: {hash_errors}", obj="adapter")
+            else:
+                add_finding("CONF-03", "PASS", f"All {len(content_hashes)} adapter file hashes verified", obj="adapter")
+    except Exception as exc:
+        add_finding("CONF-03", "FAIL", f"Error verifying adapter hashes: {exc}", obj="adapter")
+
+    # CONF-04: Adapter counts match manifest
+    try:
+        manifest_path = root / ".opencode" / "adapter-manifest.json"
+        if not manifest_path.exists():
+            add_finding("CONF-04", "FAIL", "adapter-manifest.json not found", obj="adapter")
+        else:
+            manifest = load_json(manifest_path)
+            output = manifest.get("output", {})
+            artifacts = output.get("artifacts", [])
+            
+            # Count by type from manifest
+            manifest_counts = {}
+            for art in artifacts:
+                art_type = art.get("type", "unknown")
+                manifest_counts[art_type] = manifest_counts.get(art_type, 0) + 1
+            
+            # Count actual files in .opencode/ using type-specific logic
+            opencode_root = root / ".opencode"
+            actual_counts = {}
+            
+            # Helper to count items for a given type
+            def count_type(art_type: str) -> int:
+                if art_type == "agent":
+                    d = opencode_root / "agents"
+                    return len(list(d.glob("*.md"))) if d.exists() else 0
+                elif art_type == "command":
+                    d = opencode_root / "commands"
+                    return len(list(d.glob("*.md"))) if d.exists() else 0
+                elif art_type == "policy":
+                    d = opencode_root / "policies"
+                    return len(list(d.glob("*.md"))) if d.exists() else 0
+                elif art_type == "skill":
+                    d = opencode_root / "skills"
+                    if d.exists():
+                        return len([x for x in d.iterdir() if x.is_dir()])
+                    return 0
+                elif art_type == "mcp":
+                    d = opencode_root / "mcp"
+                    return len(list(d.glob("*.json"))) if d.exists() else 0
+                elif art_type == "config":
+                    # Config is the adapter-manifest.json itself
+                    f = opencode_root / "adapter-manifest.json"
+                    return 1 if f.exists() else 0
+                elif art_type == "docs":
+                    # Docs is AGENTS.md
+                    f = opencode_root / "AGENTS.md"
+                    return 1 if f.exists() else 0
+                else:
+                    # Generic: try directory with .md files
+                    d = opencode_root / f"{art_type}s"
+                    if d.exists():
+                        return len(list(d.glob("*.md")))
+                    d = opencode_root / art_type
+                    if d.exists():
+                        return len(list(d.glob("*.md")))
+                    return 0
+            
+            for art_type in manifest_counts:
+                actual_counts[art_type] = count_type(art_type)
+
+            count_errors = []
+            all_types = set(manifest_counts.keys()) | set(actual_counts.keys())
+            for art_type in all_types:
+                mcount = manifest_counts.get(art_type, 0)
+                acount = actual_counts.get(art_type, 0)
+                if mcount != acount:
+                    count_errors.append(f"{art_type}: manifest={mcount}, actual={acount}")
+
+            if count_errors:
+                add_finding("CONF-04", "FAIL", f"Adapter count mismatches: {count_errors}", obj="adapter")
+            else:
+                total = sum(actual_counts.values())
+                add_finding("CONF-04", "PASS", f"Adapter counts match manifest ({total} total artifacts)", obj="adapter")
+    except Exception as exc:
+        add_finding("CONF-04", "FAIL", f"Error checking adapter counts: {exc}", obj="adapter")
+
+    # CONF-05: Skill discovery paths in adapter resolve to valid skills
+    try:
+        manifest_path = root / ".opencode" / "adapter-manifest.json"
+        if not manifest_path.exists():
+            add_finding("CONF-05", "FAIL", "adapter-manifest.json not found", obj="adapter")
+        else:
+            manifest = load_json(manifest_path)
+            input_spec = manifest.get("input", {})
+            skills_glob = input_spec.get("skills", "")
+            
+            # Parse glob pattern to find skills
+            import glob
+            skill_files = glob.glob(str(root / skills_glob))
+            skill_errors = []
+            for skill_file in skill_files:
+                skill_path = Path(skill_file)
+                skill_name = skill_path.parent.name
+                skill_md = skill_path
+                if not skill_md.exists():
+                    skill_errors.append(f"{skill_name}: SKILL.md not found at {skill_file}")
+                    continue
+                try:
+                    content = skill_path.read_text(encoding="utf-8")
+                    front = parse_frontmatter(content)
+                    # Validate skill structure
+                    from .opencode.validators import validate_skill
+                    errors = validate_skill(Path(skill_file), skill_path.parent.name)
+                    if errors:
+                        skill_errors.append(f"{skill_path.parent.name}: {errors}")
+                except Exception as exc:
+                    skill_errors.append(f"{skill_path.parent.name}: validation error: {exc}")
+
+            if skill_errors:
+                add_finding("CONF-05", "FAIL", f"Skill discovery validation errors: {skill_errors}", obj="adapter")
+            else:
+                add_finding("CONF-05", "PASS", f"All {len(skill_files)} discovered skills valid", obj="adapter")
+    except Exception as exc:
+        add_finding("CONF-05", "FAIL", f"Error verifying skill discovery paths: {exc}", obj="adapter")
+
+    # CONF-06: Capability plan coherence with installed skills
+    try:
+        manifest_path = root / ".opencode" / "adapter-manifest.json"
+        if not manifest_path.exists():
+            add_finding("CONF-06", "FAIL", "adapter-manifest.json not found", obj="adapter")
+        else:
+            manifest = load_json(manifest_path)
+            capability_plan = manifest.get("capability_plan", {})
+            plan_skills = set(capability_plan.get("skills", []))
+            
+            catalog_path = root / "CATALOG" / "skills.json"
+            if not catalog_path.exists():
+                add_finding("CONF-06", "FAIL", "CATALOG/skills.json not found", obj="catalog")
+            else:
+                catalog = load_json(catalog_path)
+                catalog_skills = {s.get("name") for s in catalog.get("skills", []) if s.get("name")}
+                installed_skills = {s for s in catalog_skills 
+                                  if catalog.get("skills", [{}])[list(catalog_skills).index(s)].get("installation_state") == "installed"}
+                
+                plan_not_installed = plan_skills - catalog_skills
+                installed_not_in_plan = catalog_skills - plan_skills
+                
+                warnings = []
+                if plan_not_installed:
+                    warnings.append(f"In plan but not in catalog: {plan_not_installed}")
+                if installed_not_in_plan:
+                    warnings.append(f"In catalog but not in plan: {installed_not_in_plan}")
+
+                if warnings:
+                    add_finding("CONF-06", "FAIL", f"Capability plan/catalog mismatch: {warnings}", obj="adapter")
+                else:
+                    add_finding("CONF-06", "PASS", f"Capability plan coherent with catalog ({len(catalog_skills)} skills)", obj="adapter")
+    except Exception as exc:
+        add_finding("CONF-06", "FAIL", f"Error checking capability plan coherence: {exc}", obj="adapter")
+
+    # Build summary
+    total_checks = checks_passed + checks_failed + checks_skipped
+    overall_status = "PASS" if checks_failed == 0 else "FAIL"
+
+    if wants_json(args):
+        envelope = build_envelope(
+            "auto",
+            overall_status,
+            scope="deep",
+            provenance={
+                "conformance": "SCRIPTS/se_core/commands.py:run_conformance_checks",
+                "project": str(project),
+            },
+            warnings=[f for f in findings if f["status"] == "WARN"],
+            conflicts=[f for f in findings if f["status"] == "FAIL"],
+            details={
+                "conformance": {
+                    "summary": {
+                        "checks_total": total_checks,
+                        "checks_passed": checks_passed,
+                        "checks_failed": checks_failed,
+                        "checks_skipped": checks_skipped,
+                    },
+                    "findings": findings,
+                }
+            },
+            source_root=str(root),
+        )
+        print(render_json(envelope))
+        return 0 if overall_status == "PASS" else 1
+
+    # Human-readable output
+    print("Conformance Check Summary")
     print("=========================")
     print(f"Overall: {overall_status}")
     print(f"Checks: {checks_passed} passed, {checks_failed} failed, {checks_skipped} skipped")
