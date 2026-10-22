@@ -202,6 +202,15 @@ class CliInstallDryRunTests(unittest.TestCase):
             code, _ = support.run_cli("install", "--dry-run", "--all", "--with", "context7")
         self.assertEqual(code, 2)
 
+    def test_server_verification_is_on_by_default_and_can_be_disabled(self):
+        from se_core.cli import build_parser
+
+        parser = build_parser()
+        self.assertTrue(parser.parse_args(["install"]).verify_servers)
+        self.assertFalse(
+            parser.parse_args(["install", "--no-verify-servers"]).verify_servers
+        )
+
 
 class ResolvePythonInterpreterTests(unittest.TestCase):
     def test_prefers_python3(self):
@@ -323,6 +332,117 @@ class ResolvePlaceholdersTests(unittest.TestCase):
         )
 
 
+class ProbeMcpServerTests(unittest.TestCase):
+    """The runtime check speaks MCP, because --help is not portable across servers."""
+
+    def _script(self, directory, body):
+        path = Path(directory) / "fake_mcp.py"
+        path.write_text(body, encoding="utf-8")
+        return path
+
+    def test_initialize_handshake_reports_server_info(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = self._script(tmp, """
+import json, sys
+request = json.loads(sys.stdin.readline())
+print(json.dumps({
+    "jsonrpc": "2.0",
+    "id": request["id"],
+    "result": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "serverInfo": {"name": "fake-server", "version": "1.2.3"},
+    },
+}), flush=True)
+sys.stdin.readline()
+""")
+            ok, detail = install.probe_mcp_server(
+                {"name": "fake", "command": [sys.executable, str(script)]},
+                timeout=10,
+            )
+        self.assertTrue(ok, detail)
+        self.assertIn("fake-server", detail)
+        self.assertIn("1.2.3", detail)
+
+    def test_silent_server_is_a_probe_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = self._script(tmp, "import time\ntime.sleep(30)\n")
+            ok, detail = install.probe_mcp_server(
+                {"name": "fake", "command": [sys.executable, str(script)]},
+                timeout=1,
+            )
+        self.assertFalse(ok)
+        self.assertIn("initialize", detail)
+
+    def test_missing_executable_is_a_probe_failure(self):
+        ok, detail = install.probe_mcp_server(
+            {"name": "fake", "command": ["definitely-not-a-real-mcp-xyz"]},
+            timeout=1,
+        )
+        self.assertFalse(ok)
+        self.assertIn("not found", detail)
+
+
+class VerifyMcpServersTests(unittest.TestCase):
+    def setUp(self):
+        self.templates = install.load_mcp_templates(support.REPO_ROOT)
+        self.preflight = [
+            {"name": "python", "status": "PASS", "detail": "python", "guidance": "g", "purpose": "p"},
+            {"name": "node", "status": "PASS", "detail": "npx", "guidance": "g", "purpose": "p"},
+        ]
+
+    def test_probes_only_npx_servers(self):
+        seen = []
+
+        def probe(spec, **kwargs):
+            seen.append(spec["name"])
+            return True, "ok"
+
+        results = install.verify_mcp_servers(
+            self.templates,
+            se_root="/se",
+            project="/proj",
+            project_id="PRJ-X",
+            interpreter="python3",
+            preflight=self.preflight,
+            probe=probe,
+        )
+        self.assertEqual(seen, ["context7", "filesystem"])
+        self.assertEqual([r["server"] for r in results], ["context7", "filesystem"])
+        self.assertTrue(all(r["status"] == "PASS" for r in results))
+
+    def test_skips_when_node_preflight_failed(self):
+        calls = []
+        results = install.verify_mcp_servers(
+            self.templates,
+            se_root="/se",
+            project="/proj",
+            project_id="PRJ-X",
+            interpreter="python3",
+            preflight=[{"name": "node", "status": "WARN"}],
+            probe=lambda spec, **kwargs: calls.append(spec) or (True, "ok"),
+        )
+        self.assertEqual(results, [])
+        self.assertEqual(calls, [])
+
+    def test_probe_exception_becomes_warn(self):
+        def probe(spec, **kwargs):
+            raise RuntimeError("boom")
+
+        results = install.verify_mcp_servers(
+            self.templates,
+            se_root="/se",
+            project="/proj",
+            project_id="PRJ-X",
+            interpreter="python3",
+            preflight=self.preflight,
+            probe=probe,
+        )
+        self.assertTrue(results)
+        self.assertTrue(all(r["status"] == "WARN" for r in results))
+        self.assertIn("boom", results[0]["detail"])
+
+
 class BuildRegistrationsTests(unittest.TestCase):
     def setUp(self):
         self.templates = {t["key"]: t for t in install.load_mcp_templates(support.REPO_ROOT)}
@@ -401,6 +521,19 @@ class BuildRegistrationsTests(unittest.TestCase):
         self.assertEqual(reg["status"], "skipped")
         self.assertIn("missing dependency: node", reg["reason"])
 
+    def test_failed_server_probe_skips_server(self):
+        reg = self._build(
+            ["context7", "filesystem"],
+            server_probes=[
+                {"server": "context7", "status": "WARN", "detail": "exit 1"},
+                {"server": "filesystem", "status": "PASS", "detail": "ok"},
+            ],
+        )
+        by_key = {r["server"]: r for r in reg}
+        self.assertEqual(by_key["context7"]["status"], "skipped")
+        self.assertIn("server probe failed: exit 1", by_key["context7"]["reason"])
+        self.assertEqual(by_key["filesystem"]["status"], "planned")
+
     def test_no_register_skips_everything(self):
         regs = self._build(["filesystem", "context7"], register=False)
         self.assertTrue(all(r["status"] == "skipped" for r in regs))
@@ -455,6 +588,35 @@ class ExecuteRegistrationsTests(unittest.TestCase):
 
         install.execute_registrations(regs, runner)
         self.assertEqual(calls, [])
+
+
+class RunServerVerificationTests(unittest.TestCase):
+    def test_failed_probe_skips_registration_and_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            args = types.SimpleNamespace(**{
+                "project": str(project), "global": False, "no_register": False,
+                "generate_adapter": False, "dry_run": False, "json": True,
+                "with_": "context7,filesystem", "verify_servers": True,
+            })
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = install.run(
+                    args,
+                    platform_name="windows",
+                    which=lambda name: name if name in ("python3", "npx", "opencode") else None,
+                    server_probe=lambda spec, **kwargs: (
+                        False, "node exited 1"
+                    ) if spec["name"] == "context7" else (True, "ok"),
+                )
+            self.assertEqual(code, 0, buffer.getvalue())
+            details = json.loads(buffer.getvalue())["details"]
+            probes = {item["server"]: item for item in details["server_probes"]}
+            registrations = {item["server"]: item for item in details["registrations"]}
+            self.assertEqual(probes["context7"]["status"], "WARN")
+            self.assertEqual(registrations["context7"]["status"], "skipped")
+            self.assertIn("server probe failed", registrations["context7"]["reason"])
+            self.assertEqual(registrations["filesystem"]["status"], "registered")
 
 
 class ProjectIdTests(unittest.TestCase):

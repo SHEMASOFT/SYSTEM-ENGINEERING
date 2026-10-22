@@ -342,6 +342,9 @@ def build_parser() -> argparse.ArgumentParser:
                                help="Comma-separated list of MCP servers to register (e.g. context7,filesystem)")
     p_install.add_argument("--no-register", dest="no_register", action="store_true",
                            help="Preflight and plan only; perform no registration")
+    p_install.add_argument("--no-verify-servers", dest="verify_servers", action="store_false",
+                           help="Skip the MCP initialize handshake before registering "
+                                "(faster, but a server that cannot start may be registered)")
     p_install.add_argument("--generate-adapter", dest="generate_adapter", action="store_true",
                            help="Optionally generate the OpenCode adapter for the target project")
     p_install.add_argument("--env-target", dest="env_target", default="auto",
@@ -358,7 +361,7 @@ def build_parser() -> argparse.ArgumentParser:
                            help="Plan only; write nothing")
     p_install.add_argument("--json", action="store_true",
                            help="Emit a machine-readable se.report/1 envelope")
-    p_install.set_defaults(func=commands.cmd_install)
+    p_install.set_defaults(func=commands.cmd_install, verify_servers=True)
 
     # sync
     p_sync = sub.add_parser(
