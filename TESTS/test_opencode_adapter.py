@@ -23,7 +23,11 @@ import support  # noqa: E402
 
 from se_core.cli import build_parser  # noqa: E402
 from se_core.opencode.generator import generate  # noqa: E402
-from se_core.opencode.mappings import build_command_markdown  # noqa: E402
+from se_core.opencode.mappings import (  # noqa: E402
+    agent_model,
+    build_agent_markdown,
+    build_command_markdown,
+)
 from se_core.opencode.validators import audit_adapter  # noqa: E402
 from se_core.paths import load_json  # noqa: E402
 from se_core.schemas import validate  # noqa: E402
@@ -572,6 +576,58 @@ class PolicyLinkRebaseTests(unittest.TestCase):
                 resolved,
                 (repo / "CORE" / "policies" / "permissions.json").resolve(),
             )
+
+
+class AgentLlmConfigTests(unittest.TestCase):
+    """``llm_config`` is rendered into OpenCode's agent frontmatter."""
+
+    def _agent(self, **llm):
+        return {
+            "id": "AG-0001",
+            "version": "1.0.0",
+            "name": "implementer",
+            "purpose": "Implement.",
+            "description": "Implement: authorized work.",
+            "capabilities": [{"name": "code", "description": "Write code."}],
+            "restrictions": ["stay in scope"],
+            "permissions": ["READ"],
+            "verification_requirements": ["tests pass"],
+            "llm_config": llm,
+        }
+
+    def test_provider_and_model_are_combined(self):
+        agent = self._agent(provider="openai", model="gpt-4o")
+        self.assertEqual(agent_model(agent), "openai/gpt-4o")
+
+        text = build_agent_markdown(agent, "implementer")
+        self.assertIn("model: openai/gpt-4o\n", text)
+
+    def test_qualified_model_is_not_prefixed_twice(self):
+        agent = self._agent(provider="openrouter", model="deepseek/deepseek-r1:free")
+        self.assertEqual(agent_model(agent), "deepseek/deepseek-r1:free")
+        self.assertIn('model: "deepseek/deepseek-r1:free"\n', build_agent_markdown(agent, "implementer"))
+
+    def test_contract_aliases_map_to_runtime_providers(self):
+        self.assertEqual(agent_model(self._agent(provider="free", model="qwen/qwen:free")), "qwen/qwen:free")
+        self.assertEqual(agent_model(self._agent(provider="local", model="llama3.1:8b")), "ollama/llama3.1:8b")
+
+    def test_temperature_is_rendered_when_valid(self):
+        text = build_agent_markdown(self._agent(provider="openai", model="gpt-4o", temperature=0.3), "implementer")
+        self.assertIn("temperature: 0.3\n", text)
+
+    def test_missing_config_emits_no_model_or_temperature_lines(self):
+        for agent in (self._agent(), self._agent(model="")):
+            lines = build_agent_markdown(agent, "implementer").splitlines()
+            self.assertFalse(any(line.startswith("model:") for line in lines))
+            self.assertFalse(any(line.startswith("temperature:") for line in lines))
+
+    def test_invalid_temperature_is_ignored(self):
+        text = build_agent_markdown(
+            self._agent(provider="openai", model="gpt-4o", temperature=3),
+            "implementer",
+        )
+        self.assertIn("model: openai/gpt-4o\n", text)
+        self.assertNotIn("temperature:", text)
 
 
 if __name__ == "__main__":
