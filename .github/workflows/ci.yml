@@ -91,3 +91,25 @@ jobs:
             tests.log
             installer-tests.log
           if-no-files-found: ignore
+
+  bootstrap-smoke:
+    name: Windows bootstrap smoke (dry-run)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Bootstrap dry-run smoke
+        shell: powershell
+        run: ./SE-INSTALLER/scripts/smoke-clean-machine.ps1 -Mode DryRun -ReportPath "${{ github.workspace }}\smoke-report.json"
+
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootstrap-smoke-report
+          path: smoke-report.json
+          if-no-files-found: ignore

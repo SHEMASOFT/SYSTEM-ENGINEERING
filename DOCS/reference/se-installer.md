@@ -47,7 +47,7 @@ se_installer/
 | `firecrawl` | Firecrawl | `mcp` | Web Scraping | ❌ | npx (requires API key) |
 | `sequential-thinking` | Sequential Thinking MCP | `mcp` | Reasoning | ❌ | npx |
 | `codegraph` | CodeGraph | `mcp` | Code Intelligence | ❌ | cargo (Rust) |
-| `node` | Node.js / npx | `mcp` | Runtime | ✅ | auto (fnm/winget/brew) |
+| `node` | Node.js / npx | `mcp` | Runtime | ✅ | auto (winget/scoop/choco/zip) |
 | `rust` | Rust / Cargo | `mcp` | Runtime | ❌ | rustup |
 | `opencode` | OpenCode | `runtime` | Runtime | ✅ | auto (npm/standalone/brew/script) |
 | `codex` | Codex CLI | `runtime` | Runtime | ❌ | npm |
@@ -60,6 +60,12 @@ se_installer/
 > or fails, downloads the standalone Windows binary to `%LOCALAPPDATA%\Programs\opencode`
 > (adding it to the user PATH). macOS uses `brew install anomalyco/tap/opencode-v2`;
 > Linux uses `https://opencode.ai/v2/install`. Both fall back to npm.
+
+> **Node.js without a package manager**: when winget, Scoop and Chocolatey are
+> unavailable (or all fail), the installer downloads the current LTS ZIP from
+> nodejs.org, verifies it against the release's `SHASUMS256.txt`, and extracts it
+> to `%LOCALAPPDATA%\Programs\node` (adding it to the user PATH). This keeps the
+> clean-Windows path independent of a preinstalled package manager.
 
 ---
 

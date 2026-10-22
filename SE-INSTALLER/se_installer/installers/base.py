@@ -28,6 +28,7 @@ class InstallResult:
 _WINDOWS_PATH_HINTS = (
     r"%ProgramFiles%\nodejs",
     r"%APPDATA%\npm",
+    r"%LOCALAPPDATA%\Programs\node",
     r"%LOCALAPPDATA%\Microsoft\WinGet\Links",
     r"C:\ProgramData\chocolatey\bin",
     r"%USERPROFILE%\scoop\shims",

@@ -4,10 +4,26 @@ from __future__ import annotations
 
 from typing import Optional
 from pathlib import Path
+import json
+import os
+import platform
 import shutil
+import tempfile
+import urllib.request
 
-from ..base import BaseInstaller, InstallResult, refresh_process_path, run_tool
+from ..base import (
+    BaseInstaller,
+    InstallResult,
+    WindowsInstallerMixin,
+    refresh_process_path,
+    run_tool,
+)
 from ...models import InstallableComponent, InstallStatus, OSType
+
+#: Official Node.js distribution index. The first entry with a truthy ``lts``
+#: field is the current LTS line; files are listed under ``win-x64``/``win-arm64``.
+NODE_DIST_INDEX_URL = "https://nodejs.org/dist/index.json"
+NODE_DIST_BASE = "https://nodejs.org/dist"
 
 
 class Context7Installer(BaseInstaller):
@@ -204,7 +220,78 @@ class NodeInstaller(BaseInstaller):
             if result and result.returncode == 0:
                 return self._post_install()
         
-        return InstallResult(success=False, error="No Windows package manager found (winget/scoop/choco)")
+        # No package manager (or all of them failed): use the official signed
+        # distribution instead. This is what makes the bootstrap work on a
+        # clean Windows image that only has PowerShell and Python.
+        print("[INFO] No Windows package manager installed Node.js; using the official ZIP ...")
+        return self._install_windows_zip()
+
+    def _http_text(self, url: str) -> str:
+        request = urllib.request.Request(url, headers={"User-Agent": "se-installer/1.0"})
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.read().decode("utf-8")
+
+    def _node_lts_asset(self) -> tuple[str, str]:
+        """Return ``(version, asset_name)`` for the current LTS Windows build."""
+        releases = json.loads(self._http_text(NODE_DIST_INDEX_URL))
+        machine = platform.machine().lower()
+        architectures = ("arm64", "x64") if machine in ("arm64", "aarch64") else ("x64",)
+        for release in releases:
+            if not release.get("lts"):
+                continue
+            version = release.get("version")
+            if not version:
+                continue
+            files = set(release.get("files") or [])
+            for arch in architectures:
+                if f"win-{arch}-zip" in files:
+                    return version, f"node-{version}-win-{arch}.zip"
+        raise RuntimeError("no Node.js LTS Windows build found in the distribution index")
+
+    @staticmethod
+    def _sha256_for(checksums: str, asset: str) -> str:
+        for line in checksums.splitlines():
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].lstrip("*") == asset:
+                return parts[0]
+        raise RuntimeError(f"no SHA256 entry for {asset}")
+
+    def _install_windows_zip(self) -> InstallResult:
+        """Install Node.js from nodejs.org without winget/scoop/choco."""
+        if self.dry_run:
+            return InstallResult(
+                success=True,
+                message="[dry-run] would install Node.js from the official ZIP",
+            )
+        try:
+            version, asset = self._node_lts_asset()
+            checksums = self._http_text(f"{NODE_DIST_BASE}/{version}/SHASUMS256.txt")
+            digest = self._sha256_for(checksums, asset)
+            with tempfile.TemporaryDirectory(prefix="se-node-") as tmp:
+                archive = Path(tmp) / asset
+                self.download_file(
+                    f"{NODE_DIST_BASE}/{version}/{asset}",
+                    archive,
+                    expected_sha256=digest,
+                )
+                extracted = Path(tmp) / "extract"
+                self.extract_archive(archive, extracted)
+                node_exe = next(extracted.rglob("node.exe"), None)
+                if node_exe is None:
+                    raise RuntimeError("archive did not contain node.exe")
+                local_appdata = os.environ.get("LOCALAPPDATA")
+                base = Path(local_appdata) if local_appdata else Path.home() / "AppData" / "Local"
+                install_dir = base / "Programs" / "node"
+                shutil.copytree(node_exe.parent, install_dir, dirs_exist_ok=True)
+        except Exception as exc:  # noqa: BLE001 - reported through InstallResult
+            return InstallResult(
+                success=False,
+                error=f"standalone Node.js install failed: {exc}",
+            )
+
+        self.ensure_in_path(install_dir)
+        WindowsInstallerMixin.add_to_user_path(str(install_dir))
+        return self._post_install()
     
     def _install_macos(self) -> InstallResult:
         # Homebrew

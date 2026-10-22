@@ -21,6 +21,7 @@ These lock in behaviour that previously broke silently:
 from __future__ import annotations
 
 import ast
+import json
 import os
 import shutil
 import subprocess
@@ -30,11 +31,12 @@ import pytest
 
 from se_installer.cli import print_components
 from se_installer.installers import base as base_module
-from se_installer.installers.base import run_tool
+from se_installer.installers.base import InstallResult, WindowsInstallerMixin, run_tool
 from se_installer.installers.mcp import (
     Context7Installer,
     FilesystemInstaller,
     FirecrawlInstaller,
+    NodeInstaller,
     PlaywrightInstaller,
     RustInstaller,
     SequentialThinkingInstaller,
@@ -69,6 +71,151 @@ def _make_runtime_component(component_id: str = "opencode") -> InstallableCompon
         component_type=ComponentType.RUNTIME,
         category="Runtime",
     )
+
+
+def test_bootstrap_official_python_fallback_is_signed_and_per_user():
+    script = (
+        Path(__file__).resolve().parents[1] / "bootstrap.ps1"
+    ).read_text(encoding="utf-8")
+    assert "Get-AuthenticodeSignature" in script
+    assert "Python Software Foundation" in script
+    assert "InstallAllUsers=0" in script
+    assert "python.org/ftp/python" in script
+
+
+def test_node_windows_falls_back_to_official_zip(monkeypatch):
+    """A clean image without winget/scoop/choco still gets Node.js."""
+    from se_installer.installers import mcp as mcp_module
+
+    monkeypatch.setattr(mcp_module.shutil, "which", lambda name: None)
+    installer = NodeInstaller(_make_component("node"))
+    called = []
+
+    def fake_zip():
+        called.append(True)
+        return InstallResult(success=True, version="node v22.14.0")
+
+    installer._install_windows_zip = fake_zip
+    result = installer._install_windows()
+
+    assert result.success is True
+    assert called == [True]
+
+
+def test_node_windows_falls_back_when_package_manager_fails(monkeypatch):
+    from se_installer.installers import mcp as mcp_module
+
+    monkeypatch.setattr(
+        mcp_module.shutil, "which", lambda name: "C:/winget.exe" if name == "winget" else None
+    )
+    monkeypatch.setattr(
+        mcp_module,
+        "run_tool",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 1, "", "failed"),
+    )
+    installer = NodeInstaller(_make_component("node"))
+    installer._install_windows_zip = lambda: InstallResult(success=True, version="zip")
+    assert installer._install_windows().success is True
+
+
+def test_node_lts_asset_uses_the_first_lts_with_a_windows_build(monkeypatch):
+    releases = [
+        {"version": "v23.0.0", "lts": False, "files": ["win-x64-zip"]},
+        {"version": "v22.14.0", "lts": "Jod", "files": ["linux-x64", "win-x64-zip"]},
+        {"version": "v20.19.0", "lts": "Iron", "files": ["win-x64-zip"]},
+    ]
+    installer = NodeInstaller(_make_component("node"))
+    installer._http_text = lambda url: json.dumps(releases)
+    assert installer._node_lts_asset() == (
+        "v22.14.0",
+        "node-v22.14.0-win-x64.zip",
+    )
+
+
+def test_node_sha256_lookup_accepts_binary_marker():
+    text = "abc123  node-v22.14.0-win-x64.zip\n"
+    assert (
+        NodeInstaller._sha256_for(text, "node-v22.14.0-win-x64.zip") == "abc123"
+    )
+    text = "abc123 *node-v22.14.0-win-x64.zip\n"
+    assert (
+        NodeInstaller._sha256_for(text, "node-v22.14.0-win-x64.zip") == "abc123"
+    )
+
+
+def test_node_standalone_zip_installs_and_adds_to_path(monkeypatch, tmp_path):
+    installer = NodeInstaller(_make_component("node"))
+    installer._node_lts_asset = lambda: (
+        "v22.14.0",
+        "node-v22.14.0-win-x64.zip",
+    )
+    installer._http_text = lambda url: "deadbeef  node-v22.14.0-win-x64.zip\n"
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    downloaded = {}
+
+    def fake_download(url, dest, expected_sha256=None, progress=True):
+        downloaded["url"] = url
+        downloaded["sha"] = expected_sha256
+        Path(dest).write_text("zip", encoding="utf-8")
+        return True
+
+    def fake_extract(archive, dest):
+        root = Path(dest) / "node-v22.14.0-win-x64"
+        root.mkdir(parents=True)
+        (root / "node.exe").write_text("", encoding="utf-8")
+        (root / "npx.cmd").write_text("", encoding="utf-8")
+        return True
+
+    added = []
+    installer.download_file = fake_download
+    installer.extract_archive = fake_extract
+    installer.ensure_in_path = lambda path: added.append(str(path)) or True
+    installer._post_install = lambda: InstallResult(success=True, version="node v22.14.0")
+    monkeypatch.setattr(
+        WindowsInstallerMixin,
+        "add_to_user_path",
+        staticmethod(lambda path: added.append(str(path)) or True),
+    )
+
+    result = installer._install_windows_zip()
+
+    assert result.success is True
+    assert downloaded["url"].endswith("/v22.14.0/node-v22.14.0-win-x64.zip")
+    assert downloaded["sha"] == "deadbeef"
+    install_dir = tmp_path / "Programs" / "node"
+    assert (install_dir / "node.exe").exists()
+    assert (install_dir / "npx.cmd").exists()
+    assert str(install_dir) in added
+
+
+def test_node_standalone_zip_dry_run_does_not_touch_the_network(monkeypatch):
+    installer = NodeInstaller(_make_component("node"))
+    installer.dry_run = True
+
+    def boom():
+        raise AssertionError("dry-run must not query the distribution index")
+
+    installer._node_lts_asset = boom
+    result = installer._install_windows_zip()
+
+    assert result.success is True
+    assert "dry-run" in (result.message or "").lower()
+
+
+def test_node_standalone_zip_reports_failure(monkeypatch):
+    installer = NodeInstaller(_make_component("node"))
+
+    def offline():
+        raise RuntimeError("offline")
+
+    installer._node_lts_asset = offline
+    monkeypatch.setattr(WindowsInstallerMixin, "add_to_user_path", staticmethod(lambda path: True))
+
+    result = installer._install_windows_zip()
+
+    assert result.success is False
+    assert "offline" in (result.error or "")
 
 
 def test_opencode_windows_installs_with_npm(monkeypatch):
