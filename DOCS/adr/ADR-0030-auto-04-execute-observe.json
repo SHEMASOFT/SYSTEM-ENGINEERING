@@ -36,7 +36,7 @@
     ".opencode/adapter-manifest.json (regenerated)"
   ],
   "status": "ACCEPTED",
-  "supersedes": null,
+  "supersedes": "ADR-0025 (referenced in AUTO-04 report but never created for execute/observe)",
   "superseded_by": null,
   "author": "principal-architect",
   "created_at": "2026-09-28T00:00:00Z",

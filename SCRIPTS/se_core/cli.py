@@ -382,60 +382,16 @@ def build_parser() -> argparse.ArgumentParser:
     # uninstall
     p_uninstall = sub.add_parser(
         "uninstall",
-        help="Remove SE-managed MCP servers and optionally purge SE artifacts from OpenCode (plan by default; use --apply to perform)",
+        help="Remove only SE-managed MCP servers (plan by default; use --apply to perform)",
     )
     p_uninstall.add_argument("--project", default=".", help="Target project directory (default: current directory)")
     p_uninstall.add_argument("--apply", action="store_true",
                              help="Perform the removal (default is a plan-only dry-run)")
     p_uninstall.add_argument("--dry-run", dest="dry_run", action="store_true",
                              help="Force a plan-only run (the default)")
-    p_uninstall.add_argument("-i", "--interactive", action="store_true",
-                             help="Interactive purge with per-item selection")
-    p_uninstall.add_argument("--all", action="store_true",
-                             help="Select everything SE-related (managed + untracked SE MCPs + .opencode/)")
-    p_uninstall.add_argument("--include-untracked-se-mcps", action="store_true",
-                             help="Also remove SE-related MCPs not tracked in lifecycle-state (e.g., se-memory-server)")
-    p_uninstall.add_argument("--remove-opencode-dir", action="store_true",
-                             help="Remove generated .opencode/ directory (with backup)")
-    p_uninstall.add_argument("--purge-adapter", action="store_true",
-                             help="Alias for --remove-opencode-dir")
-    p_uninstall.add_argument("--keep-opencode-jsonc", action="store_true",
-                             help="Do not touch opencode.jsonc")
-    p_uninstall.add_argument("--force", action="store_true",
-                             help="Skip extra confirmations in non-interactive runs")
     p_uninstall.add_argument("--json", action="store_true",
                              help="Emit a machine-readable se.report/1 envelope")
     p_uninstall.set_defaults(func=commands.cmd_uninstall)
-
-    # upgrade (fetch -> ff-only -> migrations -> adapters -> sync -> doctor)
-    from . import upgrade as upgrade_cmd
-
-    p_upgrade = sub.add_parser(
-        "upgrade",
-        help="Upgrade the system to a published tag (--check/--dry-run plan only; --recover repairs an interrupted run)",
-    )
-    p_upgrade.add_argument("--project", default=".", help="Target system directory (default: current directory)")
-    p_upgrade.add_argument("--check", action="store_true",
-                           help="Resolve the target version and run the read-only preflight (writes nothing)")
-    p_upgrade.add_argument("--dry-run", dest="dry_run", action="store_true",
-                           help="Same as --check; report the plan without writing")
-    p_upgrade.add_argument("--json", action="store_true",
-                           help="Emit a machine-readable se.report/1 envelope")
-    p_upgrade.add_argument("--offline", action="store_true",
-                           help="Use local tags only; never invoke git ls-remote")
-    p_upgrade.add_argument("--git-path", dest="git_path", default=None,
-                           help="Explicit path to the git binary (when git is not on PATH)")
-    p_upgrade.add_argument("--include-projects", dest="include_projects", action="store_true",
-                           help="Include PROJECTS/ in a snapshot (opt-in; never copied by default)")
-    p_upgrade.add_argument("--allow-downgrade", dest="allow_downgrade", action="store_true",
-                           help="Allow selecting a tag older than the current version")
-    p_upgrade.add_argument("--allow-prerelease", dest="allow_prerelease", action="store_true",
-                           help="Consider pre-release tags (-rc, -beta) as candidates")
-    p_upgrade.add_argument("--no-sync", dest="no_sync", action="store_true",
-                           help="Do not require the opencode CLI during preflight and skip the sync step")
-    p_upgrade.add_argument("--recover", action="store_true",
-                           help="Recover an interrupted upgrade from .se/upgrade-in-progress.json (restores the snapshot and resets HEAD)")
-    p_upgrade.set_defaults(func=upgrade_cmd.cmd_upgrade)
 
     # doctor
     p_doctor = sub.add_parser("doctor", help="Validate the Master System")
@@ -824,7 +780,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_health = sub.add_parser("health", help="Aggregate health status from existing checks (doctor, validate, capabilities, review)")
     p_health.add_argument("--project", required=True, help="Managed project workspace")
     p_health.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope instead of human-readable output")
-    p_health.add_argument("--scope", choices=["identity", "work", "authority", "trace", "deep", "consistency", "conformance"], default="identity", help="Health check scope (default: identity)")
+    p_health.add_argument("--scope", choices=["identity", "work", "authority", "trace", "deep", "consistency"], default="identity", help="Health check scope (default: identity)")
     p_health.set_defaults(func=commands.cmd_health)
 
     # auto
