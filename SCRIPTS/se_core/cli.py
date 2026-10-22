@@ -5,15 +5,19 @@ from __future__ import annotations
 import argparse
 
 from . import commands
+from .lifecycle_state import read_se_version
+from .paths import repo_root
 
 
 def build_parser() -> argparse.ArgumentParser:
+    version = read_se_version(repo_root())
     parser = argparse.ArgumentParser(
         prog="se",
-        description="SYSTEM ENGINEERING reference CLI (v0.10.0)",
+        description=f"SYSTEM ENGINEERING reference CLI (v{version})",
         epilog="There is no `se console` command: the console is a separate, read-only web app "
                "in SE-CONSOLE/ (run `python -m console.server` from that directory).",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {version}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # init

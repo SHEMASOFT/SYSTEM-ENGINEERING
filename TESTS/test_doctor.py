@@ -16,6 +16,7 @@ import support  # noqa: E402
 
 from se_core.doctor import (  # noqa: E402
     check_baseline_ledger,
+    check_manifests,
     check_root_hygiene,
     check_secrets,
     check_self_containment,
@@ -64,6 +65,47 @@ class DoctorTests(unittest.TestCase):
             by_id = {r["id"]: r for r in report["results"]}
             self.assertEqual(by_id["structure"]["status"], "FAIL")
             self.assertFalse(report["ok"])
+
+
+class ManifestVersionTests(unittest.TestCase):
+    """Every persisted version reference must agree with ``VERSION``."""
+
+    def _root(self, *, version="9.9.9", system=None, manifest=None,
+              distribution=None):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        (root / "MASTER SYSTEM").mkdir()
+        (root / "VERSION").write_text(version, encoding="utf-8")
+        (root / "MASTER SYSTEM" / "VERSION").write_text(
+            distribution if distribution is not None else version,
+            encoding="utf-8",
+        )
+        support.write_json(root / "SYSTEM.json", {
+            "master_system_version": system if system is not None else version,
+        })
+        support.write_json(root / "MASTER SYSTEM" / "MANIFEST.json", {
+            "master_system_version": manifest if manifest is not None else version,
+        })
+        return root
+
+    def test_matching_references_pass(self):
+        status, detail = check_manifests(self._root())
+
+        self.assertEqual(status, "PASS", detail)
+        self.assertIn("9.9.9", detail)
+
+    def test_distribution_version_must_match(self):
+        status, detail = check_manifests(self._root(distribution="9.9.8"))
+
+        self.assertEqual(status, "FAIL")
+        self.assertIn("MASTER SYSTEM/VERSION", detail)
+
+    def test_system_manifest_must_match(self):
+        status, detail = check_manifests(self._root(system="9.9.8"))
+
+        self.assertEqual(status, "FAIL")
+        self.assertIn("SYSTEM.json", detail)
 
 
 class RootHygieneTests(unittest.TestCase):
