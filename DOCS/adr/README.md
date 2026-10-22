@@ -32,6 +32,9 @@ Master System itself (`project_id: PRJ-SYSTEM-ENGINEERING`).
 | [ADR-0025](ADR-0025-workflow-node-context-budget.json) | Per-node context budget in the workflow schema |
 | [ADR-0026](ADR-0026-workflow-checkpoint-recovery.json) | Workflow checkpoint recovery (`--resume-from`) |
 | [ADR-0027](ADR-0027-internal-memory-replacing-engram.json) | Internal memory replacing Engram (semantic, in-repo) |
+| [ADR-0028](ADR-0028-skill-license-field.json) | Skill license field in skill contract schema |
+| [ADR-0029](ADR-0029-auto-05-consistency-scope.json) | AUTO-05 Consistency as `se health --scope consistency` |
+| [ADR-0030](ADR-0030-auto-04-execute-observe.json) | AUTO-04 Execute/Observe pipeline commands |
 
 These files are also validated by the test suite as real DECISION artifacts, exercising the
 decision schema in practice.
