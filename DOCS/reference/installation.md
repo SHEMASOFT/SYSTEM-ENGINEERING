@@ -22,9 +22,10 @@ On Windows the interpreter is `python`, so throughout this guide read `python3` 
 | `openai`, `anthropic` | optional | `openai` / `anthropic` LLM providers |
 
 The Windows one-command bootstrap installs Python 3.12 when no 3.10+ interpreter
-is found and winget, Chocolatey or Scoop is available (`--dry-run` never installs
-prerequisites). On Linux/macOS install `python3` (and `python3-venv` on
-Debian/Ubuntu) first.
+is found: it tries winget, Chocolatey and Scoop, then the official signed
+python.org installer for the current user (no administrator required).
+`--dry-run` never installs prerequisites. On Linux/macOS install `python3` (and
+`python3-venv` on Debian/Ubuntu) first.
 
 Validate the runtime at any time:
 
@@ -77,10 +78,13 @@ successful install it registers the selected MCPs that have a template; pass
 also chain it through the CLI with `se install --bootstrap` (see §7).
 
 The Windows bootstrap installs Node/OpenCode through a package manager when they
-are missing and refreshes the process `PATH` before running `se install`. If a
-tool was installed but is still not found, open a new terminal and rerun. `se
-install` registers only servers whose launcher is present (`npx` for
-`context7`/`filesystem`); a skipped server is reported, not marked installed.
+are missing and refreshes the process `PATH` before running `se install`. If no
+winget/Chocolatey/Scoop is available, Node falls back to the official LTS ZIP from
+nodejs.org (SHA256 verified, installed under `%LOCALAPPDATA%\Programs\node`) and
+OpenCode to its standalone binary. If a tool was installed but is still not found,
+open a new terminal and rerun. `se install` registers only servers whose launcher
+is present (`npx` for `context7`/`filesystem`); a skipped server is reported, not
+marked installed.
 
 > **Where to put a virtualenv.** The one-command entry points keep their venv at
 > `SE-INSTALLER/.venv`, which `se doctor` audits cleanly. If you create your own venv,
@@ -199,6 +203,9 @@ isolated venv, install `se-installer` into it, and forward the arguments to the 
 After a successful `install` they also run this registration automatically. The
 TUI does the same for the selected MCPs. Custom `-c/--components` selections on
 `install` and `--skip-mcp-registration` skip it.
+
+The reproducible clean-Windows check (Windows Sandbox or disposable VM) is documented in
+[clean-machine-smoke.md](clean-machine-smoke.md).
 
 ```bash
 python3 SCRIPTS/se.py install --dry-run     # plan only: writes nothing

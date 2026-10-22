@@ -40,8 +40,10 @@ In short: SE makes AI work **cheaper (tokens), clearer and auditable**.
 | Node.js *(optional)* | MCP servers that use `npx` |
 
 > On Windows, `bootstrap.ps1` installs Python 3.12, Node.js LTS and OpenCode when
-> they are missing and winget, Chocolatey or Scoop is available. On Linux/macOS,
-> install `python3` (and `python3-venv` on Debian/Ubuntu) first.
+> they are missing. It uses winget, Chocolatey or Scoop when available; otherwise
+> Python comes from the official signed python.org installer and Node from the
+> official nodejs.org LTS ZIP (SHA256 verified). On Linux/macOS, install `python3`
+> (and `python3-venv` on Debian/Ubuntu) first.
 
 ---
 

@@ -105,6 +105,7 @@ function Update-ProcessPath {
     if ($env:APPDATA) { $hints += Join-Path $env:APPDATA "npm" }
     if ($env:LOCALAPPDATA) {
         $hints += Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Links"
+        $hints += Join-Path $env:LOCALAPPDATA "Programs\node"
         $hints += Join-Path $env:LOCALAPPDATA "Programs\Python\Launcher"
         $hints += Join-Path $env:LOCALAPPDATA "Programs\Python\Python312"
     }
@@ -158,6 +159,50 @@ function Find-PythonExe {
     return $null
 }
 
+function Install-PythonOfficial {
+    # Last-resort path for a clean image with no winget/Chocolatey/Scoop. The
+    # installer is downloaded from python.org and must carry a valid Authenticode
+    # signature from the Python Software Foundation before it is executed.
+    $arch = if ($env:PROCESSOR_ARCHITECTURE -match 'ARM64') { 'arm64' } else { 'amd64' }
+    $version = '3.12.10'
+    $name = "python-$version-$arch.exe"
+    $url = "https://www.python.org/ftp/python/$version/$name"
+    $installer = Join-Path $env:TEMP $name
+    Write-Host "bootstrap: downloading the official Python $version installer ..."
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing -TimeoutSec 300
+        $sig = Get-AuthenticodeSignature -FilePath $installer
+        if ($sig.Status -ne 'Valid') {
+            throw "Authenticode status is $($sig.Status)"
+        }
+        if (-not $sig.SignerCertificate -or $sig.SignerCertificate.Subject -notmatch 'Python Software Foundation') {
+            throw "unexpected signer: $($sig.SignerCertificate.Subject)"
+        }
+        Write-Host "bootstrap: installing Python for the current user ..."
+        $proc = Start-Process -FilePath $installer -Wait -PassThru -ArgumentList @(
+            '/quiet',
+            'InstallAllUsers=0',
+            'PrependPath=1',
+            'Include_pip=1',
+            'Include_test=0',
+            'Include_launcher=1'
+        )
+        if ($proc.ExitCode -ne 0) {
+            throw "installer exited with code $($proc.ExitCode)"
+        }
+    } catch {
+        Write-Warning "bootstrap: official Python installer failed: $($_.Exception.Message)"
+        return $null
+    } finally {
+        Remove-Item -Force $installer -ErrorAction SilentlyContinue
+    }
+    Update-ProcessPath
+    $found = Find-PythonExe
+    Add-PythonToPath $found
+    return $found
+}
+
 function Install-PythonExe {
     Write-Host "bootstrap: Python 3.10+ not found; attempting to install Python 3.12 ..."
     $attempted = $false
@@ -191,6 +236,13 @@ function Install-PythonExe {
         }
     }
 
+    if (-not $installed) {
+        $attempted = $true
+        Write-Host "bootstrap: no package manager installed Python; trying the official installer ..."
+        $official = Install-PythonOfficial
+        if ($official) { $installed = $true }
+    }
+
     if (-not $attempted) { return $null }
     Update-ProcessPath
     $found = Find-PythonExe
@@ -210,12 +262,13 @@ if (-not $PythonExe) {
     if ($DryRun) {
         Write-Host "bootstrap: --dry-run does not install prerequisites; install Python and rerun."
     } else {
-        Write-Host "bootstrap: no supported package manager was able to install it."
+        Write-Host "bootstrap: no supported package manager or the official installer was able to install it."
     }
     Write-Host "bootstrap: install Python 3.10+ with one of:"
     Write-Host "  winget install --id Python.Python.3.12 -e"
     Write-Host "  choco install python -y"
     Write-Host "  scoop install python"
+    Write-Host "  https://www.python.org/downloads/windows/"
     Write-Host "bootstrap: then open a new terminal and rerun this command."
     exit 1
 }
