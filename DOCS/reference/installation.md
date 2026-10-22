@@ -148,12 +148,20 @@ Each agent declares its model in its contract, `AGENTS/<name>/agent.json`:
 }
 ```
 
-Providers available: `openai`, `anthropic`, `local` (Ollama / vLLM / OpenAI-compatible),
-`dummy` (no key, deterministic — for tests). API keys are read from environment
-variables named in `provider_options.api_key_env`.
+Providers available: `openai`, `anthropic`, `openrouter`, `ollama`, `local`
+(Ollama / vLLM / OpenAI-compatible), `dummy` (no key, deterministic — for tests).
+API keys are read from environment variables named in
+`provider_options.api_key_env`.
+
+`se adapter opencode` renders `model: <provider>/<model>` (and `temperature`, when
+declared) into `.opencode/agents/<role>.md`; `se adapter codex` writes the model to
+`.codex/agents/<role>.toml`. If `model` already contains a `/`, it is used verbatim;
+otherwise the `provider` is prepended. The aliases `free` → `openrouter` and
+`local` → `ollama` are provided for convenience. For another provider, use its
+OpenCode provider ID.
 
 > A dedicated CLI command to set this is not implemented yet; edit the contract and
-> re-run `se adapter opencode`.
+> re-run the adapter.
 
 ### OpenCode provider auth
 
