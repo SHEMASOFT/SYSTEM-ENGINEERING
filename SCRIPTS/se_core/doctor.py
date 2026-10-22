@@ -452,6 +452,7 @@ def check_manifests(root: Path):
         version = (root / "VERSION").read_text(encoding="utf-8").strip()
         manifest = load_json(root / "MASTER SYSTEM" / "MANIFEST.json")
         system = load_json(root / "SYSTEM.json")
+        distribution_version = (root / "MASTER SYSTEM" / "VERSION").read_text(encoding="utf-8").strip()
     except Exception as exc:
         return "FAIL", f"manifest check unreadable: {exc}"
     if manifest.get("master_system_version") != version:
@@ -461,7 +462,13 @@ def check_manifests(root: Path):
         )
     if system.get("master_system_version") != version:
         return "FAIL", f"SYSTEM.json ({system.get('master_system_version')}) != VERSION ({version})"
-    return "PASS", f"MANIFEST.json and SYSTEM.json pinned to {version}"
+    if distribution_version != version:
+        return "FAIL", (
+            f"MASTER SYSTEM/VERSION ({distribution_version}) != VERSION ({version})"
+        )
+    return "PASS", (
+        f"MANIFEST.json, SYSTEM.json and MASTER SYSTEM/VERSION pinned to {version}"
+    )
 
 
 def check_manifest_outputs(root: Path):

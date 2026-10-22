@@ -17,6 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="There is no `se console` command: the console is a separate, read-only web app "
                "in SE-CONSOLE/ (run `python -m console.server` from that directory).",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {version}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # init
