@@ -26,7 +26,7 @@ EXPECTED_COMMANDS = {
     "init", "explore", "new", "update", "transition", "plan", "implement",
     "verify", "review", "release", "doctor", "validate", "gate", "capabilities",
     "context", "health", "auto", "intent", "handoff", "archive", "restore",
-    "execute", "observe", "orchestrate",
+    "execute", "observe", "orchestrate", "upgrade",
 }
 INTENTS = {"CREATE", "READ", "MUTATE", "CONTROL", "ANALYZE", "DEPLOY", "REPORT", "IMPLEMENT"}
 RISKS = {"low", "medium", "high", "critical"}

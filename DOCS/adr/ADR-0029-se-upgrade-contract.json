@@ -1,0 +1,57 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0029",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-10-23",
+  "context": "`se upgrade` is implemented in SCRIPTS/se_core/upgrade.py and registered in SCRIPTS/se_core/cli.py, and its real execution path is verified: the full suite reports 1251 passed, 1 skipped and 45 subtests passed, and a real end-to-end run against a temporary git clone exercised both success (0.10.1 -> 0.10.2, doctor 0 FAIL / 1 pre-existing WARN) and rollback (a failing migration restored HEAD and opencode.jsonc byte-for-byte and removed the state/ledger it had created), as recorded in DOCS/internal/upgrade-readiness-audit-2026-10-22.md section 13. The command is nevertheless outside COMMANDS/commands.json: it is listed in DECLARED_SUPPORT of TESTS/test_cli_contract_boundary.py and in the support-subcommand list of COMMANDS/README.md, so its interface, risk, permissions and limits are not contractual. ADR-0020 requires an ADR plus a VERSION bump to widen the contract. This repository has no PROJECT.json, so `se ceremony --project .` returns FAIL 'no PROJECT.json'; the declared spec+receipt work mode is therefore recorded in this ADR but not mechanically enforced by ceremony, and this change intentionally does not create PROJECT.json.",
+  "problem": "How can `se upgrade` be promoted without ambiguity about its interface, risk, permissions and compatibility, and how can the CLI surface be prevented from growing without an explicit decision?",
+  "options_considered": [
+    {
+      "option": "Keep `upgrade` as declared support (no ADR, no VERSION bump)",
+      "pros": ["No contract change and no release ceremony", "The implementation and tests stay untouched", "Fast path while the command is still considered unstable"],
+      "cons": ["Interface, risk and permissions remain non-contractual", "The CLI surface can keep growing through DECLARED_SUPPORT without a decision", "ADR-0020's contract rule is bypassed for a command that mutates the installation", "Documentation and tests keep describing upgrade as support"]
+    },
+    {
+      "option": "Promote `upgrade` to the command contract (ADR + minor bump + adapter + docs/tests)",
+      "pros": ["One governed surface: interface, risk, permissions and limits are explicit", "The command already has execution, unit/acceptance tests and a real E2E success/rollback", "Removes `upgrade` from DECLARED_SUPPORT and fixes the CLI boundary", "The OpenCode adapter and the human summary tables are regenerated from the contract"],
+      "cons": ["Requires an ADR and a VERSION minor bump", "commands.json, README, reference docs, boundary/summary/adapter tests and .opencode must be updated together", "The contract wording must capture residual risks (generated adapters, no locks, WARN gate)"]
+    },
+    {
+      "option": "Create a new duplicate command (e.g. `self-upgrade`) and leave `upgrade` as support",
+      "pros": ["No change to the existing support command"],
+      "cons": ["Duplicates an implemented orchestrator and its tests", "Two upgrade paths drift and split the evidence", "Adds surface instead of governing the existing one"]
+    }
+  ],
+  "decision": "`upgrade` becomes contract command CMD-0025 (name `upgrade`, agent `devops`, `execution_intent` MUTATE, `risk_level` high, `gate` null, `mutates` true, `implemented` true) and `COMMANDS/commands.json.interface_version` moves from 0.4.0 to 0.5.0. The agent is `devops` because its permissions are [READ, ANALYZE, WRITE_DOCS, DEPLOY] and the contract invariant requires every command permission to be a subset of its assigned agent; `devops` grants DEPLOY and already carries the required rollback and approved-release restrictions. DESTRUCTIVE is not declared because the only `git reset --hard` runs inside rollback/recovery, after a preflight that requires a clean tracked work tree, is limited to the `<git_head_before>` recorded in the marker and to files created by the upgrade itself (snapshot `absent` entries), and never runs `git clean`. Contractual semantics: (1) `--check` and `--dry-run` are read-only: they resolve the target version and run the preflight, create no `.se/` directory and write no file; (2) execution is preflight -> verified snapshot -> atomic marker -> fetch (skipped with `--offline`) -> `git merge --ff-only <tag>` -> ordered idempotent migrations (`ID` + `migrate(root, context)`, ledger `.se/migrations.json`) -> `se adapter all` -> `se sync` -> `se doctor`; any failure after the marker rolls back by verifying the snapshot, running `git reset --hard <git_head_before>` only when HEAD actually changed, restoring config/state/ledger with hash verification and deleting the paths the snapshot recorded as absent; (3) `--recover` repairs a marker left by an interrupted upgrade before the preflight, and a marker without `git_head_before` is BLOCKED (no reset, restore or marker deletion); (4) the doctor gate requires `FAIL == 0`; WARN is accepted and recorded in `warnings` (the pre-existing `self_containment` WARN is not forced to PASS); (5) the exact flags are `--project`, `--check`, `--dry-run`, `--json`, `--offline`, `--git-path`, `--include-projects`, `--allow-downgrade`, `--allow-prerelease`, `--no-sync`, `--recover`; (6) `--allow-downgrade` only affects target selection in `--check`; execution is ff-only, so a lower target does not advance and ends in rollback. Exit codes follow the command contract: 0 for PASS/INFO/UNKNOWN, 1 for BLOCKED/FAIL and 2 for usage errors; `--json` emits a se.report/1 envelope with operation `upgrade`.",
+  "reason": "A single contractual surface prevents silent growth: promoting the command that is already implemented and verified is cheaper and safer than duplicating it, and it fixes interface, risk, permissions and limits in one reviewed place. The command already has execution, unit/acceptance tests and a real E2E success/rollback, so the contract records behaviour that exists instead of inventing it; ADR-0020's ADR + VERSION bump keeps the change traceable.",
+  "consequences": "COMMANDS/commands.json gains CMD-0025 and interface_version 0.5.0; COMMANDS/README.md and DOCS/reference/commands.md list 25 commands and drop `upgrade` from the support list; TESTS/test_cli_contract_boundary.py removes `upgrade` from DECLARED_SUPPORT; TESTS/test_commands_summary_tables.py keeps both summary tables in sync; TESTS/test_opencode_adapter.py expects 25 commands, 59 output artifacts and 59 planned files (58 `content_hashes` entries, because `adapter-manifest.json` is added after the hashes are computed); `.opencode/` is regenerated. VERSION moves 0.10.1 -> 0.11.0 (minor, backward-compatible new command) together with SYSTEM.json, MASTER SYSTEM/VERSION and the distribution manifest, plus a CHANGELOG entry. Declared limits, not hidden: generated adapters (`.opencode/`, `.claude/`, `.codex/`, `AGENTS.md`, `CLAUDE.md`, `.mcp.json`) are not rolled back and untracked files are only reported in `residual_untracked`; there are no locks, so concurrent `sync`/`install`/`upgrade` on one target are not coordinated; the migration contract is `ID` + `migrate(root, context)` with filename ordering and an idempotent ledger, and no concrete migrations ship yet; doctor WARN is accepted by design. Governance conflict: without PROJECT.json, `se ceremony --project .` cannot enforce the declared spec+receipt mode; the mode is recorded in metadata, not enforced.",
+  "affected_components": [
+    "COMMANDS",
+    "DOCS/adr",
+    "DOCS/reference",
+    "SCRIPTS/se_core/upgrade.py",
+    "SCRIPTS/se_core/cli.py",
+    "TESTS",
+    "MIGRATIONS",
+    ".opencode",
+    "VERSION",
+    "SYSTEM.json",
+    "MASTER SYSTEM"
+  ],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "shema-ai-coordinador",
+  "created_at": "2026-10-23T00:00:00Z",
+  "updated_at": "2026-10-23T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "SE-UPGRADE-CONTRACT",
+    "depends_on_adr": ["ADR-0016", "ADR-0017", "ADR-0020"],
+    "work_mode": "spec+receipt",
+    "profile": "undeclared: no PROJECT.json; se ceremony FAIL",
+    "verification": "DOCS/internal/upgrade-readiness-audit-2026-10-22.md §13"
+  }
+}

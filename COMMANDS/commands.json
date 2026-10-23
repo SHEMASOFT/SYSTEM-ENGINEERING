@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "interface_version": "0.4.0",
+  "interface_version": "0.5.0",
   "description": "Conceptual command interface. Exposable via CLI, OpenCode, other agents or automation.",
   "conventions": {
     "project_flag": "--project <dir> points at a managed project workspace.",
@@ -1271,6 +1271,119 @@
           "description": "Emit a machine-readable se.report/1 envelope."
         }
       ]
+    },
+    {
+      "id": "CMD-0025",
+      "version": "1.0.0",
+      "name": "upgrade",
+      "description": "Upgrade the installed Master System to a published tag with a verifiable snapshot, rollback and recovery.",
+      "purpose": "Plan (--check/--dry-run) or execute a fail-closed upgrade of the installed Master System: ff-only advance to a published tag, ordered migrations, adapter regeneration, sync, doctor gate, snapshot rollback and interrupted-run recovery.",
+      "agent": "devops",
+      "execution_intent": "MUTATE",
+      "risk_level": "high",
+      "inputs": [
+        "--project",
+        "--check",
+        "--dry-run",
+        "--json",
+        "--offline",
+        "--git-path",
+        "--include-projects",
+        "--allow-downgrade",
+        "--allow-prerelease",
+        "--no-sync",
+        "--recover"
+      ],
+      "outputs": [
+        "se.report/1 envelope",
+        "verified snapshot under .se/backups",
+        "upgrade marker/history",
+        "VERSION advance on success",
+        "rollback/recovery on failure"
+      ],
+      "gate": null,
+      "primary_agent": "devops",
+      "mutates": true,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE",
+        "WRITE_DOCS",
+        "DEPLOY"
+      ],
+      "arguments": [
+        {
+          "name": "--project",
+          "type": "path",
+          "required": false,
+          "default": ".",
+          "description": "Target system directory (default: current directory)."
+        },
+        {
+          "name": "--check",
+          "type": "boolean",
+          "required": false,
+          "description": "Resolve the target version and run the read-only preflight (writes nothing)."
+        },
+        {
+          "name": "--dry-run",
+          "type": "boolean",
+          "required": false,
+          "description": "Same as --check; report the plan without writing."
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.report/1 envelope."
+        },
+        {
+          "name": "--offline",
+          "type": "boolean",
+          "required": false,
+          "description": "Use local tags only; never invoke git ls-remote."
+        },
+        {
+          "name": "--git-path",
+          "type": "string",
+          "required": false,
+          "description": "Explicit path to the git binary (when git is not on PATH)."
+        },
+        {
+          "name": "--include-projects",
+          "type": "boolean",
+          "required": false,
+          "description": "Include PROJECTS/ in a snapshot (opt-in; never copied by default)."
+        },
+        {
+          "name": "--allow-downgrade",
+          "type": "boolean",
+          "required": false,
+          "description": "Allow selecting a tag older than the current version."
+        },
+        {
+          "name": "--allow-prerelease",
+          "type": "boolean",
+          "required": false,
+          "description": "Consider pre-release tags (-rc, -beta) as candidates."
+        },
+        {
+          "name": "--no-sync",
+          "type": "boolean",
+          "required": false,
+          "description": "Do not require the opencode CLI during preflight and skip the sync step."
+        },
+        {
+          "name": "--recover",
+          "type": "boolean",
+          "required": false,
+          "description": "Recover an interrupted upgrade from .se/upgrade-in-progress.json (restores the snapshot and resets HEAD)."
+        }
+      ],
+      "metadata": {
+        "adr": "ADR-0029",
+        "promoted_from": "DECLARED_SUPPORT"
+      }
     }
   ]
 }

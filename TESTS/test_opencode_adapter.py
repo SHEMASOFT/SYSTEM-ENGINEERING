@@ -40,7 +40,7 @@ EXPECTED_COMMANDS = {
     "init", "explore", "new", "update", "transition", "plan", "implement",
     "verify", "review", "release", "doctor", "validate", "gate", "capabilities",
     "context", "health", "auto", "intent", "handoff", "archive", "restore",
-    "execute", "observe", "orchestrate",
+    "execute", "observe", "orchestrate", "upgrade",
 }
 
 
@@ -64,13 +64,13 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
             self.assertEqual(agent_files, {f"{r}.md" for r in EXPECTED_AGENTS})
             self.assertEqual(result["counts"]["agents"], 12)
 
-    def test_twenty_four_commands_generated(self):
+    def test_twenty_five_commands_generated(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = self.generate_to(Path(tmp))
             self.assertEqual(result["status"], "PASS")
             command_files = {p.name for p in (Path(tmp) / "commands").glob("*.md")}
             self.assertEqual(command_files, {f"{c}.md" for c in EXPECTED_COMMANDS})
-            self.assertEqual(result["counts"]["commands"], 24)
+            self.assertEqual(result["counts"]["commands"], 25)
 
     def test_canonical_skills_generated(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -117,7 +117,7 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
             self.assertEqual(errors, [], f"{errors}")
             self.assertEqual(config["adapter_id"], "opencode")
             self.assertEqual(config["target"], "opencode")
-            self.assertEqual(len(config["output"]["artifacts"]), 58)
+            self.assertEqual(len(config["output"]["artifacts"]), 59)
 
     def test_capabilities_declared(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -171,7 +171,7 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = self.generate_to(Path(tmp))
             paths = {entry["path"] for entry in result["files"]}
-            self.assertEqual(len(paths), 58)
+            self.assertEqual(len(paths), 59)
             self.assertIn("adapter-manifest.json", paths)
             self.assertIn("AGENTS.md", paths)
 
@@ -198,7 +198,7 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
             self.assertEqual(result["status"], "PASS")
             self.assertTrue(result["dry_run"])
             self.assertEqual(list(Path(tmp).rglob("*")), [])
-            self.assertEqual(len(result["files"]), 58)
+            self.assertEqual(len(result["files"]), 59)
 
     def test_never_writes_into_projects(self):
         schemas = support.schemas()
@@ -217,9 +217,9 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = self.generate_to(Path(tmp))
             config = json.loads((Path(tmp) / "adapter-manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(len(config["output"]["generated_files"]), 57)
+            self.assertEqual(len(config["output"]["generated_files"]), 58)
             hashes = config["metadata"]["content_hashes"]
-            self.assertEqual(len(hashes), 57)
+            self.assertEqual(len(hashes), 58)
             for rel, digest in hashes.items():
                 content = (Path(tmp) / rel).read_bytes()
                 import hashlib
@@ -231,7 +231,7 @@ class OpenCodeAdapterGenerationTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("Status: PASS", out)
         self.assertIn("12 generated", out)
-        self.assertIn("24 generated", out)
+        self.assertIn("25 generated", out)
 
     def test_cli_generates_into_custom_output(self):
         with tempfile.TemporaryDirectory() as tmp:

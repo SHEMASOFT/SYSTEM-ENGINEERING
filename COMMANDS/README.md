@@ -28,6 +28,7 @@ The conceptual command interface. Machine-readable source: [`commands.json`](com
 | `execute` | G3 | implementer | Execute actionable tasks, fail-closed, with receipts and evidence |
 | `observe` | — | implementer | Read-only view of execution progress, evidence, artifacts and receipts |
 | `orchestrate` | varies | coordinator | Create/execute/list workflows with topological order and gate enforcement |
+| `upgrade` | — | devops | Upgrade the installed system to a published tag (ff-only, snapshot, migrations, rollback, recover) |
 
 Conventions:
 
@@ -41,7 +42,7 @@ Conventions:
   identity|work|authority|trace|deep`, optional `--focus <ID>`); the B1 commands remain a
   serialization surface and perform no reconstruction.
 - Outside the contract, the CLI also exposes support subcommands: `install`, `sync`,
-  `uninstall`, `upgrade` and `adapter` manage the tool itself and its generated artifacts, while
+  `uninstall` and `adapter` manage the tool itself and its generated artifacts, while
   `adopt`, `ceremony`, `coverage`, `har`, `intelligence`, `memory`, `resume`, `run`, `skill`,
   `subagent`, and `status` are documented support. `TESTS/test_cli_contract_boundary.py` pins that
   boundary: adding a subcommand means choosing between the contract (a governed change:

@@ -53,7 +53,6 @@ DECLARED_SUPPORT = frozenset(
         "subagent",  # executes a subagent with full token economy (reuses AgentRunner)
         "sync",  # synchronises installed tool artifacts
         "uninstall",  # removes the tool's installed artifacts
-        "upgrade",  # plans a version upgrade (skeleton: read-only --check)
     }
 )
 
