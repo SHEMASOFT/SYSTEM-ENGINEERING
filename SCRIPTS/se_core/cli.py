@@ -393,6 +393,34 @@ def build_parser() -> argparse.ArgumentParser:
                              help="Emit a machine-readable se.report/1 envelope")
     p_uninstall.set_defaults(func=commands.cmd_uninstall)
 
+    # upgrade (read-only planning phase; execution is not implemented yet)
+    from . import upgrade as upgrade_cmd
+
+    p_upgrade = sub.add_parser(
+        "upgrade",
+        help="Plan a version upgrade: resolve published tags, run a read-only preflight, snapshot on demand",
+    )
+    p_upgrade.add_argument("--project", default=".", help="Target system directory (default: current directory)")
+    p_upgrade.add_argument("--check", action="store_true",
+                           help="Resolve the target version and run the read-only preflight (writes nothing)")
+    p_upgrade.add_argument("--dry-run", dest="dry_run", action="store_true",
+                           help="Same as --check; report the plan without writing")
+    p_upgrade.add_argument("--json", action="store_true",
+                           help="Emit a machine-readable se.report/1 envelope")
+    p_upgrade.add_argument("--offline", action="store_true",
+                           help="Use local tags only; never invoke git ls-remote")
+    p_upgrade.add_argument("--git-path", dest="git_path", default=None,
+                           help="Explicit path to the git binary (when git is not on PATH)")
+    p_upgrade.add_argument("--include-projects", dest="include_projects", action="store_true",
+                           help="Include PROJECTS/ in a snapshot (opt-in; never copied by default)")
+    p_upgrade.add_argument("--allow-downgrade", dest="allow_downgrade", action="store_true",
+                           help="Allow selecting a tag older than the current version")
+    p_upgrade.add_argument("--allow-prerelease", dest="allow_prerelease", action="store_true",
+                           help="Consider pre-release tags (-rc, -beta) as candidates")
+    p_upgrade.add_argument("--no-sync", dest="no_sync", action="store_true",
+                           help="Do not require the opencode CLI during preflight")
+    p_upgrade.set_defaults(func=upgrade_cmd.cmd_upgrade)
+
     # doctor
     p_doctor = sub.add_parser("doctor", help="Validate the Master System")
     p_doctor.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")

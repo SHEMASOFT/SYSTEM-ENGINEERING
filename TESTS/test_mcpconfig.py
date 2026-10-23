@@ -299,5 +299,170 @@ class BackupConfigTests(unittest.TestCase):
             self.assertEqual(backup.read_text(encoding="utf-8"), '{"a": 1}')
 
 
+class LineEndingPreservationTests(unittest.TestCase):
+    """AC11: a rewrite must preserve the file's detected EOL style byte-for-byte.
+
+    ``Path.read_text`` normalizes CRLF to LF; the writers used to call
+    ``Path.write_text`` without ``newline``, which re-translated the WHOLE file
+    to the platform default (CRLF on Windows). These assertions are on raw bytes,
+    so they fail on the platform where the defect was reachable and still pin the
+    contract everywhere else.
+    """
+
+    LF_SETUP = (
+        "{\n"
+        "  // header comment\n"
+        '  "mcp": {\n'
+        '    "servers": {\n'
+        '      "foreign-a": {"type": "local", "command": ["x"]}\n'
+        "    }\n"
+        "  },\n"
+        '  "theme": "dark"\n'
+        "}\n"
+    )
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.path = self.root / "opencode.jsonc"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write(self, text):
+        # Binary write: never let the test host translate the seeded EOLs.
+        self.path.write_bytes(text.encode("utf-8"))
+
+    def _raw(self):
+        return self.path.read_bytes()
+
+    def _assert_lf_only(self):
+        raw = self._raw()
+        self.assertNotIn(b"\r", raw)
+        self.assertTrue(raw.endswith(b"\n"))
+
+    def _assert_crlf_only(self):
+        raw = self._raw()
+        self.assertIn(b"\r\n", raw)
+        self.assertNotIn(b"\r\r", raw)
+        self.assertNotIn(b"\n", raw.replace(b"\r\n", b""))
+
+    def test_detect_newline_helper(self):
+        self.assertEqual(mcpconfig._detect_newline("a\r\nb\r\n"), "\r\n")
+        self.assertEqual(mcpconfig._detect_newline("a\nb\n"), "\n")
+        self.assertEqual(mcpconfig._detect_newline(""), "\n")
+
+    def test_lf_file_stays_lf_after_add(self):
+        self._write(self.LF_SETUP)
+        result = mcpconfig.add_server_text(
+            self.path, "added", {"type": "local", "command": ["z"]}, target=self.root
+        )
+        self.assertEqual(result["errors"], [])
+        self.assertTrue(result["added"])
+        self._assert_lf_only()
+        parsed = mcpconfig.read_config(self.path)
+        self.assertIn("added", parsed["mcp"]["servers"])
+        self.assertIn("foreign-a", parsed["mcp"]["servers"])
+        self.assertEqual(parsed["theme"], "dark")
+        self.assertIn("// header comment", self.path.read_text(encoding="utf-8"))
+
+    def test_crlf_file_stays_crlf_after_add(self):
+        self._write(self.LF_SETUP.replace("\n", "\r\n"))
+        result = mcpconfig.add_server_text(
+            self.path, "added", {"type": "local", "command": ["z"]}, target=self.root
+        )
+        self.assertEqual(result["errors"], [])
+        self._assert_crlf_only()
+        parsed = mcpconfig.read_config(self.path)
+        self.assertIn("added", parsed["mcp"]["servers"])
+        self.assertEqual(parsed["theme"], "dark")
+        self.assertIn("// header comment", self.path.read_text(encoding="utf-8"))
+
+    def test_crlf_file_stays_crlf_when_updating_existing_server(self):
+        self._write(self.LF_SETUP.replace("\n", "\r\n"))
+        result = mcpconfig.add_server_text(
+            self.path, "foreign-a", {"type": "local", "command": ["y"]}, target=self.root
+        )
+        self.assertEqual(result["errors"], [])
+        self.assertTrue(result["updated"])
+        self._assert_crlf_only()
+        parsed = mcpconfig.read_config(self.path)
+        self.assertEqual(parsed["mcp"]["servers"]["foreign-a"]["command"], ["y"])
+
+    def test_new_file_is_lf(self):
+        result = mcpconfig.add_server_text(
+            self.path, "srv", {"type": "local"}, target=self.root
+        )
+        self.assertEqual(result["errors"], [])
+        self._assert_lf_only()
+        self.assertEqual(
+            mcpconfig.read_config(self.path)["mcp"]["servers"]["srv"],
+            {"type": "local"},
+        )
+
+    def test_remove_preserves_lf(self):
+        self._write(self.LF_SETUP)
+        result = mcpconfig.remove_server_text(self.path, "foreign-a", target=self.root)
+        self.assertEqual(result["errors"], [])
+        self.assertTrue(result["changed"])
+        self._assert_lf_only()
+        self.assertNotIn("foreign-a", mcpconfig.read_config(self.path)["mcp"]["servers"])
+
+    def test_remove_preserves_crlf(self):
+        self._write(self.LF_SETUP.replace("\n", "\r\n"))
+        result = mcpconfig.remove_server_text(self.path, "foreign-a", target=self.root)
+        self.assertEqual(result["errors"], [])
+        self.assertTrue(result["changed"])
+        self._assert_crlf_only()
+        self.assertNotIn("foreign-a", mcpconfig.read_config(self.path)["mcp"]["servers"])
+
+    def test_comments_and_foreign_entries_survive_a_crlf_rewrite(self):
+        setup = (
+            "{\r\n"
+            "  // header: do not lose me\r\n"
+            "  /* block: nor me */\r\n"
+            '  "mcp": {\r\n'
+            '    "servers": {\r\n'
+            '      "foreign-a": {\r\n'
+            '        "type": "local",\r\n'
+            '        "command": ["/opt/foreign", "--keep"]\r\n'
+            "      }\r\n"
+            "    }\r\n"
+            "  },\r\n"
+            '  "theme": "dark"\r\n'
+            "}\r\n"
+        )
+        self._write(setup)
+        result = mcpconfig.add_server_text(
+            self.path, "se-test", {"type": "local", "command": ["z"]}, target=self.root
+        )
+        self.assertEqual(result["errors"], [])
+        self._assert_crlf_only()
+        parsed = mcpconfig.read_config(self.path)
+        self.assertEqual(
+            parsed["mcp"]["servers"]["foreign-a"],
+            {"type": "local", "command": ["/opt/foreign", "--keep"]},
+        )
+        self.assertEqual(parsed["theme"], "dark")
+        text = self.path.read_text(encoding="utf-8")
+        self.assertIn("// header: do not lose me", text)
+        self.assertIn("/* block: nor me */", text)
+
+    def test_re_add_does_not_duplicate_the_server(self):
+        self._write(self.LF_SETUP.replace("\n", "\r\n"))
+        for _ in range(2):
+            result = mcpconfig.add_server_text(
+                self.path, "added", {"type": "local", "command": ["z"]}, target=self.root
+            )
+            self.assertEqual(result["errors"], [])
+        self._assert_crlf_only()
+        raw = self._raw()
+        self.assertEqual(raw.count(b'"added"'), 1)
+        parsed = mcpconfig.read_config(self.path)
+        self.assertEqual(
+            list(parsed["mcp"]["servers"]).count("added"), 1
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

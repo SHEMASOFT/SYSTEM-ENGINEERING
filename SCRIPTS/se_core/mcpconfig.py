@@ -46,6 +46,41 @@ def config_path(target: Path | str) -> Path:
     return target / CONFIG_NAMES[0]
 
 
+def _detect_newline(raw: str) -> str:
+    """Return the EOL style already used by ``raw``.
+
+    ``\\r\\n`` when the text contains at least one CRLF, else ``\\n``. A brand
+    new file (no raw text) is written as LF.
+    """
+    return "\r\n" if "\r\n" in raw else "\n"
+
+
+def _read_config_text(path: Path) -> tuple[str, str]:
+    """Read the config once, returning ``(text_normalized_to_lf, detected_eol)``.
+
+    The EOL style must be detected on the RAW bytes: ``read_text`` applies
+    universal-newline translation, so the decoded string alone can no longer
+    tell CRLF from LF.
+    """
+    raw = path.read_bytes().decode("utf-8")
+    newline = _detect_newline(raw)
+    return raw.replace("\r\n", "\n").replace("\r", "\n"), newline
+
+
+def _write_text_preserving_newline(path: Path | str, text: str, newline: str) -> None:
+    """Write ``text`` with an explicit EOL style and no platform translation.
+
+    ``text`` is normalized to ``\\n`` first (``read_text`` applies universal
+    newlines and ``json.dumps`` always emits ``\\n``), so converting never
+    doubles ``\\r``. ``newline=""`` disables Python's own output translation.
+    """
+    path = Path(path)
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    payload = normalized if newline == "\n" else normalized.replace("\n", newline)
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        fh.write(payload)
+
+
 def _skip_string_end(text: str, i: int) -> int:
     """Return the index just after the string literal starting at ``text[i] == '"'``."""
     i += 1
@@ -403,7 +438,7 @@ def remove_server_text(
         result["errors"].append(f"config file not found: {path}")
         return result
 
-    raw = path.read_text(encoding="utf-8")
+    raw, newline = _read_config_text(path)
     try:
         parsed = parse_jsonc(raw)
     except Exception as exc:  # noqa: BLE001 - reported, never rewritten
@@ -476,7 +511,7 @@ def remove_server_text(
     backup = backup_config(path, target=target, label=name)
     result["backup"] = str(backup)
     try:
-        path.write_text(new_text, encoding="utf-8")
+        _write_text_preserving_newline(path, new_text, newline)
     except OSError as exc:
         result["errors"].append(f"cannot write config ({path}): {exc}")
         return result
@@ -584,7 +619,7 @@ def add_server_text(
         new_text = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(new_text, encoding="utf-8")
+            _write_text_preserving_newline(path, new_text, "\n")
         except OSError as exc:
             result["errors"].append(f"cannot write config ({path}): {exc}")
             return result
@@ -592,7 +627,7 @@ def add_server_text(
         result["changed"] = True
         return result
 
-    raw = path.read_text(encoding="utf-8")
+    raw, newline = _read_config_text(path)
     try:
         parsed = parse_jsonc(raw)
     except Exception as exc:
@@ -669,7 +704,7 @@ def add_server_text(
     backup = backup_config(path, target=target, label=f"{name}-install")
     result["backup"] = str(backup)
     try:
-        path.write_text(new_text, encoding="utf-8")
+        _write_text_preserving_newline(path, new_text, newline)
     except OSError as exc:
         result["errors"].append(f"cannot write config ({path}): {exc}")
         return result
