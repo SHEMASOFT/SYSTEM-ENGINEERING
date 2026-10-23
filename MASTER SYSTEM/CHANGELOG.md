@@ -7,6 +7,12 @@ Versions are normalized SemVer (see `DOCS/VERSIONING_STRATEGY.md`).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-23
+
+### Changed
+
+- feat: promote se upgrade to a contract command
+
 ### Added
 
 - **Release automation**: `SCRIPTS/release_master.py` now checks the active version

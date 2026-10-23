@@ -15,7 +15,7 @@ without being coupled to them.
 Developed and maintained by [Moises](https://github.com/SHEMASOFT) —
 [`SHEMASOFT/SYSTEM-ENGINEERING`](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/).
 
-> Version 0.10.1 — Status: **foundation / development**. Smallest system capable of
+> Version 0.11.0 — Status: **foundation / development**. Smallest system capable of
 > becoming the larger one; not yet validated in production.
 
 **New here?** Jump to [Requirements](#requirements), the
