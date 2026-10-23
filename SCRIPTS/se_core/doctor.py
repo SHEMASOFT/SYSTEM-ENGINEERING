@@ -30,6 +30,8 @@ REQUIRED_DIRS = [
     "SE-CONSOLE",
     # SE Installer package (unified installer for SE + MCPs + runtimes):
     "SE-INSTALLER",
+    # Versioned migration modules applied by se upgrade
+    "MIGRATIONS",
 ]
 
 REQUIRED_FILES = [

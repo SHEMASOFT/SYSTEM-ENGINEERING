@@ -1,38 +1,43 @@
-"""``se upgrade`` - thin, fail-closed upgrade orchestrator (skeleton phase).
+"""``se upgrade`` - thin, fail-closed upgrade orchestrator.
 
-This module implements the *read-only* half of the upgrade contract approved in
+This module implements the upgrade contract approved in
 ``DOCS/internal/upgrade-readiness-audit-2026-10-22.md`` (section 6):
 
-* version discovery (strict SemVer tags from the remote or local refs);
+* version discovery (SemVer tags, with or without a ``v`` prefix, from the
+  remote or local refs);
 * a read-only preflight that BLOCKS before any write;
-* a verifiable snapshot of the runtime config and lifecycle state (explicitly
-  invoked only - ``--check`` / ``--dry-run`` never create ``.se/``);
-* snapshot verification and hash-guarded restoration.
-
-The execution half (fetch/ff-only advance, migrations, adapter regeneration,
-sync, rollback) is intentionally **not** implemented in this phase: a bare
-``se upgrade`` reports ``BLOCKED`` with reason
-``upgrade execution not implemented in this phase`` and performs zero writes.
+* a verifiable snapshot of the runtime config, lifecycle state and migration
+  ledger (explicitly invoked only - ``--check`` / ``--dry-run`` never create
+  ``.se/``);
+* snapshot verification and hash-guarded restoration;
+* an execution phase: marker -> fetch -> ff-only advance -> migrations ->
+  adapters -> sync -> doctor, with a byte-level rollback on any failure;
+* ``--recover`` for an upgrade interrupted between steps.
 
 Design constraints (inherited from the audit):
 
 * orchestrator, not a second engine - reconciliation/adapters/health stay in
   ``sync`` / ``opencode.generator`` / ``doctor``;
 * every failure is fail-closed and reported, never guessed;
-* no network beyond ``git ls-remote`` when the caller asks for it, and never in
-  ``--offline`` mode;
-* the git runner is injectable so the module is unit-testable without git and
-  without touching a real repository.
+* no network beyond ``git ls-remote``/``git fetch`` when the caller asks for
+  it, and never in ``--offline`` mode;
+* the git runner and the step runner are injectable so the module is
+  unit-testable without git and without touching a real repository;
+* ``git reset --hard <git_head_before>`` is the only destructive git operation
+  and it happens only inside :func:`rollback_upgrade`, only when the marker
+  proves a code advance.
 """
 
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import inspect
 import json
 import re
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -45,15 +50,30 @@ from .reporting import build_envelope, render_json, wants_json
 #: migrated before the state is trusted (``load_state`` returns ``None``).
 SUPPORTED_STATE_SCHEMA = "1"
 
-#: Marker written by a future execution phase before the first mutation; its
+#: Marker written by the execution phase before the first mutation; its
 #: presence means a previous upgrade was interrupted.
 UPGRADE_MARKER = "upgrade-in-progress.json"
+
+#: Migration directory (repository root) and its ledger (inside ``.se/``).
+MIGRATIONS_DIRNAME = "MIGRATIONS"
+MIGRATIONS_LEDGER = "migrations.json"
+
+#: Append-only audit trail for upgrade attempts (one JSON object per line, LF).
+UPGRADE_HISTORY = "upgrade-history.jsonl"
 
 _SEMVER_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 _PRERELEASE_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)-([0-9A-Za-z.-]+)$")
 
 #: Statuses that mean "nothing is wrong, just nothing to do".
 _OK_STATUSES = ("PASS", "INFO", "UNKNOWN")
+
+
+class MigrationError(RuntimeError):
+    """A migration failed while running; the orchestrator must roll back."""
+
+
+class UpgradeError(RuntimeError):
+    """An upgrade step failed for a reason that is not a subprocess exit code."""
 
 
 # --------------------------------------------------------------------------- #
@@ -232,7 +252,13 @@ def default_git_runner(git_path=None):
 
 
 def _tag_result(completed) -> dict:
-    """Normalize a ``git ls-remote``/``git tag`` result into the tag contract."""
+    """Normalize a ``git ls-remote``/``git tag`` result into the tag contract.
+
+    A usable tag is a release (``X.Y.Z``) or a pre-release (``X.Y.Z-label``),
+    with or without the historical ``v`` prefix. Anything else (branch refs,
+    ``latest``, malformed versions) is ignored. Names are deduplicated and
+    sorted so callers never depend on git's output order.
+    """
     returncode = int(getattr(completed, "returncode", 1) or 0)
     stdout = getattr(completed, "stdout", "") or ""
     stderr = getattr(completed, "stderr", "") or ""
@@ -247,31 +273,53 @@ def _tag_result(completed) -> dict:
         if not parts:
             continue
         name = _normalize_tag(parts[-1])
-        if name.startswith("v") and name not in tags:
+        if _SEMVER_RE.match(name) is None and _PRERELEASE_RE.match(name) is None:
+            continue
+        if name not in tags:
             tags.append(name)
     return {"tags": sorted(tags), "error": None}
 
 
-def list_remote_tags(runner, *, remote: str = "origin", timeout: int = 30) -> dict:
-    """List published ``v*`` tags from ``remote`` via ``git ls-remote``.
+def find_tag_for_version(tags, version) -> str | None:
+    """Return the tag that publishes ``version`` (preferring ``v<version>``).
+
+    ``tags`` may mix prefixed and unprefixed names; ``None`` means no tag
+    publishes that exact version.
+    """
+    if version is None:
+        return None
+    version = str(version).strip()
+    if not version:
+        return None
+    normalized = [_normalize_tag(tag) for tag in tags or []]
+    for candidate in (f"v{version}", version):
+        if candidate in normalized:
+            return candidate
+    return None
+
+
+def list_remote_tags(
+    runner, *, remote: str = "origin", timeout: int = 30, cwd=None
+) -> dict:
+    """List published tags from ``remote`` via ``git ls-remote``.
 
     Returns ``{"tags": [...], "error": None|str}``. An empty remote, a git
     failure and a raised exception all produce ``tags: []`` plus either
     ``error: None`` (genuinely no tags) or a diagnostic string.
     """
-    argv = ["git", "ls-remote", "--tags", "--refs", remote, "v*"]
+    argv = ["git", "ls-remote", "--tags", "--refs", remote]
     try:
-        completed = _invoke(runner, argv, timeout=timeout)
+        completed = _invoke(runner, argv, cwd=cwd, timeout=timeout)
     except Exception as exc:  # noqa: BLE001 - reported, never fatal
         return {"tags": [], "error": f"git ls-remote failed: {exc}"}
     return _tag_result(completed)
 
 
-def list_local_tags(runner, *, timeout: int = 30) -> dict:
-    """List local ``v*`` tags (used by ``--offline``; never touches the network)."""
-    argv = ["git", "tag", "--list", "v*"]
+def list_local_tags(runner, *, timeout: int = 30, cwd=None) -> dict:
+    """List local tags (used by ``--offline``; never touches the network)."""
+    argv = ["git", "tag", "--list"]
     try:
-        completed = _invoke(runner, argv, timeout=timeout)
+        completed = _invoke(runner, argv, cwd=cwd, timeout=timeout)
     except Exception as exc:  # noqa: BLE001 - reported, never fatal
         return {"tags": [], "error": f"git tag failed: {exc}"}
     return _tag_result(completed)
@@ -337,7 +385,13 @@ def preflight(
         try:
             completed = _invoke(
                 runner,
-                ["git", "status", "--porcelain", "--untracked-files=no"],
+                [
+                    "git",
+                    "--no-optional-locks",
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=no",
+                ],
                 cwd=target,
                 timeout=30,
             )
@@ -505,15 +559,18 @@ def _sha256_bytes(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _canonical_snapshot_paths(target: Path) -> list[Path]:
+    """Paths the snapshot tracks as present-or-absent (config, state, ledger)."""
+    return [
+        mcpconfig.config_path(target),
+        lc.state_path(target),
+        lc.state_dir(target) / MIGRATIONS_LEDGER,
+    ]
+
+
 def _snapshot_sources(target: Path, include_projects: bool) -> list[Path]:
-    """Files captured by default: runtime config + lifecycle state (if present)."""
-    sources: list[Path] = []
-    config = mcpconfig.config_path(target)
-    if config.is_file():
-        sources.append(config)
-    state = lc.state_path(target)
-    if state.is_file():
-        sources.append(state)
+    """Files captured by default: runtime config, state and migration ledger."""
+    sources = [path for path in _canonical_snapshot_paths(target) if path.is_file()]
     if include_projects:
         projects = target / "PROJECTS"
         if projects.is_dir():
@@ -547,9 +604,11 @@ def create_snapshot(
     """Create a verified, collision-free snapshot under ``.se/backups/``.
 
     Layout: ``.se/backups/upgrade-<from>-to-<to>-<utc>-<seq>/`` with a
-    ``manifest.json`` (hashes per file) plus byte copies of the runtime config
-    and lifecycle state. ``PROJECTS/`` is copied only when explicitly requested.
-    The sequence suffix makes two snapshots in the same second distinct.
+    ``manifest.json`` (hashes per file, plus the canonical config/state/ledger
+    paths that did not exist and must stay absent after a rollback) plus byte
+    copies of the runtime config and lifecycle state. ``PROJECTS/`` is copied
+    only when explicitly requested. The sequence suffix makes two snapshots in
+    the same second distinct.
     """
     target = Path(target)
     moment = _coerce_now(now)
@@ -579,6 +638,14 @@ def create_snapshot(
             }
         )
 
+    # Files that must not exist after a rollback: if they were absent before the
+    # upgrade, anything the upgrade creates at these canonical paths is undone.
+    absent = [
+        path.relative_to(target).as_posix()
+        for path in _canonical_snapshot_paths(target)
+        if not path.is_file()
+    ]
+
     manifest = {
         "schema_version": "1",
         "operation": "upgrade",
@@ -589,6 +656,7 @@ def create_snapshot(
         "state_schema": SUPPORTED_STATE_SCHEMA,
         "include_projects": bool(include_projects),
         "files": files,
+        "absent": absent,
     }
     manifest_path = snapshot_dir / "manifest.json"
     write_json_atomic(manifest_path, manifest)
@@ -597,6 +665,7 @@ def create_snapshot(
         "manifest_path": str(manifest_path),
         "manifest": manifest,
         "files": files,
+        "absent": absent,
     }
 
 
@@ -747,6 +816,1292 @@ def restore_snapshot(snapshot_dir, *, force: bool = False) -> dict:
     }
 
 
+def _remove_absent_paths(target, snapshot_dir) -> dict:
+    """Delete the canonical paths the manifest recorded as absent.
+
+    Only ``manifest["absent"]`` is considered; paths outside ``target`` (absolute
+    paths, ``..`` traversal or symlinks resolving elsewhere) are rejected and
+    never removed. Directories are refused: the tracked entries are files.
+    Returns ``{"removed": [relative...], "errors": [str...]}``.
+    """
+    target = Path(target)
+    snapshot_dir = Path(snapshot_dir)
+    result: dict = {"removed": [], "errors": []}
+    try:
+        manifest = _load_manifest(snapshot_dir)
+    except Exception as exc:  # noqa: BLE001 - reported, never trusted
+        result["errors"].append(f"manifest unreadable: {exc}")
+        return result
+    entries = manifest.get("absent") if isinstance(manifest, dict) else None
+    if not isinstance(entries, list):
+        # Manifests written before absence tracking have nothing to undo.
+        return result
+
+    root = target.resolve()
+    for raw in entries:
+        relative = str(raw or "").strip()
+        if not relative:
+            result["errors"].append("manifest absent entry without path")
+            continue
+        candidate = Path(relative)
+        if candidate.is_absolute():
+            result["errors"].append(
+                f"refusing to remove an absolute absent path: {relative}"
+            )
+            continue
+        destination = (target / candidate).resolve()
+        try:
+            destination.relative_to(root)
+        except ValueError:
+            result["errors"].append(
+                f"absent path escapes the target: {relative}"
+            )
+            continue
+        if destination.is_dir() and not destination.is_symlink():
+            result["errors"].append(
+                f"refusing to remove a directory recorded as absent: {relative}"
+            )
+            continue
+        if destination.is_symlink() or destination.exists():
+            try:
+                destination.unlink()
+            except OSError as exc:
+                result["errors"].append(f"cannot remove {relative}: {exc}")
+                continue
+            result["removed"].append(candidate.as_posix())
+    return result
+
+
+# --------------------------------------------------------------------------- #
+# Migrations
+# --------------------------------------------------------------------------- #
+
+
+def _ledger_path(target: Path) -> Path:
+    return lc.state_dir(target) / MIGRATIONS_LEDGER
+
+
+def _read_migrations_ledger(target: Path) -> tuple[dict | None, str | None]:
+    """Read ``.se/migrations.json``; ``(ledger, error)`` with fail-closed errors."""
+    path = _ledger_path(target)
+    if not path.is_file():
+        return {"schema_version": "1", "applied": []}, None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 - reported, never trusted
+        return None, f"migrations ledger unreadable ({path}): {exc}"
+    if not isinstance(data, dict):
+        return None, f"migrations ledger is not an object: {path}"
+    if str(data.get("schema_version")) != "1":
+        return (
+            None,
+            f"unsupported migrations ledger schema_version "
+            f"{data.get('schema_version')!r} (supported: 1)",
+        )
+    applied = data.get("applied")
+    if not isinstance(applied, list):
+        return None, f"migrations ledger has no applied list: {path}"
+    for entry in applied:
+        if not isinstance(entry, dict) or not str(entry.get("id") or "").strip():
+            return None, f"migrations ledger has an invalid applied entry: {path}"
+    return {"schema_version": "1", "applied": list(applied)}, None
+
+
+def _discover_migrations(directory: Path) -> tuple[list[dict], list[str]]:
+    """Load ``*.py`` migrations (ignoring ``_*.py``) in filename order.
+
+    Returns ``(modules, errors)``. A module is usable only when it exposes a
+    non-empty string ``ID`` and a callable ``migrate(root, context)``; anything
+    else is an error (fail-closed) and no migration runs.
+    """
+    modules: list[dict] = []
+    errors: list[str] = []
+    paths = sorted(directory.glob("*.py"), key=lambda path: path.name)
+    for index, path in enumerate(paths):
+        if path.name.startswith("_"):
+            continue
+        safe_stem = re.sub(r"[^0-9A-Za-z_]", "_", path.stem)
+        module_name = f"se_migration_{index}_{safe_stem}"
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, path)
+            if spec is None or spec.loader is None:
+                errors.append(f"{path.name}: cannot create an import spec")
+                continue
+            module = importlib.util.module_from_spec(spec)
+            # Importing a migration must not leave ``MIGRATIONS/__pycache__``
+            # behind in the target: the upgrade has to be side-effect free
+            # outside the snapshot and its own bookkeeping.
+            previous_bytecode = sys.dont_write_bytecode
+            sys.dont_write_bytecode = True
+            try:
+                spec.loader.exec_module(module)
+            finally:
+                sys.dont_write_bytecode = previous_bytecode
+        except Exception as exc:  # noqa: BLE001 - reported, never guessed
+            errors.append(f"{path.name}: import failed ({exc})")
+            continue
+        identifier = getattr(module, "ID", None)
+        migrate = getattr(module, "migrate", None)
+        if not isinstance(identifier, str) or not identifier.strip():
+            errors.append(f"{path.name}: missing a non-empty string ID")
+            continue
+        if not callable(migrate):
+            errors.append(f"{path.name}: migrate(root, context) is not callable")
+            continue
+        modules.append(
+            {"path": path, "id": identifier.strip(), "migrate": migrate}
+        )
+
+    seen: dict[str, str] = {}
+    for item in modules:
+        if item["id"] in seen:
+            errors.append(
+                f"duplicate migration ID {item['id']!r}: "
+                f"{seen[item['id']]} and {item['path'].name}"
+            )
+        else:
+            seen[item["id"]] = item["path"].name
+    return modules, errors
+
+
+def run_migrations(
+    target,
+    *,
+    from_version: str,
+    to_version: str,
+    migrations_dir=None,
+    now=None,
+    git_head_before=None,
+) -> dict:
+    """Apply pending migrations in filename order, recording a durable ledger.
+
+    * directory defaults to ``<target>/MIGRATIONS``; absent means a no-op;
+    * every module needs a non-empty string ``ID`` and ``migrate(root, context)``;
+    * IDs already recorded in ``.se/migrations.json`` are skipped (idempotence);
+    * the ledger is rewritten atomically after **each** successful migration, so
+      a crash never loses an applied step;
+    * a raising migration propagates :class:`MigrationError` (the orchestrator
+      rolls the upgrade back).
+
+    Returns ``{"applied": [id...], "skipped": [id...], "errors": [str...]}``.
+    ``errors`` is non-empty only for discovery/ledger problems; the caller must
+    treat it as a failure and roll back.
+    """
+    target = Path(target)
+    directory = (
+        Path(migrations_dir) if migrations_dir is not None else target / MIGRATIONS_DIRNAME
+    )
+    result: dict = {"applied": [], "skipped": [], "errors": []}
+    if not directory.is_dir():
+        return result
+
+    ledger, ledger_error = _read_migrations_ledger(target)
+    if ledger_error:
+        result["errors"].append(ledger_error)
+        return result
+
+    modules, errors = _discover_migrations(directory)
+    if errors:
+        result["errors"].extend(errors)
+        return result
+
+    if git_head_before is None:
+        marker = read_marker(target)
+        if marker is not None:
+            git_head_before = marker.get("git_head_before")
+
+    context = {
+        "from_version": from_version,
+        "to_version": to_version,
+        "target": str(target),
+        "git_head_before": git_head_before,
+    }
+    applied_ids = {str(entry.get("id")) for entry in ledger["applied"]}
+    timestamp = _coerce_now(now).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    for module in modules:
+        identifier = module["id"]
+        if identifier in applied_ids:
+            result["skipped"].append(identifier)
+            continue
+        try:
+            module["migrate"](target, context)
+        except Exception as exc:  # noqa: BLE001 - propagate with the ID attached
+            raise MigrationError(
+                f"migration {identifier} failed: {exc}"
+            ) from exc
+        ledger["applied"].append(
+            {
+                "id": identifier,
+                "version": to_version,
+                "applied_at": timestamp,
+            }
+        )
+        try:
+            write_json_atomic(_ledger_path(target), ledger)
+        except Exception as exc:  # noqa: BLE001 - a lost ledger is fatal
+            raise MigrationError(
+                f"migration {identifier} applied but the ledger could not be "
+                f"written: {exc}"
+            ) from exc
+        applied_ids.add(identifier)
+        result["applied"].append(identifier)
+    return result
+
+
+# --------------------------------------------------------------------------- #
+# Marker / history / git helpers
+# --------------------------------------------------------------------------- #
+
+
+def marker_path(target) -> Path:
+    """Return ``<target>/.se/upgrade-in-progress.json``."""
+    return lc.state_dir(target) / UPGRADE_MARKER
+
+
+def write_marker(target, marker: dict) -> None:
+    """Persist the in-progress marker atomically (LF JSON)."""
+    write_json_atomic(marker_path(target), marker)
+
+
+def read_marker(target) -> dict | None:
+    """Read the marker; ``None`` when absent or unreadable."""
+    path = marker_path(target)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - treated as "unreadable"
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def delete_marker(target) -> bool:
+    """Delete the marker; ``True`` when it is gone afterwards."""
+    path = marker_path(target)
+    try:
+        if path.exists():
+            path.unlink()
+    except OSError:
+        return False
+    return not path.exists()
+
+
+def history_path(target) -> Path:
+    """Return ``<target>/.se/upgrade-history.jsonl``."""
+    return lc.state_dir(target) / UPGRADE_HISTORY
+
+
+def _append_history(target, record: dict) -> str:
+    path = history_path(target)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n")
+    return str(path)
+
+
+def read_history(target) -> list[dict]:
+    """Read the append-only upgrade history (unreadable lines are skipped)."""
+    path = history_path(target)
+    if not path.is_file():
+        return []
+    records: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except Exception:  # noqa: BLE001 - audit trail is best-effort on read
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
+
+
+def _git(runner, argv, *, cwd, timeout=30):
+    return _invoke(runner, argv, cwd=cwd, timeout=timeout)
+
+
+def _git_rev_parse(runner, target, ref: str) -> str:
+    completed = _git(runner, ["git", "rev-parse", ref], cwd=target)
+    returncode = int(getattr(completed, "returncode", 1) or 0)
+    if returncode != 0:
+        stderr = (getattr(completed, "stderr", "") or "").strip()
+        raise UpgradeError(
+            f"git rev-parse {ref} failed: {stderr or f'exit code {returncode}'}"
+        )
+    value = (getattr(completed, "stdout", "") or "").strip()
+    if not value:
+        raise UpgradeError(f"git rev-parse {ref} returned no commit")
+    return value
+
+
+def _safe_rev_parse(runner, target, ref: str) -> str | None:
+    try:
+        return _git_rev_parse(runner, target, ref)
+    except UpgradeError:
+        return None
+
+
+def _tail(text, limit: int = 20) -> list[str]:
+    return str(text or "").splitlines()[-limit:]
+
+
+def _last_line(step: dict) -> str:
+    tail = step.get("tail") or []
+    return tail[-1] if tail else f"exit code {step.get('rc')}"
+
+
+def _parse_doctor_payload(step: dict) -> tuple[str | None, dict | None, list[dict]]:
+    """Extract ``status``, ``details.summary`` and ``details.checks``.
+
+    Anything unparseable is reported as ``(None, None, [])`` so the caller fails
+    closed instead of trusting a partial payload.
+    """
+    try:
+        payload = json.loads(step.get("stdout") or "")
+    except Exception:  # noqa: BLE001 - reported as a failed verification
+        return None, None, []
+    if not isinstance(payload, dict):
+        return None, None, []
+
+    status = payload.get("status")
+    summary = None
+    checks: list[dict] = []
+    raw_details = payload.get("details")
+    if isinstance(raw_details, dict):
+        candidate = raw_details.get("summary")
+        if isinstance(candidate, dict):
+            summary = candidate
+        raw_checks = raw_details.get("checks")
+        if isinstance(raw_checks, list):
+            checks = [item for item in raw_checks if isinstance(item, dict)]
+    if not checks:
+        # The envelope also exposes one ``"<id>: <detail>"`` line per WARN at the
+        # top level; use it when the detailed check list is absent.
+        raw_warnings = payload.get("warnings")
+        if isinstance(raw_warnings, list):
+            checks = [
+                {"status": "WARN", "detail": str(item)} for item in raw_warnings
+            ]
+    return status, summary, checks
+
+
+def _doctor_warn_text(
+    status, summary, checks, *, limit: int = 3
+) -> str:
+    """Deterministic one-line warning naming at most ``limit`` WARN checks."""
+    parts: list[str] = []
+    for check in checks or []:
+        if not isinstance(check, dict) or check.get("status") != "WARN":
+            continue
+        identifier = str(check.get("id") or "").strip()
+        detail = str(check.get("detail") or "").strip()
+        if identifier and detail:
+            parts.append(f"{identifier}: {detail}")
+        elif detail:
+            parts.append(detail)
+        elif identifier:
+            parts.append(identifier)
+        if len(parts) == limit:
+            break
+    if parts:
+        return "doctor reported WARN: " + "; ".join(parts)
+    if isinstance(summary, dict):
+        return (
+            "doctor reported WARN: "
+            f"PASS={summary.get('PASS')} WARN={summary.get('WARN')} "
+            f"FAIL={summary.get('FAIL')}"
+        )
+    return f"doctor reported status {status!r}"
+
+
+def _step_record(step: dict) -> dict:
+    return {"name": step["name"], "rc": step["rc"], "tail": list(step["tail"])}
+
+
+def default_step_runner(argv, *, cwd=None):
+    """Run one orchestrated step (``se adapter`` / ``se sync`` / ``se doctor``)."""
+    return subprocess.run(
+        [str(part) for part in argv],
+        cwd=str(cwd) if cwd is not None else None,
+        text=True,
+        capture_output=True,
+        timeout=600,
+    )
+
+
+def _execute_step(step_runner, name: str, argv, *, cwd) -> dict:
+    completed = step_runner([str(part) for part in argv], cwd=cwd)
+    returncode = int(getattr(completed, "returncode", 1) or 0)
+    stdout = getattr(completed, "stdout", "") or ""
+    stderr = getattr(completed, "stderr", "") or ""
+    separator = "\n" if stdout and stderr else ""
+    return {
+        "name": name,
+        "argv": [str(part) for part in argv],
+        "rc": returncode,
+        "stdout": stdout,
+        "stderr": stderr,
+        "tail": _tail(stdout + separator + stderr),
+    }
+
+
+def _untracked_files(runner, target) -> list[str]:
+    """Read-only list of untracked files (never deleted by a rollback)."""
+    try:
+        completed = _git(
+            runner,
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=target,
+        )
+    except Exception:  # noqa: BLE001 - read-only audit, best effort
+        return []
+    returncode = int(getattr(completed, "returncode", 1) or 0)
+    if returncode != 0:
+        return []
+    files = []
+    for line in (getattr(completed, "stdout", "") or "").splitlines():
+        if line.startswith("?? "):
+            files.append(line[3:].strip())
+    return sorted(files)
+
+
+def _verify_restored_hashes(snapshot_dir) -> tuple[bool, list[str]]:
+    """Re-hash every manifest file after a restore."""
+    snapshot_dir = Path(snapshot_dir)
+    try:
+        manifest = _load_manifest(snapshot_dir)
+    except Exception as exc:  # noqa: BLE001 - reported, never trusted
+        return False, [f"manifest unreadable: {exc}"]
+    try:
+        target = snapshot_dir.resolve().parents[2]
+    except IndexError:
+        return False, [f"cannot derive the target root from {snapshot_dir}"]
+    errors: list[str] = []
+    for entry in manifest.get("files") or []:
+        entry = entry if isinstance(entry, dict) else {}
+        relative = str(entry.get("path") or "")
+        expected = str(entry.get("sha256") or "")
+        if not relative:
+            errors.append("manifest entry without path")
+            continue
+        destination = target / relative
+        try:
+            actual = _sha256_bytes(destination.read_bytes())
+        except OSError as exc:
+            errors.append(f"cannot verify restored {relative}: {exc}")
+            continue
+        if expected and actual != expected:
+            errors.append(
+                f"restored hash mismatch for {relative}: expected {expected}, "
+                f"got {actual}"
+            )
+    return not errors, errors
+
+
+# --------------------------------------------------------------------------- #
+# Rollback (the only place that may reset --hard)
+# --------------------------------------------------------------------------- #
+
+
+def rollback_upgrade(target, marker, *, git_runner, step_runner=None) -> dict:
+    """Undo an in-progress upgrade, fail-closed and hash-verified.
+
+    Order:
+
+    1. verify the snapshot (a corrupt snapshot aborts **before** any reset);
+    2. ``git reset --hard <git_head_before>`` only when ``HEAD`` actually moved;
+    3. restore the snapshot with ``force=True`` and verify every sha256;
+    4. verify ``HEAD == git_head_before``;
+    5. delete the marker and append a ``rolled_back`` history record.
+
+    Untracked files are never deleted; they are reported in
+    ``residual_untracked``. Paths the snapshot recorded as absent (config, state
+    or ledger) are removed after the restore, so the pre-upgrade state is intact
+    even when the upgrade created them. Returns
+    ``{"ok","git_reset","snapshot_restore","removed_absent","errors",
+    "head_before","head_after","residual_untracked"}``.
+    """
+    target = Path(target)
+    if not isinstance(marker, dict):
+        try:
+            marker = json.loads(Path(marker).read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001 - reported, never trusted
+            return {
+                "ok": False,
+                "git_reset": False,
+                "snapshot_restore": None,
+                "removed_absent": [],
+                "errors": [f"upgrade marker unreadable: {exc}"],
+                "head_before": None,
+                "head_after": None,
+                "residual_untracked": [],
+            }
+
+    snapshot = marker.get("snapshot")
+    head_before = marker.get("git_head_before")
+    result: dict = {
+        "ok": False,
+        "git_reset": False,
+        "snapshot_restore": None,
+        "removed_absent": [],
+        "errors": [],
+        "head_before": head_before,
+        "head_after": None,
+        "residual_untracked": [],
+    }
+
+    verification = (
+        verify_snapshot(snapshot)
+        if snapshot
+        else {"ok": False, "errors": ["upgrade marker has no snapshot"]}
+    )
+    if not verification["ok"]:
+        result["errors"].extend(verification["errors"])
+        result["snapshot_restore"] = {
+            "ok": False,
+            "restored": [],
+            "skipped": [],
+            "hashes": {},
+            "errors": list(verification["errors"]),
+        }
+        result["head_after"] = _safe_rev_parse(git_runner, target, "HEAD")
+        result["residual_untracked"] = _untracked_files(git_runner, target)
+        return result
+
+    head_now = _safe_rev_parse(git_runner, target, "HEAD")
+    if not head_before:
+        result["errors"].append("upgrade marker has no git_head_before")
+    if head_now is None:
+        result["errors"].append("cannot read HEAD before rollback")
+    elif head_before and head_now != head_before:
+        completed = _git(
+            git_runner,
+            ["git", "reset", "--hard", str(head_before)],
+            cwd=target,
+            timeout=120,
+        )
+        returncode = int(getattr(completed, "returncode", 1) or 0)
+        if returncode != 0:
+            stderr = (getattr(completed, "stderr", "") or "").strip()
+            result["errors"].append(
+                f"git reset --hard {head_before} failed: "
+                f"{stderr or f'exit code {returncode}'}"
+            )
+        else:
+            result["git_reset"] = True
+
+    restore = restore_snapshot(snapshot, force=True)
+    result["snapshot_restore"] = restore
+    if not restore["ok"]:
+        result["errors"].extend(restore["errors"])
+
+    hashes_ok, hash_errors = _verify_restored_hashes(snapshot)
+    if not hashes_ok:
+        result["errors"].extend(hash_errors)
+
+    absent = _remove_absent_paths(target, snapshot)
+    result["removed_absent"] = absent["removed"]
+    result["errors"].extend(absent["errors"])
+
+    head_after = _safe_rev_parse(git_runner, target, "HEAD")
+    result["head_after"] = head_after
+    if head_before and head_after != head_before:
+        result["errors"].append(
+            f"HEAD after rollback ({head_after}) != git_head_before "
+            f"({head_before})"
+        )
+
+    result["residual_untracked"] = _untracked_files(git_runner, target)
+
+    if not result["errors"]:
+        if not delete_marker(target):
+            result["errors"].append("could not delete the upgrade marker")
+
+    record = {
+        "schema_version": "1",
+        "operation": "upgrade",
+        "status": "rolled_back",
+        "from": marker.get("from"),
+        "to": marker.get("to"),
+        "tag": marker.get("tag"),
+        "git_head_before": head_before,
+        "git_head_after": head_after,
+        "snapshot": snapshot,
+        "phase": marker.get("phase"),
+        "rollback": {
+            "ok": not result["errors"],
+            "git_reset": result["git_reset"],
+            "errors": list(result["errors"]),
+        },
+    }
+    try:
+        _append_history(target, record)
+    except OSError as exc:
+        result["errors"].append(f"could not append upgrade history: {exc}")
+
+    result["ok"] = not result["errors"]
+    return result
+
+
+# --------------------------------------------------------------------------- #
+# Orchestration
+# --------------------------------------------------------------------------- #
+
+
+def _new_details(target, *, mode, offline, include_projects) -> dict:
+    return {
+        "mode": mode,
+        "target": str(target),
+        "offline": offline,
+        "include_projects": include_projects,
+        "current_version": None,
+        "tags": [],
+        "selection": None,
+        "preflight": None,
+        "snapshot": None,
+        "snapshot_restore": None,
+        "git_head_before": None,
+        "git_head_after": None,
+        "phases": [],
+        "migrations": None,
+        "doctor": None,
+        "steps": [],
+        "rollback": None,
+        "warnings": [],
+        "writes": [],
+        "blockers": [],
+        "marker": None,
+        "history": None,
+        "message": None,
+    }
+
+
+def _resolve_selection(
+    target,
+    details,
+    *,
+    runner,
+    offline,
+    current_version,
+    allow_prerelease,
+    allow_downgrade,
+):
+    """Fill ``details`` with tags + selection; return the selection or ``None``."""
+    tag_result = (
+        list_local_tags(runner, cwd=target)
+        if offline
+        else list_remote_tags(runner, cwd=target)
+    )
+    details["tags"] = tag_result["tags"]
+    if tag_result["error"]:
+        details["tag_error"] = tag_result["error"]
+
+    if not tag_result["tags"]:
+        details["selection"] = {
+            "target": None,
+            "status": "NO_TAGS",
+            "reason": (
+                "no local tags found (offline)"
+                if offline
+                else "no published versions found"
+            ),
+        }
+        return details["selection"]
+
+    try:
+        selection = select_target_version(
+            tag_result["tags"],
+            current_version,
+            allow_prerelease=allow_prerelease,
+            allow_downgrade=allow_downgrade,
+        )
+    except ValueError as exc:
+        details["blockers"].append(str(exc))
+        return None
+    details["selection"] = selection
+    return selection
+
+
+def _run_check(
+    target,
+    details,
+    *,
+    runner,
+    which,
+    offline,
+    allow_downgrade,
+    allow_prerelease,
+    no_sync,
+):
+    """``--check`` / ``--dry-run``: resolve and report, never write."""
+    current_version = _read_version(target)
+    details["current_version"] = current_version or None
+
+    preflight_result = preflight(
+        target,
+        git_runner=runner,
+        current_version=current_version,
+        which=which,
+        require_opencode=not no_sync,
+    )
+    details["preflight"] = preflight_result
+    if preflight_result["status"] != "PASS":
+        details["blockers"].extend(preflight_result["blockers"])
+        details["status"] = "BLOCKED"
+        return details
+
+    selection = _resolve_selection(
+        target,
+        details,
+        runner=runner,
+        offline=offline,
+        current_version=current_version,
+        allow_prerelease=allow_prerelease,
+        allow_downgrade=allow_downgrade,
+    )
+    if selection is None:
+        details["status"] = "BLOCKED"
+        return details
+
+    if selection["status"] == "DOWNGRADE_BLOCKED":
+        details["blockers"].append(selection["reason"])
+        details["status"] = "BLOCKED"
+    elif selection["status"] == "NO_TAGS":
+        details["status"] = "UNKNOWN"
+    elif selection["status"] == "UP_TO_DATE":
+        details["status"] = "INFO"
+    else:
+        details["status"] = "PASS"
+    return details
+
+
+def _run_recover(target, details, *, git_runner, step_runner=None, now=None) -> dict:
+    """``--recover``: restore a marker left by an interrupted upgrade.
+
+    Runs **before** the preflight (which would otherwise block on the marker).
+    """
+    path = marker_path(target)
+    details["marker"] = str(path)
+    marker = read_marker(target)
+    if marker is None:
+        if not path.exists():
+            details["message"] = "nothing to recover"
+            details["status"] = "INFO"
+            return details
+        details["blockers"].append(
+            f"interrupted upgrade marker is unreadable: {path}"
+        )
+        details["status"] = "BLOCKED"
+        return details
+
+    snapshot = marker.get("snapshot")
+    head_before = marker.get("git_head_before")
+    details["git_head_before"] = head_before
+    details["snapshot"] = {"snapshot_dir": str(snapshot)} if snapshot else None
+
+    if not head_before:
+        details["blockers"].append(
+            "interrupted upgrade marker has no git_head_before; refusing to "
+            "reset HEAD, restore the snapshot or delete the marker"
+        )
+        details["status"] = "BLOCKED"
+        return details
+
+    if not snapshot:
+        details["blockers"].append("interrupted upgrade marker has no snapshot")
+        details["status"] = "BLOCKED"
+        return details
+
+    verification = verify_snapshot(snapshot)
+    if not verification["ok"]:
+        details["blockers"].extend(verification["errors"])
+        details["status"] = "BLOCKED"
+        return details
+
+    head_now = _safe_rev_parse(git_runner, target, "HEAD")
+    if head_now is None:
+        details["blockers"].append("cannot read HEAD before recovery")
+        details["status"] = "BLOCKED"
+        return details
+    if head_before and head_now != head_before:
+        completed = _git(
+            git_runner,
+            ["git", "reset", "--hard", str(head_before)],
+            cwd=target,
+            timeout=120,
+        )
+        returncode = int(getattr(completed, "returncode", 1) or 0)
+        if returncode != 0:
+            stderr = (getattr(completed, "stderr", "") or "").strip()
+            details["blockers"].append(
+                f"git reset --hard {head_before} failed: "
+                f"{stderr or f'exit code {returncode}'}"
+            )
+            details["status"] = "BLOCKED"
+            return details
+
+    restore = restore_snapshot(snapshot, force=True)
+    details["snapshot_restore"] = restore
+    if not restore["ok"]:
+        details["blockers"].extend(restore["errors"])
+        details["status"] = "BLOCKED"
+        return details
+
+    hashes_ok, hash_errors = _verify_restored_hashes(snapshot)
+    if not hashes_ok:
+        details["blockers"].extend(hash_errors)
+        details["status"] = "BLOCKED"
+        return details
+
+    absent = _remove_absent_paths(target, snapshot)
+    details["removed_absent"] = absent["removed"]
+    if absent["errors"]:
+        details["blockers"].extend(absent["errors"])
+        details["status"] = "BLOCKED"
+        return details
+
+    head_after = _safe_rev_parse(git_runner, target, "HEAD")
+    details["git_head_after"] = head_after
+    if head_before and head_after != head_before:
+        details["blockers"].append(
+            f"HEAD after recovery ({head_after}) != git_head_before "
+            f"({head_before})"
+        )
+        details["status"] = "BLOCKED"
+        return details
+
+    if not delete_marker(target):
+        details["warnings"].append(
+            f"could not delete the upgrade marker: {path}"
+        )
+
+    record = {
+        "schema_version": "1",
+        "operation": "upgrade",
+        "status": "recovered",
+        "from": marker.get("from"),
+        "to": marker.get("to"),
+        "tag": marker.get("tag"),
+        "git_head_before": head_before,
+        "git_head_after": head_after,
+        "snapshot": snapshot,
+        "phase": marker.get("phase"),
+        "finished_at": _coerce_now(now).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    try:
+        details["history"] = _append_history(target, record)
+    except OSError as exc:
+        details["warnings"].append(f"could not append upgrade history: {exc}")
+
+    details["status"] = "PASS"
+    return details
+
+
+def _run_execute(
+    target,
+    details,
+    *,
+    git_runner,
+    step_runner,
+    which,
+    migrations_dir,
+    now,
+    offline,
+    include_projects,
+    allow_downgrade,
+    allow_prerelease,
+    no_sync,
+) -> dict:
+    """Perform the upgrade: marker -> fetch -> ff -> migrations -> adapters ->
+    sync -> doctor, rolling back on any failure."""
+    path = marker_path(target)
+    details["marker"] = str(path)
+    if path.exists():
+        details["blockers"].append(
+            f"interrupted upgrade detected: {path}; run se upgrade --recover"
+        )
+        details["status"] = "BLOCKED"
+        return details
+
+    current_version = _read_version(target)
+    details["current_version"] = current_version or None
+    preflight_result = preflight(
+        target,
+        git_runner=git_runner,
+        current_version=current_version,
+        which=which,
+        require_opencode=not no_sync,
+    )
+    details["preflight"] = preflight_result
+    if preflight_result["status"] != "PASS":
+        details["blockers"].extend(preflight_result["blockers"])
+        details["status"] = "BLOCKED"
+        return details
+
+    selection = _resolve_selection(
+        target,
+        details,
+        runner=git_runner,
+        offline=offline,
+        current_version=current_version,
+        allow_prerelease=allow_prerelease,
+        allow_downgrade=allow_downgrade,
+    )
+    if selection is None:
+        details["status"] = "BLOCKED"
+        return details
+    if selection["status"] == "DOWNGRADE_BLOCKED":
+        details["blockers"].append(selection["reason"])
+        details["status"] = "BLOCKED"
+        return details
+    if selection["status"] == "NO_TAGS":
+        details["status"] = "UNKNOWN"
+        return details
+    if selection["status"] == "UP_TO_DATE":
+        details["status"] = "INFO"
+        return details
+
+    to_version = selection["target"]
+    tag = find_tag_for_version(details["tags"], to_version)
+    if tag is None:
+        details["blockers"].append(f"no tag publishes version {to_version}")
+        details["status"] = "BLOCKED"
+        return details
+
+    try:
+        head_before = _git_rev_parse(git_runner, target, "HEAD")
+    except UpgradeError as exc:
+        details["blockers"].append(str(exc))
+        details["status"] = "BLOCKED"
+        return details
+    details["git_head_before"] = head_before
+
+    snapshot = create_snapshot(
+        target,
+        from_version=current_version,
+        to_version=to_version,
+        git_head=head_before,
+        include_projects=include_projects,
+        now=now,
+    )
+    details["snapshot"] = snapshot
+    details["writes"].append(snapshot["snapshot_dir"])
+
+    started_at = _coerce_now(now).strftime("%Y-%m-%dT%H:%M:%SZ")
+    marker = {
+        "schema_version": "1",
+        "from": current_version,
+        "to": to_version,
+        "tag": tag,
+        "git_head_before": head_before,
+        "snapshot": snapshot["snapshot_dir"],
+        "started_at": started_at,
+        "phase": "fetch",
+    }
+    try:
+        write_marker(target, marker)
+    except Exception as exc:  # noqa: BLE001 - reported; nothing mutated yet
+        details["blockers"].append(f"cannot write the upgrade marker: {exc}")
+        details["status"] = "FAIL"
+        return details
+    details["writes"].append(str(path))
+
+    steps: list[dict] = []
+    migrations = None
+    runner_step = step_runner if step_runner is not None else default_step_runner
+    se_py = target / "SCRIPTS" / "se.py"
+
+    def phase(name: str) -> None:
+        marker["phase"] = name
+        try:
+            write_marker(target, marker)
+        except Exception as exc:  # noqa: BLE001 - abort through the rollback
+            raise UpgradeError(
+                f"cannot update the upgrade marker phase {name!r}: {exc}"
+            ) from exc
+
+    def fail(message: str) -> dict:
+        details["blockers"].append(message)
+        rolled = rollback_upgrade(
+            target, marker, git_runner=git_runner, step_runner=step_runner
+        )
+        details["rollback"] = rolled
+        details["git_head_after"] = rolled.get("head_after")
+        for error in rolled.get("errors") or []:
+            details["blockers"].append(f"rollback: {error}")
+        details["status"] = "FAIL"
+        return details
+
+    def run_step(name: str, argv) -> dict:
+        step = _execute_step(runner_step, name, argv, cwd=target)
+        steps.append(_step_record(step))
+        details["steps"].append(_step_record(step))
+        return step
+
+    def run_git_step(name: str, argv, *, timeout: int = 120) -> dict:
+        completed = _git(git_runner, argv, cwd=target, timeout=timeout)
+        returncode = int(getattr(completed, "returncode", 1) or 0)
+        stdout = getattr(completed, "stdout", "") or ""
+        stderr = getattr(completed, "stderr", "") or ""
+        separator = "\n" if stdout and stderr else ""
+        step = {
+            "name": name,
+            "argv": [str(part) for part in argv],
+            "rc": returncode,
+            "stdout": stdout,
+            "stderr": stderr,
+            "tail": _tail(stdout + separator + stderr),
+        }
+        steps.append(_step_record(step))
+        details["steps"].append(_step_record(step))
+        return step
+
+    # 1. fetch -------------------------------------------------------------
+    try:
+        phase("fetch")
+    except UpgradeError as exc:
+        return fail(str(exc))
+    if offline:
+        details["phases"].append({"name": "fetch", "status": "SKIPPED"})
+    else:
+        step = run_git_step(
+            "fetch", ["git", "fetch", "--tags", "--prune", "origin"]
+        )
+        if step["rc"] != 0:
+            return fail(f"git fetch failed: {_last_line(step)}")
+        details["phases"].append({"name": "fetch", "status": "PASS"})
+
+    # 2. ff-only advance ---------------------------------------------------
+    try:
+        phase("advance")
+    except UpgradeError as exc:
+        return fail(str(exc))
+    step = run_git_step("advance", ["git", "merge", "--ff-only", tag])
+    if step["rc"] != 0:
+        return fail(
+            f"git merge --ff-only {tag} failed (divergent history); no merge "
+            f"commit was created: {_last_line(step)}"
+        )
+    details["phases"].append({"name": "advance", "status": "PASS"})
+
+    # 3. verify the code landed on the tag --------------------------------
+    try:
+        tag_commit = _git_rev_parse(git_runner, target, f"{tag}^{{commit}}")
+        head_now = _git_rev_parse(git_runner, target, "HEAD")
+    except UpgradeError as exc:
+        return fail(str(exc))
+    if head_now != tag_commit:
+        return fail(
+            f"HEAD ({head_now}) != {tag} commit ({tag_commit}) after the "
+            "fast-forward"
+        )
+    details["git_head_after"] = head_now
+
+    # 4. migrations --------------------------------------------------------
+    try:
+        phase("migrations")
+    except UpgradeError as exc:
+        return fail(str(exc))
+    try:
+        migrations = run_migrations(
+            target,
+            from_version=current_version,
+            to_version=to_version,
+            migrations_dir=migrations_dir,
+            now=now,
+            git_head_before=head_before,
+        )
+    except MigrationError as exc:
+        details["migrations"] = {
+            "applied": [],
+            "skipped": [],
+            "errors": [str(exc)],
+        }
+        return fail(str(exc))
+    details["migrations"] = migrations
+    if migrations.get("errors"):
+        return fail("migrations failed: " + "; ".join(migrations["errors"]))
+    details["phases"].append({"name": "migrations", "status": "PASS"})
+
+    # 5. adapters ----------------------------------------------------------
+    try:
+        phase("adapters")
+    except UpgradeError as exc:
+        return fail(str(exc))
+    if step_runner is None and not se_py.is_file():
+        steps.append(
+            {
+                "name": "adapters",
+                "rc": 1,
+                "tail": [f"SCRIPTS/se.py not found in {target}"],
+            }
+        )
+        details["steps"].append(steps[-1])
+        return fail(f"adapter step failed: SCRIPTS/se.py not found in {target}")
+    step = run_step(
+        "adapters", [sys.executable, str(se_py), "adapter", "all"]
+    )
+    if step["rc"] != 0:
+        return fail(
+            f"adapter step failed with exit code {step['rc']}: "
+            f"{_last_line(step)}"
+        )
+    details["phases"].append({"name": "adapters", "status": "PASS"})
+
+    # 6. sync --------------------------------------------------------------
+    if no_sync:
+        details["phases"].append({"name": "sync", "status": "SKIPPED"})
+    else:
+        try:
+            phase("sync")
+        except UpgradeError as exc:
+            return fail(str(exc))
+        step = run_step(
+            "sync",
+            [sys.executable, str(se_py), "sync", "--project", str(target)],
+        )
+        if step["rc"] != 0:
+            return fail(
+                f"sync step failed with exit code {step['rc']}: "
+                f"{_last_line(step)}"
+            )
+        details["phases"].append({"name": "sync", "status": "PASS"})
+
+    # 7. doctor ------------------------------------------------------------
+    try:
+        phase("doctor")
+    except UpgradeError as exc:
+        return fail(str(exc))
+    step = run_step("doctor", [sys.executable, str(se_py), "doctor", "--json"])
+    doctor_status, doctor_summary, doctor_checks = _parse_doctor_payload(step)
+    details["doctor"] = {"status": doctor_status, "summary": doctor_summary}
+    if step["rc"] != 0:
+        return fail(
+            f"doctor step failed with exit code {step['rc']}: "
+            f"{_last_line(step)}"
+        )
+    if doctor_status not in ("PASS", "WARN"):
+        return fail(
+            f"doctor reported status {doctor_status!r} (expected PASS or WARN): "
+            f"{_last_line(step)}"
+        )
+    fail_count = (
+        doctor_summary.get("FAIL") if isinstance(doctor_summary, dict) else None
+    )
+    if isinstance(fail_count, int) and fail_count != 0:
+        return fail(
+            f"doctor reported {fail_count} FAIL check(s): {_last_line(step)}"
+        )
+    if doctor_status == "WARN":
+        details["warnings"].append(
+            _doctor_warn_text(doctor_status, doctor_summary, doctor_checks)
+        )
+    details["phases"].append({"name": "doctor", "status": "PASS"})
+
+    # 8. success -----------------------------------------------------------
+    details["git_head_after"] = _safe_rev_parse(git_runner, target, "HEAD")
+    if not delete_marker(target):
+        details["warnings"].append(f"could not delete the upgrade marker: {path}")
+
+    record = {
+        "schema_version": "1",
+        "operation": "upgrade",
+        "status": "success",
+        "from": current_version,
+        "to": to_version,
+        "tag": tag,
+        "git_head_before": head_before,
+        "git_head_after": details["git_head_after"],
+        "snapshot": snapshot["snapshot_dir"],
+        "migrations": migrations,
+        "steps": steps,
+        "started_at": started_at,
+        "finished_at": _coerce_now(now).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    try:
+        details["history"] = _append_history(target, record)
+    except OSError as exc:
+        details["warnings"].append(f"could not append upgrade history: {exc}")
+
+    details["status"] = "PASS"
+    return details
+
+
+def run_upgrade(
+    args,
+    *,
+    git_runner,
+    step_runner,
+    which,
+    migrations_dir=None,
+    now=None,
+) -> dict:
+    """Resolve ``args`` into the documented check/dry-run/execute/recover flow.
+
+    Returns the ``details`` mapping including a ``status`` key. ``--check`` and
+    ``--dry-run`` never create ``.se/`` or write any file.
+    """
+    target = Path(getattr(args, "project", None) or ".").resolve()
+    which = which or shutil.which
+    check = bool(getattr(args, "check", False))
+    dry_run = bool(getattr(args, "dry_run", False))
+    recover = bool(getattr(args, "recover", False))
+    offline = bool(getattr(args, "offline", False))
+    include_projects = bool(getattr(args, "include_projects", False))
+    allow_downgrade = bool(getattr(args, "allow_downgrade", False))
+    allow_prerelease = bool(getattr(args, "allow_prerelease", False))
+    no_sync = bool(getattr(args, "no_sync", False))
+
+    if recover:
+        mode = "recover"
+    elif check:
+        mode = "check"
+    elif dry_run:
+        mode = "dry-run"
+    else:
+        mode = "execute"
+
+    details = _new_details(
+        target,
+        mode=mode,
+        offline=offline,
+        include_projects=include_projects,
+    )
+
+    if recover:
+        return _run_recover(
+            target, details, git_runner=git_runner, step_runner=step_runner, now=now
+        )
+    if check or dry_run:
+        return _run_check(
+            target,
+            details,
+            runner=git_runner,
+            which=which,
+            offline=offline,
+            allow_downgrade=allow_downgrade,
+            allow_prerelease=allow_prerelease,
+            no_sync=no_sync,
+        )
+    return _run_execute(
+        target,
+        details,
+        git_runner=git_runner,
+        step_runner=step_runner,
+        which=which,
+        migrations_dir=migrations_dir,
+        now=now,
+        offline=offline,
+        include_projects=include_projects,
+        allow_downgrade=allow_downgrade,
+        allow_prerelease=allow_prerelease,
+        no_sync=no_sync,
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Command
 # --------------------------------------------------------------------------- #
@@ -778,11 +2133,57 @@ def render_upgrade(status: str, details: dict) -> str:
             lines.append(
                 f"  [{check['status']}] {check['name']}: {check['detail']}"
             )
+    if details.get("git_head_before"):
+        lines.append(f"HEAD before: {details['git_head_before']}")
+    if details.get("git_head_after"):
+        lines.append(f"HEAD after: {details['git_head_after']}")
+    phases = details.get("phases") or []
+    if phases:
+        lines.append("Phases:")
+        for phase in phases:
+            lines.append(f"  [{phase.get('status')}] {phase.get('name')}")
+    migrations = details.get("migrations")
+    if migrations is not None:
+        applied = ", ".join(migrations.get("applied") or []) or "none"
+        skipped = ", ".join(migrations.get("skipped") or []) or "none"
+        lines.append(f"Migrations applied: {applied}")
+        lines.append(f"Migrations skipped: {skipped}")
+        for error in migrations.get("errors") or []:
+            lines.append(f"  MIGRATION ERROR: {error}")
+    steps = details.get("steps") or []
+    if steps:
+        lines.append("Steps:")
+        for step in steps:
+            lines.append(f"  [{step.get('rc')}] {step.get('name')}")
+            for line in step.get("tail") or []:
+                lines.append(f"    {line}")
+    rollback = details.get("rollback")
+    if rollback:
+        lines.append(
+            "Rollback: "
+            + ("ok" if rollback.get("ok") else "FAILED")
+            + f" (git_reset={bool(rollback.get('git_reset'))})"
+        )
+        for error in rollback.get("errors") or []:
+            lines.append(f"  ROLLBACK ERROR: {error}")
+    if details.get("snapshot_restore"):
+        restore = details["snapshot_restore"]
+        lines.append(
+            "Snapshot restore: "
+            + ("ok" if restore.get("ok") else "FAILED")
+            + f" (restored={len(restore.get('restored') or [])})"
+        )
+    if details.get("message"):
+        lines.append(str(details["message"]))
+    if details.get("history"):
+        lines.append(f"History: {details['history']}")
     if details.get("tag_error"):
         lines.append(f"WARN: {details['tag_error']}")
+    for warning in details.get("warnings") or []:
+        lines.append(f"WARN: {warning}")
     for blocker in details.get("blockers") or []:
         lines.append(f"BLOCKED: {blocker}")
-    if not details.get("blockers"):
+    if not details.get("blockers") and details.get("mode") in ("check", "dry-run"):
         lines.append("No changes applied (read-only).")
     lines.append(f"Status: {status}")
     return "\n".join(lines)
@@ -797,6 +2198,7 @@ def _finish(args, status: str, details: dict) -> int:
                     "upgrade",
                     status,
                     blockers=list(details.get("blockers") or []),
+                    warnings=list(details.get("warnings") or []),
                     details=details,
                 )
             )
@@ -806,15 +2208,23 @@ def _finish(args, status: str, details: dict) -> int:
     return 0 if status in _OK_STATUSES else 1
 
 
-def cmd_upgrade(args, *, git_runner=None, which=None) -> int:
-    """``se upgrade`` - read-only planning today, BLOCKED execution.
+def cmd_upgrade(
+    args,
+    *,
+    git_runner=None,
+    which=None,
+    step_runner=None,
+    migrations_dir=None,
+    now=None,
+) -> int:
+    """``se upgrade`` - plan (``--check``/``--dry-run``), execute, or ``--recover``.
 
     ``--check`` and ``--dry-run`` resolve the target version and run the
     read-only preflight; they never create ``.se/`` or write any file. Without
-    either flag the command is a deliberate ``BLOCKED`` (execution is not part
-    of this phase) and still performs zero writes.
+    either flag the upgrade runs (fetch -> ff-only -> migrations -> adapters ->
+    sync -> doctor) and rolls back on any failure. ``--recover`` restores an
+    interrupted upgrade even though the preflight would block on its marker.
     """
-    target = Path(getattr(args, "project", None) or ".").resolve()
     which = which or shutil.which
     git_path = getattr(args, "git_path", None)
 
@@ -832,85 +2242,13 @@ def cmd_upgrade(args, *, git_runner=None, which=None) -> int:
 
         which = which_with_git
 
-    check = bool(getattr(args, "check", False))
-    dry_run = bool(getattr(args, "dry_run", False))
-    offline = bool(getattr(args, "offline", False))
-    include_projects = bool(getattr(args, "include_projects", False))
-    allow_downgrade = bool(getattr(args, "allow_downgrade", False))
-    allow_prerelease = bool(getattr(args, "allow_prerelease", False))
-    no_sync = bool(getattr(args, "no_sync", False))
-
-    mode = "check" if check else ("dry-run" if dry_run else "execute")
-    details = {
-        "mode": mode,
-        "target": str(target),
-        "offline": offline,
-        "include_projects": include_projects,
-        "current_version": None,
-        "tags": [],
-        "selection": None,
-        "preflight": None,
-        "snapshot": None,
-        "writes": [],
-        "blockers": [],
-    }
-
-    # Execution is out of scope in this phase: refuse before touching anything.
-    if not check and not dry_run:
-        details["blockers"] = ["upgrade execution not implemented in this phase"]
-        return _finish(args, "BLOCKED", details)
-
-    current_version = _read_version(target)
-    details["current_version"] = current_version or None
-
-    preflight_result = preflight(
-        target,
+    details = run_upgrade(
+        args,
         git_runner=runner,
-        current_version=current_version,
+        step_runner=step_runner,
         which=which,
-        require_opencode=not no_sync,
+        migrations_dir=migrations_dir,
+        now=now,
     )
-    details["preflight"] = preflight_result
-    if preflight_result["status"] != "PASS":
-        details["blockers"] = list(preflight_result["blockers"])
-        return _finish(args, "BLOCKED", details)
-
-    tag_result = (
-        list_local_tags(runner) if offline else list_remote_tags(runner)
-    )
-    details["tags"] = tag_result["tags"]
-    if tag_result["error"]:
-        details["tag_error"] = tag_result["error"]
-
-    if not tag_result["tags"]:
-        details["selection"] = {
-            "target": None,
-            "status": "NO_TAGS",
-            "reason": (
-                "no local tags found (offline)"
-                if offline
-                else "no published versions found"
-            ),
-        }
-        return _finish(args, "UNKNOWN", details)
-
-    try:
-        selection = select_target_version(
-            tag_result["tags"],
-            current_version,
-            allow_prerelease=allow_prerelease,
-            allow_downgrade=allow_downgrade,
-        )
-    except ValueError as exc:
-        details["blockers"] = [str(exc)]
-        return _finish(args, "BLOCKED", details)
-    details["selection"] = selection
-
-    if selection["status"] == "DOWNGRADE_BLOCKED":
-        details["blockers"] = [selection["reason"]]
-        return _finish(args, "BLOCKED", details)
-    if selection["status"] == "NO_TAGS":
-        return _finish(args, "UNKNOWN", details)
-    if selection["status"] == "UP_TO_DATE":
-        return _finish(args, "INFO", details)
-    return _finish(args, "PASS", details)
+    status = str(details.pop("status", "FAIL"))
+    return _finish(args, status, details)

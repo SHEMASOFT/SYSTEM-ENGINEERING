@@ -393,12 +393,12 @@ def build_parser() -> argparse.ArgumentParser:
                              help="Emit a machine-readable se.report/1 envelope")
     p_uninstall.set_defaults(func=commands.cmd_uninstall)
 
-    # upgrade (read-only planning phase; execution is not implemented yet)
+    # upgrade (fetch -> ff-only -> migrations -> adapters -> sync -> doctor)
     from . import upgrade as upgrade_cmd
 
     p_upgrade = sub.add_parser(
         "upgrade",
-        help="Plan a version upgrade: resolve published tags, run a read-only preflight, snapshot on demand",
+        help="Upgrade the system to a published tag (--check/--dry-run plan only; --recover repairs an interrupted run)",
     )
     p_upgrade.add_argument("--project", default=".", help="Target system directory (default: current directory)")
     p_upgrade.add_argument("--check", action="store_true",
@@ -418,7 +418,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_upgrade.add_argument("--allow-prerelease", dest="allow_prerelease", action="store_true",
                            help="Consider pre-release tags (-rc, -beta) as candidates")
     p_upgrade.add_argument("--no-sync", dest="no_sync", action="store_true",
-                           help="Do not require the opencode CLI during preflight")
+                           help="Do not require the opencode CLI during preflight and skip the sync step")
+    p_upgrade.add_argument("--recover", action="store_true",
+                           help="Recover an interrupted upgrade from .se/upgrade-in-progress.json (restores the snapshot and resets HEAD)")
     p_upgrade.set_defaults(func=upgrade_cmd.cmd_upgrade)
 
     # doctor
