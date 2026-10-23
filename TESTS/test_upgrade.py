@@ -630,6 +630,15 @@ class CmdUpgradeCheckTests(unittest.TestCase):
         self.assertIn("Status: BLOCKED", output)
         self.assertFalse((self.root / ".se").exists())
 
+    def test_check_blocked_json_exposes_top_level_blockers(self):
+        code, output = self._run(FakeGit(status=" M SCRIPTS/x.py\n"), json=True)
+        self.assertEqual(code, 1)
+        payload = json.loads(output)
+        self.assertEqual(payload["status"], "BLOCKED")
+        self.assertTrue(payload["blockers"])
+        self.assertIn("uncommitted", payload["blockers"][0])
+        self.assertFalse((self.root / ".se").exists())
+
     def test_check_downgrade_is_blocked(self):
         code, output = self._run(FakeGit(remote_tags="abc\trefs/tags/v0.9.0\n"))
         self.assertEqual(code, 1)

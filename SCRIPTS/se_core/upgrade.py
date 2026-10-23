@@ -791,7 +791,16 @@ def render_upgrade(status: str, details: dict) -> str:
 def _finish(args, status: str, details: dict) -> int:
     """Emit JSON or text and return the documented exit code."""
     if wants_json(args):
-        print(render_json(build_envelope("upgrade", status, details=details)))
+        print(
+            render_json(
+                build_envelope(
+                    "upgrade",
+                    status,
+                    blockers=list(details.get("blockers") or []),
+                    details=details,
+                )
+            )
+        )
     else:
         print(render_upgrade(status, details))
     return 0 if status in _OK_STATUSES else 1
