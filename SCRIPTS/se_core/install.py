@@ -40,6 +40,8 @@ from pathlib import Path
 
 from .paths import load_json, repo_root
 from .mcpconfig import add_server_text
+from . import lifecycle_state as lc
+from . import mcpconfig, transaction
 
 SUPPORTED_OS = ("windows", "linux", "macos")
 
@@ -1441,47 +1443,116 @@ def run(args, *, platform_name: str | None = None, runner=None, which=None, prob
         # broken or missing CLI was already reported by the preflight probe.
         # Only servers whose dependency passed the preflight are written: the
         # installer never registers a server it cannot launch.
-        planned_keys = {r["server"] for r in registrations if r["status"] == "planned"}
-        planned_templates = [t for t in selected_templates if t["key"] in planned_keys]
-        portable = is_master_repo(project)
-        config_results = write_server_configs_direct(
-            planned_templates,
-            se_root=se_root,
-            project=project,
-            project_id=project_id,
-            interpreter=interpreter,
-            target=project,
-            scope=scope,
-            path_mapper=path_mapper,
-            portable=portable,
-        )
-        results_by_key = {r["server"]: r for r in config_results}
-        for reg in registrations:
-            if reg["status"] != "planned":
-                continue
-            outcome = results_by_key.get(reg["server"])
-            if outcome is not None:
-                reg["status"] = outcome["status"]
-                reg["reason"] = outcome["reason"]
-        if any(r["status"] == "registered" for r in registrations):
-            try:
-                record_lifecycle_state(
-                    target=project,
-                    se_root=se_root,
-                    os_name=os_name,
-                    scope=scope,
-                    project_id=project_id,
-                    interpreter=interpreter,
-                    templates=selected_templates,
-                    registrations=registrations,
-                    adapter=adapter,
-                    env_target=env_target,
-                    path_mapper=path_mapper,
-                    portable=portable,
-                )
-            except Exception as exc:  # noqa: BLE001 - state write is part of a successful install
-                plan["status"] = "FAIL"
-                plan["blockers"].append(f"failed to record lifecycle state: {exc}")
+        #
+        # Transaction boundary: the runtime config and the lifecycle state are
+        # journaled together and written one server at a time, so a failure
+        # restores both instead of leaving servers written without a record.
+        # Adapter generation (above) is intentionally outside this boundary.
+        recovery = transaction.recover_open(project)
+        if recovery["errors"]:
+            plan["status"] = "BLOCKED"
+            plan["blockers"].extend(
+                f"cannot recover an interrupted transaction: {error}"
+                for error in recovery["errors"]
+            )
+        else:
+            planned_keys = {
+                r["server"] for r in registrations if r["status"] == "planned"
+            }
+            planned_templates = [
+                t for t in selected_templates if t["key"] in planned_keys
+            ]
+            portable = is_master_repo(project)
+            if planned_templates:
+                try:
+                    journal = transaction.begin(
+                        project,
+                        "install",
+                        [mcpconfig.config_path(project), lc.state_path(project)],
+                    )
+                except Exception as exc:  # noqa: BLE001 - reported, never propagated
+                    plan["status"] = "FAIL"
+                    plan["blockers"].append(
+                        f"cannot start install transaction: {exc}"
+                    )
+                else:
+                    failure = None
+                    results_by_key: dict = {}
+                    try:
+                        for template in planned_templates:
+                            results = write_server_configs_direct(
+                                [template],
+                                se_root=se_root,
+                                project=project,
+                                project_id=project_id,
+                                interpreter=interpreter,
+                                target=project,
+                                scope=scope,
+                                path_mapper=path_mapper,
+                                portable=portable,
+                            )
+                            outcome = results[0] if results else {
+                                "status": "skipped", "reason": "no write result",
+                            }
+                            results_by_key[template["key"]] = outcome
+                            if outcome["status"] != "registered":
+                                failure = (
+                                    f"failed to write {template['name']}: "
+                                    f"{outcome.get('reason') or 'unknown error'}"
+                                )
+                                break
+                    except Exception as exc:  # noqa: BLE001 - rollback, report
+                        failure = f"failed to write the runtime config: {exc}"
+
+                    for reg in registrations:
+                        if reg["status"] != "planned":
+                            continue
+                        outcome = results_by_key.get(reg["server"])
+                        if outcome is not None:
+                            reg["status"] = outcome["status"]
+                            reg["reason"] = outcome.get("reason")
+
+                    if failure is None and any(
+                        r["status"] == "registered" for r in registrations
+                    ):
+                        try:
+                            record_lifecycle_state(
+                                target=project,
+                                se_root=se_root,
+                                os_name=os_name,
+                                scope=scope,
+                                project_id=project_id,
+                                interpreter=interpreter,
+                                templates=selected_templates,
+                                registrations=registrations,
+                                adapter=adapter,
+                                env_target=env_target,
+                                path_mapper=path_mapper,
+                                portable=portable,
+                            )
+                        except Exception as exc:  # noqa: BLE001 - rollback, report
+                            failure = f"failed to record lifecycle state: {exc}"
+
+                    if failure is None:
+                        try:
+                            transaction.commit(journal)
+                        except Exception as exc:  # noqa: BLE001 - rollback, report
+                            failure = f"cannot commit transaction: {exc}"
+
+                    if failure is not None:
+                        rolled = transaction.rollback(journal)
+                        plan["status"] = "FAIL"
+                        plan["blockers"].append(failure)
+                        plan["rollback"] = {
+                            "journal": journal.get("journal_dir"),
+                            "reason": failure,
+                            "ok": rolled["ok"],
+                            "restored": rolled["restored"],
+                            "removed": rolled["removed"],
+                            "errors": rolled["errors"],
+                            "hashes": rolled["hashes"],
+                            "changed_since_begin": rolled["changed_since_begin"],
+                        }
 
     if getattr(args, "json", False):
         from .reporting import build_envelope, render_json

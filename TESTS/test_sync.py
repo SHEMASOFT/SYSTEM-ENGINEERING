@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import sys
 import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
 
-from se_core import install, lifecycle_state as lc, mcpconfig  # noqa: E402
+from se_core import install, lifecycle_state as lc, mcpconfig, transaction  # noqa: E402
 from se_core import sync  # noqa: E402
 
 
@@ -310,6 +314,242 @@ class CmdSyncTests(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("BLOCKED", out)
         self.assertEqual(self.runner.calls, [])
+
+
+class TransactionalSyncTests(unittest.TestCase):
+    """RP5: ``se sync`` restores config + state bytes on any failure."""
+
+    PRESENT = ("python", "python3", "node", "npx", "opencode")
+    SE_NAMES = {"context7", "filesystem", "se-memory-server", "se-skill-server"}
+    SKELETON = (
+        '{\n  "mcp": {"servers": {"foreign-server": '
+        '{"type": "local", "command": ["/opt/foreign/bin/server"]}}}\n}\n'
+    )
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.project = Path(self._tmp.name).resolve()
+        self.which = lambda name: name in self.PRESENT
+        self.config = self.project / "opencode.jsonc"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    # -- helpers ----------------------------------------------------------- #
+
+    @staticmethod
+    def _name_from_command(command):
+        tokens = list(command)
+        index = 3  # ["opencode", "mcp", "add", ...]
+        while index < len(tokens):
+            if tokens[index] == "--global":
+                index += 1
+                continue
+            if tokens[index] == "--env":
+                index += 2
+                continue
+            break
+        return tokens[index]
+
+    def _template_by_name(self, name):
+        templates = install.load_mcp_templates(support.REPO_ROOT)
+        return next(t for t in templates if t["name"] == name)
+
+    def _write_runner(self, *, fail_on=(), raise_on=()):
+        """A fake ``opencode mcp add`` that writes through install's real writer."""
+
+        def runner(command):
+            name = self._name_from_command(command)
+            if name in raise_on:
+                raise RuntimeError(f"injected runner exception for {name}")
+            if name in fail_on:
+                return FakeResult(1, stderr=f"injected failure for {name}")
+            install.write_server_configs_direct(
+                [self._template_by_name(name)],
+                se_root=support.REPO_ROOT,
+                project=self.project,
+                project_id=install.read_project_id(self.project),
+                interpreter="python",
+                target=self.project,
+            )
+            return FakeResult(0)
+
+        return runner
+
+    def _run_sync(self, runner, *, dry_run=False):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = sync.cmd_sync(
+                make_args(self.project, dry_run=dry_run, json=True),
+                platform_name="windows",
+                runner=runner,
+                which=self.which,
+            )
+        return code, buffer.getvalue()
+
+    def _seed_config(self):
+        self.config.write_text(self.SKELETON, encoding="utf-8")
+        return self.config.read_bytes()
+
+    def _seed_state(self):
+        state = lc.new_state(
+            se_version=lc.read_se_version(support.REPO_ROOT),
+            os_name="windows",
+            target=str(self.project),
+        )
+        state["servers"]["ghost"] = {
+            "declared": "x", "source": "s", "scope": "project",
+        }
+        lc.save_state(state, self.project)
+        return lc.state_path(self.project).read_bytes()
+
+    # -- failure ----------------------------------------------------------- #
+
+    def _assert_rolled_back(self, code, out, config_before, state_before):
+        self.assertEqual(code, 1, out)
+        details = json.loads(out)["details"]
+        self.assertEqual(details["status"], "FAIL")
+        self.assertTrue(details["rolled_back"])
+        self.assertTrue(details["failures"])
+        self.assertEqual(details["applied"], {"register": [], "update": []})
+        self.assertIn("rollback", details)
+        self.assertTrue(details["rollback"]["ok"], details["rollback"])
+        self.assertEqual(self.config.read_bytes(), config_before)
+        if state_before is None:
+            self.assertFalse(lc.state_path(self.project).exists())
+        else:
+            self.assertEqual(lc.state_path(self.project).read_bytes(), state_before)
+
+    def test_failure_on_second_server_restores_config_and_state(self):
+        config_before = self._seed_config()
+        state_before = self._seed_state()
+
+        code, out = self._run_sync(self._write_runner(fail_on={"filesystem"}))
+        self._assert_rolled_back(code, out, config_before, state_before)
+
+        # No server written by the failed run is left behind, so a second sync
+        # classifies the declared servers as "register", never "foreign".
+        code2, out2 = self._run_sync(self._write_runner(), dry_run=True)
+        self.assertEqual(code2, 0, out2)
+        actions = json.loads(out2)["details"]["actions"]
+        foreign = {entry["name"] for entry in actions["foreign"]}
+        self.assertEqual(foreign & self.SE_NAMES, set())
+        self.assertEqual(
+            {entry["name"] for entry in actions["register"]}, self.SE_NAMES
+        )
+
+    def test_runner_exception_on_second_server_rolls_back_without_propagating(self):
+        config_before = self._seed_config()
+
+        code, out = self._run_sync(self._write_runner(raise_on={"filesystem"}))
+        self._assert_rolled_back(code, out, config_before, None)
+        details = json.loads(out)["details"]
+        self.assertTrue(
+            any("injected runner exception" in failure for failure in details["failures"]),
+            details["failures"],
+        )
+
+    def test_failure_on_first_server_leaves_nothing_written(self):
+        config_before = self._seed_config()
+
+        code, out = self._run_sync(self._write_runner(fail_on={"context7"}))
+        self._assert_rolled_back(code, out, config_before, None)
+
+    # -- success ----------------------------------------------------------- #
+
+    def test_success_commits_the_journal(self):
+        code, out = self._run_sync(self._write_runner())
+        self.assertEqual(code, 0, out)
+        details = json.loads(out)["details"]
+        self.assertEqual(details["status"], "PASS")
+        self.assertNotIn("rolled_back", details)
+        self.assertNotIn("rollback", details)
+
+        manifests = sorted(lc.backup_dir(self.project).glob("sync-*/manifest.json"))
+        self.assertEqual(len(manifests), 1)
+        manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+        self.assertEqual(manifest["status"], "committed")
+        self.assertEqual(manifest["operation"], "sync")
+        self.assertEqual(len(manifest["files"]), 2)
+
+        state = lc.load_state(self.project)
+        self.assertEqual(set(state["servers"]), self.SE_NAMES)
+        self.assertEqual(
+            {item["name"] for item in mcpconfig.list_servers(mcpconfig.read_config(self.config))},
+            self.SE_NAMES,
+        )
+
+    # -- dry-run must not write ------------------------------------------- #
+
+    def test_dry_run_blocks_on_open_journal_without_writing(self):
+        self._seed_config()
+        journal = transaction.begin(self.project, "sync", [self.config])
+        mutated = b'{"mcp": {"servers": {"half-written": {}}}}\n'
+        self.config.write_bytes(mutated)
+        manifest_before = Path(journal["manifest_path"]).read_bytes()
+
+        code, out = self._run_sync(self._write_runner(), dry_run=True)
+
+        self.assertEqual(code, 1, out)
+        envelope = json.loads(out)
+        self.assertEqual(envelope["status"], "BLOCKED")
+        self.assertTrue(
+            any(
+                "open transaction journal requires recovery" in blocker
+                for blocker in envelope["details"]["blockers"]
+            ),
+            envelope["details"]["blockers"],
+        )
+        self.assertEqual(self.config.read_bytes(), mutated)
+        self.assertEqual(Path(journal["manifest_path"]).read_bytes(), manifest_before)
+        self.assertEqual(json.loads(manifest_before)["status"], "open")
+
+        # Without --dry-run the same journal is recovered and the sync proceeds.
+        code2, out2 = self._run_sync(self._write_runner())
+        self.assertEqual(code2, 0, out2)
+        manifest = json.loads(
+            Path(journal["manifest_path"]).read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["status"], "rolled_back")
+        self.assertNotEqual(self.config.read_bytes(), mutated)
+        self.assertEqual(set(lc.load_state(self.project)["servers"]), self.SE_NAMES)
+
+    # -- commit failure ---------------------------------------------------- #
+
+    def test_commit_failure_rolls_back_config_and_state(self):
+        config_before = self._seed_config()
+        state_before = self._seed_state()
+
+        with mock.patch.object(
+            transaction, "commit", side_effect=OSError("injected commit failure")
+        ):
+            code, out = self._run_sync(self._write_runner())
+
+        self._assert_rolled_back(code, out, config_before, state_before)
+        details = json.loads(out)["details"]
+        self.assertTrue(
+            any(
+                "cannot commit transaction" in failure
+                for failure in details["failures"]
+            ),
+            details["failures"],
+        )
+
+    # -- no empty journals ------------------------------------------------- #
+
+    def test_no_apply_creates_no_new_backup_journal(self):
+        code, out = self._run_sync(self._write_runner())
+        self.assertEqual(code, 0, out)
+        backups = lc.backup_dir(self.project)
+        before = sorted(p.name for p in backups.iterdir() if p.is_dir())
+
+        code2, out2 = self._run_sync(self._write_runner())
+
+        self.assertEqual(code2, 0, out2)
+        details = json.loads(out2)["details"]
+        self.assertEqual(details["applied"], {"register": [], "update": []})
+        after = sorted(p.name for p in backups.iterdir() if p.is_dir())
+        self.assertEqual(after, before)
 
 
 if __name__ == "__main__":
