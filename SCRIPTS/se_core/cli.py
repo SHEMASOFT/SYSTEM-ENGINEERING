@@ -810,6 +810,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_health = sub.add_parser("health", help="Aggregate health status from existing checks (doctor, validate, capabilities, review)")
     p_health.add_argument("--project", required=True, help="Managed project workspace")
     p_health.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope instead of human-readable output")
+    p_health.add_argument("--scope", choices=["identity", "work", "authority", "trace", "deep", "consistency", "conformance"], default="identity", help="Health check scope (default: identity)")
     p_health.set_defaults(func=commands.cmd_health)
 
     # auto

@@ -1,0 +1,57 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0030",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-09-28",
+  "context": "SE-AUTOMATION-001F (AUTO-04) implements the EXECUTE → OBSERVE pipeline extension. Two new commands extend the deterministic pipeline: `se execute` (CMD-0022) executes tasks in topological order with authorization, evidence, artifacts, and fail-closed semantics; `se observe` (CMD-0023) provides a read-only observation envelope of execution state. Both produce machine-readable JSON envelopes (`se.execute/1`, `se.observe/1`). The AUTO-04 report originally cited a non-existent ADR-0025; this ADR formally records the architectural decisions for AUTO-04.",
+  "problem": "How can SYSTEM-ENGINEERING provide deterministic task execution with authorization, evidence collection, artifact creation, and fail-closed semantics, plus a read-only observation envelope, without introducing autonomous execution, LLM routing, or new persistence engines?",
+  "options_considered": [
+    {
+      "option": "Implement execute/observe as native se_core commands with deterministic envelopes (chosen)",
+      "pros": ["Composes existing gate evaluation, topological planning, and collection functions", "Fail-closed by default with explicit --continue-on-error", "Authorization via authorized_actions per task (IMPLEMENT gate)", "Execution receipts (EXR-*.json) provide auditable trail", "Read-only observe command enables CI/SE-CONSOLE consumption", "No LLM, no autonomous execution, no new engines"],
+      "cons": ["Adds two commands (CMD-0022, CMD-0023) requiring adapter regeneration", "Requires G3 gate before execution (strict ordering)", "Execution receipts add new artifact type"]
+    },
+    {
+      "option": "Extend existing `se implement` with execution semantics",
+      "pros": ["Reuses existing command surface"],
+      "cons": ["`se implement` has different contract (verification-focused)", "Would conflate verification with execution", "Breaks command-contract separation"]
+    },
+    {
+      "option": "Defer execution/observation to external orchestrator",
+      "pros": ["Keeps se_core minimal"],
+      "cons": ["Violates tool-independence (ADR-0004)", "SE-CONSOLE would need external dependency", "Loss of deterministic envelope guarantees"]
+    }
+  ],
+  "decision": "Add two commands to the canonical pipeline: `se execute` (CMD-0022, execution_intent=IMPLEMENT, gate=G3) and `se observe` (CMD-0023, execution_intent=ANALYZE, no gate). `se execute` runs tasks in topological order, validates authorized_actions includes IMPLEMENT, creates execution evidence (EVD-*.json), deliverable artifacts (ART-*.json), and execution receipts (EXR-*.json). Fails closed on first failure unless --continue-on-error. Supports --dry-run (simulation only), --force (re-execute DONE), --task (single task). `se observe` reads task states, evidence, artifacts, and receipts; emits `se.observe/1` envelope. Both commands are fully deterministic, schema-validated, and produce machine-readable JSON.",
+  "reason": "The EXECUTE → OBSERVE pair completes the deterministic pipeline (intent → plan → execute → observe) without autonomous behavior. Fail-closed, explicit authorization (IMPLEMENT), and auditable receipts satisfy governance requirements. Read-only observe enables CI and SE-CONSOLE to consume execution state without becoming authoritative. The implementation reuses existing topological planning, gate evaluation, and collection functions — no new engines or stores.",
+  "consequences": "Positive: 401/401 tests PASS (AUTO-04); adapter regenerated to 23 commands, 43 artifacts, 42 generated files, 42 hashes; idempotent generation; four canonical scenarios verified (G3 FAIL, G3 PASS+unauthorized, G3 PASS+authorized+dry-run, G3 PASS+authorized+real). Negative: COMMANDS/commands.json expanded to 24 commands (CMD-0022, CMD-0023); adapter regenerated; two new schemas (execute.schema.json, observe.schema.json) registered in SCHEMAS/index.json. The AUTO-04 report originally cited ADR-0025; this ADR (0030) supersedes that reference.",
+  "affected_components": [
+    "SCRIPTS/se_core/commands.py (cmd_execute, cmd_observe, _execute_task, _create_execution_evidence, _create_deliverable_artifact, _update_task_status, _load_execution_receipts, _write_execution_receipt)",
+    "SCRIPTS/se_core/cli.py (execute, observe parsers)",
+    "COMMANDS/commands.json (CMD-0022, CMD-0023 entries)",
+    "SCHEMAS/execute.schema.json, SCHEMAS/observe.schema.json, SCHEMAS/index.json",
+    "TESTS/test_execute_observe.py (21 hermetic tests)",
+    "TESTS/test_opencode_adapter.py, TESTS/test_contract_migration.py (updated counts)",
+    ".opencode/adapter-manifest.json (regenerated)"
+  ],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "principal-architect",
+  "created_at": "2026-09-28T00:00:00Z",
+  "updated_at": "2026-10-22T00:00:00Z",
+  "related_tasks": [],
+  "related_requirements": [],
+  "metadata": {
+    "scope": "SE-AUTOMATION-001F (AUTO-04)",
+    "depends_on_adr": ["ADR-0009", "ADR-0015", "ADR-0017", "ADR-0020", "ADR-0021", "ADR-0024"],
+    "references": [
+      "DOCS/initiatives/SE-AUTOMATION-001/AUTO-04-REPORT.md",
+      "SE-AUTOMATION-001F-AUTO-04-REPORT.md",
+      "SCHEMAS/execute.schema.json",
+      "SCHEMAS/observe.schema.json",
+      "TESTS/test_execute_observe.py"
+    ]
+  }
+}

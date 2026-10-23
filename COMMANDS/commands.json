@@ -1381,7 +1381,7 @@
         }
       ],
       "metadata": {
-        "adr": "ADR-0029",
+        "adr": "ADR-0031",
         "promoted_from": "DECLARED_SUPPORT"
       }
     }
