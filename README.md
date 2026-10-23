@@ -1,5 +1,7 @@
 # SYSTEM ENGINEERING
 
+[![CI](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/actions/workflows/ci.yml)
+
 A reusable, domain-agnostic **project operating system for AI-assisted work**.
 
 SYSTEM ENGINEERING (SE) gives an AI coding runtime structure instead of improvisation:
@@ -10,8 +12,70 @@ or any other kind of project.
 This repository **is the system itself**. It creates and operates other projects
 without being coupled to them.
 
+Developed and maintained by [Moises](https://github.com/SHEMASOFT) —
+[`SHEMASOFT/SYSTEM-ENGINEERING`](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/).
+
 > Version 0.10.1 — Status: **foundation / development**. Smallest system capable of
 > becoming the larger one; not yet validated in production.
+
+**New here?** Jump to [Requirements](#requirements), the
+[5-minute quickstart](#quickstart) and
+[how to check that it works](#check-that-it-works). Everything else can wait.
+
+---
+
+## Contents
+
+- [What it is, and what it is not](#what-it-is-and-what-it-is-not)
+- [Why SE](#why-se)
+- [How the pieces fit together](#how-the-pieces-fit-together)
+- [Requirements](#requirements)
+- [Quickstart](#quickstart)
+- [Check that it works](#check-that-it-works)
+- [One-command install (optional)](#one-command-install-optional)
+- [Configure your runtime (optional)](#configure-your-runtime-optional)
+- [Your first project](#your-first-project)
+- [SE Console (optional)](#se-console-optional)
+- [Troubleshooting](#troubleshooting)
+- [Persistent memory](#persistent-memory)
+- [Projects](#projects)
+- [Work modes](#work-modes)
+- [Create and drive a project](#create-and-drive-a-project)
+- [Repository map](#repository-map)
+- [Runtimes](#runtimes)
+- [Design principles](#design-principles)
+- [Documentation](#documentation)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Author and maintainer](#author-and-maintainer)
+- [License](#license)
+
+---
+
+## What it is, and what it is not
+
+**What it does.** SE gives an AI coding runtime a process it can execute: a
+lifecycle with gates, roles that do one job each, commands and skills loaded on
+demand, and a memory that survives sessions. Work produces artifacts, evidence and
+receipts instead of claims.
+
+**What it does not do.**
+
+- It is **not a model, an API or a hosted service**. SE ships no credentials and
+  calls no provider by itself; it generates the agent layer for a runtime you
+  already use.
+- It does **not install third-party tools for you** — with one explicit exception:
+  the one-command bootstrap (`SE-INSTALLER/bootstrap.ps1`, `SE-INSTALLER/install.sh`
+  or `se install --bootstrap`) delegates to the unified installer, which is what
+  installs a missing Python, Node.js or OpenCode. A plain `se install` registers
+  only servers whose dependencies are already present (Node, `npx`, Python) and
+  reports the rest as skipped.
+- It does **not touch anything you did not ask it to touch**. Commands write inside
+  the repository or the project directory you name; the console's views are
+  read-only, and its only writes come from three explicit, token-authenticated
+  actions that you trigger yourself.
+- It is **not production-validated yet**. Version 0.10.1 is
+  *foundation / development*: usable and tested, but young.
 
 ---
 
@@ -29,6 +93,22 @@ In short: SE makes AI work **cheaper (tokens), clearer and auditable**.
 
 ---
 
+## How the pieces fit together
+
+Four things you will meet in this repository, and what each one is responsible for:
+
+| Piece | What it is | Where it lives |
+|---|---|---|
+| **SYSTEM ENGINEERING** | The system itself: contracts, lifecycle, gates, CLI, adapters. This repository. | the clone |
+| **Managed projects** | The work SE governs: each project keeps its own repository, history and artifacts. SE is never coupled to them. | `PROJECTS/` by default (excluded from version control), or any directory you pass with `--dir` |
+| **SE Console** | A local web console that shows what SE is, what state it is in and what needs attention. Its views are read-only; three explicit, token-authenticated actions delegate to `se`. | `SE-CONSOLE/`, on `http://127.0.0.1:8777` |
+| **Runtime adapters** | The generated agent layer (agents, commands, skills) for a runtime such as OpenCode, Claude Code or Codex. Generated, never hand-edited. | `.opencode/`, `.claude/`, `.codex/` |
+
+MCP servers (Context7, filesystem, SE's own skill/memory servers) are **optional
+integrations**. None of them is required by SE.
+
+---
+
 ## Requirements
 
 | Dependency | Needed for |
@@ -38,6 +118,15 @@ In short: SE makes AI work **cheaper (tokens), clearer and auditable**.
 | git | Version control checks and project isolation |
 | [OpenCode](https://opencode.ai) *(optional)* | Running the generated agent layer |
 | Node.js *(optional)* | MCP servers that use `npx` |
+
+### Supported environments
+
+| Environment | How it is handled | Evidence |
+|---|---|---|
+| **Windows 10/11** (PowerShell) | `SE-INSTALLER/bootstrap.ps1` installs Python 3.12, and — through the `se-installer` package it forwards to — Node.js LTS and OpenCode when they are missing | CI runs the full suite on `windows-latest` plus a bootstrap dry-run smoke test |
+| **Linux** | `SE-INSTALLER/install.sh` (POSIX, no privileges needed); install `python3` and `python3-venv` first | CI runs the full suite on `ubuntu-latest` |
+| **WSL** | Portable by design: no absolute host paths on the operational surfaces (`opencode.jsonc`, `SCRIPTS/`, the generated adapters); `se install --env-target wsl` translates Windows paths to `/mnt/<drive>` | documented in [`installation.md`](DOCS/reference/installation.md); not covered by CI |
+| **macOS** | `SE-INSTALLER/install.sh`; the installer uses Homebrew when available | documented in [`SE-INSTALLER/README.md`](SE-INSTALLER/README.md); not covered by CI |
 
 > On Windows, `bootstrap.ps1` installs Python 3.12, Node.js LTS and OpenCode when
 > they are missing. It uses winget, Chocolatey or Scoop when available; otherwise
@@ -49,7 +138,8 @@ In short: SE makes AI work **cheaper (tokens), clearer and auditable**.
 
 ## Quickstart
 
-**Minimal** — clone it and run the reference CLI:
+**Minimal** — clone it and run the reference CLI. This is everything you need to
+see SE work; it takes a couple of minutes.
 
 ```bash
 git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git
@@ -61,9 +151,46 @@ python SCRIPTS/se.py doctor      # health check — must report PASS
 python SCRIPTS/se.py validate    # schemas, agents, domains — must report PASS
 ```
 
-On Windows use `python SCRIPTS\se.py ...` (not `python3`).
+On Windows use `python SCRIPTS\se.py ...` (not `python3`). On Linux/macOS use
+`python3 SCRIPTS/se.py ...` (and `pip3`) if your system has no `python` alias.
 
-**One command (recommended on a fresh machine)** — installs SE Core + the web console
+That is the whole minimal path: no installer, no Node, no runtime, no MCP server.
+The installer below only adds convenience (isolated venv, MCP registration,
+optional desktop shortcut).
+
+---
+
+## Check that it works
+
+Run the two commands from the repository root and read the summary line:
+
+```bash
+python SCRIPTS/se.py doctor
+python SCRIPTS/se.py validate
+```
+
+What a healthy checkout prints as the last line of each command (the exact counts
+depend on your machine — `FAIL=0` is the part that matters):
+
+```text
+Doctor summary: PASS=19 WARN=2 FAIL=0
+VALIDATE: PASS (schemas, agents, domains)
+```
+
+- **What matters is `FAIL=0`.** `WARN` entries are informational. For example,
+  `[WARN] git_available` simply means no `git` was found on `PATH`, and
+  `[WARN] self_containment` on this repository points at guidance text in the
+  reference docs, not at an operational surface.
+- `se doctor` checks the layout, the contracts, the generated adapter, the
+  dependencies, git and secrets. `se validate` checks the schemas, the 12 agents
+  and the domain definitions.
+- Both exit non-zero on `FAIL`, so they are safe to wire into CI.
+
+---
+
+## One-command install (optional)
+
+**Recommended on a fresh machine** — installs SE Core + the web console
 + the selected MCP servers + runtime adapters into an isolated venv, and registers
 the SE MCP servers in `opencode.jsonc`:
 
@@ -107,27 +234,15 @@ See [`DOCS/reference/installation.md`](DOCS/reference/installation.md) for the f
 > **Where the venv goes.** The installer keeps its own venv at `SE-INSTALLER/.venv`,
 > which `se doctor` audits cleanly. If you create your own venv, either keep it
 > **outside** the repository or name it `.venv` at the root — a differently-named venv
-> *inside* the repo makes `se doctor` report `FAIL` (`secrets`, `root_hygiene`).
-
-Optional: start the read-only web console over the system:
-
-```bash
-cd SE-CONSOLE
-python scripts/dev_console.py start   # http://127.0.0.1:8777, in the background
-python scripts/dev_console.py status
-python scripts/dev_console.py stop    # clean shutdown
-```
-
-`start` also arms a 15-minute idle timeout — close the browser and the console
-shuts itself down (`--idle-timeout 0` keeps it up until you stop it). If the
-installer created the desktop shortcut (`install --shortcuts`), that is the
-one-click way in. `python -m console.server` runs the same console directly, in
-the foreground and with no timeout. Details:
-[`SE-CONSOLE/docs/README.md`](SE-CONSOLE/docs/README.md).
+> *inside* the repo makes `se doctor` report `FAIL` on `secrets` (the bundled
+> `certifi/cacert.pem`) and a `WARN` on `root_hygiene` (unregistered directory).
 
 ---
 
-## Use it with OpenCode
+## Configure your runtime (optional)
+
+SE works from the CLI alone. To drive it from an agent runtime, install the adapter
+and point the runtime at it.
 
 The generated agent layer (`.opencode/`) is versioned in this repository, and the
 one-command install above already registers the SE MCP servers. To regenerate the
@@ -183,6 +298,124 @@ To make new sessions start as the coordinator, set its generated agent ID in
 MCP servers are optional; none is required by SE. See
 [`DOCS/reference/installation.md`](DOCS/reference/installation.md) for registration
 and lifecycle commands (`se install`, `se sync`, `se update`, `se uninstall`).
+
+---
+
+## Your first project
+
+A **project** is the thing SE governs. Create one, pass its first gate, move it
+forward and look at its status — all four commands work on a fresh clone:
+
+```bash
+# 1. Create a managed project (its artifacts live under PROJECTS/)
+python SCRIPTS/se.py init --dir PROJECTS/MyApp --name "MyApp" --owner "me" --domains software
+
+# 2. Evaluate the intake gate
+python SCRIPTS/se.py gate --project PROJECTS/MyApp --gate G0
+
+# 3. Move the project through that gate
+python SCRIPTS/se.py transition --project PROJECTS/MyApp --to DISCOVERY --by "me"
+
+# 4. See where it stands
+python SCRIPTS/se.py status --project PROJECTS/MyApp
+```
+
+What each step prints:
+
+```text
+TARGET: <your-dir>\PROJECTS\MyApp
+PASS: initialized project PRJ-MYAPP at <your-dir>\PROJECTS\MyApp
+PASS: created .gitignore
+PASS: created discovery.json
+PASS: init complete (existing files were not overwritten)
+
+Gate G0 - PROJECT INTAKE (DRAFT -> DISCOVERY)
+  [PASS  ] G0.1: PROJECT.json is valid
+  [PASS  ] G0.2: owner=me
+  [PASS  ] G0.3: domains=['software']
+  [PASS  ] G0.4: criticality=unknown
+Gate result: PASS
+
+PASS: lifecycle DRAFT -> DISCOVERY
+```
+
+(The paths are printed in full; they are shortened to `<your-dir>` here.)
+
+**`se status` reports `Overall: FAIL` on a brand-new project, and that is
+correct**: most of the later gates (G1, G2, G3, G5, …) have nothing to check yet
+because there are no requirements, tasks or evidence. The command exits `1` while
+any gate fails; that exit code is the verdict, not a crash.
+
+### Lifecycle states
+
+`se transition` accepts only the states in
+[`CORE/lifecycle/lifecycle.json`](CORE/lifecycle/lifecycle.json)
+(a state name such as `requirements` is **not** valid — use `PLANNING`):
+
+| State | Meaning | Gate in |
+|---|---|---|
+| `DRAFT` | Project registered but not yet explored | — (start) |
+| `DISCOVERY` | Context, constraints and unknowns are being identified | G0 |
+| `PLANNING` | Requirements and plan are being defined | G1 |
+| `ACTIVE` | Implementation work is in progress | G2, G3 |
+| `VERIFICATION` | Implementation is being verified against requirements | G4 |
+| `ACCEPTANCE` | Owner reviews and formally accepts the result | G5 |
+| `RELEASED` | A release has been produced | G6, G7 |
+| `OPERATING` | The released system is in operation | G8 |
+| `ARCHIVED` | Project is closed and preserved | — (terminal) |
+
+`BLOCKED` is a condition, not a state: it is recorded with a reason and a
+resolution path. Some gate conditions are `[MANUAL]` — they require a human
+attestation with a written reason (`se transition --attest "<reason>"`), and SE
+never auto-approves them.
+
+`PROJECTS/` is intentionally excluded from version control: each project keeps its
+own repository and history.
+
+---
+
+## SE Console (optional)
+
+A local web console over the system — what SE is, what state it is in, what needs
+attention. The information views are read-only and the server answers GET only, except
+`POST /api/action`: a token-authenticated surface (token at
+`~/.config/se-console/token`, outside the repository) limited to three catalog
+actions that delegate to `se` — `run checkpoint`, `run close` and
+`transition --attest`. The console owns no SE state; its own writes are the audit
+line in the gitignored `SE-CONSOLE/artifacts/actions.jsonl` and the PID/log the
+helper keeps under `SE-CONSOLE/.runtime/`.
+
+```bash
+cd SE-CONSOLE
+python scripts/dev_console.py start   # http://127.0.0.1:8777, in the background
+python scripts/dev_console.py status
+python scripts/dev_console.py stop    # clean shutdown
+```
+
+`start` also arms a 15-minute idle timeout — close the browser and the console
+shuts itself down (`--idle-timeout 0` keeps it up until you stop it). If the
+installer created the desktop shortcut (`se-installer install --shortcuts`), that
+is the one-click way in. `python -m console.server` runs the same console directly,
+in the foreground and with no timeout. Details:
+[`SE-CONSOLE/docs/README.md`](SE-CONSOLE/docs/README.md).
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `se doctor` reports `FAIL` on `jsonschema` | The optional validation dependency is missing | `pip install jsonschema` (or use the installer venv, which has it) |
+| `se doctor` reports `FAIL` on `secrets` (plus a `WARN` on `root_hygiene`) | A virtualenv was created inside the repository with a name other than `.venv` | Keep your venv outside the repo, or name it `.venv` at the root |
+| `[WARN] git_available: git executable not found on PATH` | `git` is not on `PATH` for this shell | Install git, or open a new terminal after installing it. It is a `WARN`, so the check still passes |
+| `[WARN] self_containment ... none on operational surfaces` | Guidance text inside the reference docs mentions host paths | Informational on this repository; it does not block. A hit **on an operational surface** (`opencode.jsonc`, `SCRIPTS/`) is what must be fixed |
+| `se status --project <dir>` says `Overall: FAIL` right after `se init` | Most later gates have no requirements, tasks or evidence to check yet (some, like G4, pass vacuously) | Expected. Pass the gates in order (G0 → G8) as the project produces its artifacts |
+| `FAIL: target state '...' is not a valid state` | The lifecycle states are `DRAFT`, `DISCOVERY`, `PLANNING`, `ACTIVE`, `VERIFICATION`, `ACCEPTANCE`, `RELEASED`, `OPERATING`, `ARCHIVED` | Use one of those names, e.g. `--to DISCOVERY` |
+| A gate shows `[MANUAL]` and the transition stops | That condition requires human attestation by design, and `--attest` requires a written reason | Attest it explicitly: `se transition --project <dir> --to <STATE> --by <you> --attest "<reason>"` |
+| `opencode` (or `node`) “not found” right after the bootstrap | The installer updated `PATH` for its own process only | Open a new terminal |
+| `se doctor` fails after you edited `.opencode/` | `.opencode/` is generated; a manual edit shows as manifest drift | Edit `AGENTS/`, `COMMANDS/`, `SKILLS/` or `TEMPLATES/` and regenerate with `se adapter opencode` |
+
+Still stuck? See [`SUPPORT.md`](.github/SUPPORT.md).
 
 ---
 
@@ -292,11 +525,11 @@ decisions — including architectural ones — are recorded separately with
 # 1. Bootstrap a managed project
 python SCRIPTS/se.py init --dir PROJECTS/MyApp --name "MyApp" --owner "me" --domains software
 
-# 2. Move it through its lifecycle (intake -> release)
-python SCRIPTS/se.py transition --project PROJECTS/MyApp --to requirements
-python SCRIPTS/se.py gate       --project PROJECTS/MyApp --evaluate G1
+# 2. Move it through its lifecycle (DRAFT -> DISCOVERY -> PLANNING -> ...)
+python SCRIPTS/se.py gate       --project PROJECTS/MyApp --gate G0
+python SCRIPTS/se.py transition --project PROJECTS/MyApp --to DISCOVERY --by "me"
 python SCRIPTS/se.py review     --project PROJECTS/MyApp
-python SCRIPTS/se.py release    --project PROJECTS/MyApp
+python SCRIPTS/se.py release    --project PROJECTS/MyApp --version 0.1.0 --approve --by "me"
 
 # 3. Run multi-agent workflows (DAG + gates)
 python SCRIPTS/se.py orchestrate create --project PROJECTS/MyApp \
@@ -304,8 +537,12 @@ python SCRIPTS/se.py orchestrate create --project PROJECTS/MyApp \
 python SCRIPTS/se.py orchestrate execute --project PROJECTS/MyApp --workflow WF-0001 --dry-run
 ```
 
-`PROJECTS/` is intentionally excluded from version control: each project keeps its
-own repository and history.
+Every transition is gated (see [Lifecycle states](#lifecycle-states)) and
+fail-closed: a blocked transition reports which gate condition failed, manual
+conditions need a written human attestation (`--attest "<reason>"`), and
+`se release` never records an empty approver: `approved_by` falls back to the
+project owner, and the release schema rejects an empty value. The command surface
+is documented in [`DOCS/reference/commands.md`](DOCS/reference/commands.md).
 
 ---
 
@@ -323,7 +560,7 @@ own repository and history.
 | `SCRIPTS/` | Reference Python CLI (`se.py`, `se_core/`) |
 | `POLICIES/` | Human-readable policies (permissions, evidence, release, security) |
 | `INTEGRATIONS/` | Runtime adapters (OpenCode, Claude Code, Codex) |
-| `SE-CONSOLE/` | Local-first, read-only web console |
+| `SE-CONSOLE/` | Local-first web console: read-only views, authenticated actions |
 | `SE-INSTALLER/` | Unified installer + TUI for SE + MCP servers + runtimes |
 | `DOCS/` | Architecture, references and working records |
 | `TESTS/` | Hermetic tests for the Master System itself |
@@ -397,8 +634,39 @@ Shipped:
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). CI runs `se doctor`, `se validate` and
 the full test suite on Linux and Windows for every pull request.
 
+- **Bugs, questions and feature requests** — open an issue:
+  <https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/issues>
+- **Help and where to ask** — [`SUPPORT.md`](.github/SUPPORT.md)
+- **Security** — [`SECURITY.md`](.github/SECURITY.md). Do not disclose a
+  vulnerability in a public issue.
+- **Community standards** — [`CODE_OF_CONDUCT.md`](.github/CODE_OF_CONDUCT.md)
+
+---
+
+## Author and maintainer
+
+**Developed and maintained by Moises**<br>
+**Project:** SHEMASOFT/SYSTEM-ENGINEERING<br>
+**Repository:** https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/
+
+Moises develops and maintains SYSTEM ENGINEERING and is the owner of the
+[`SHEMASOFT`](https://github.com/SHEMASOFT) GitHub account. Contributions from
+other developers are recorded in the repository's
+[commit history](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/commits/main)
+and are not attributed to the maintainer.
+
 ---
 
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
+
+The MIT License allows you to use, copy, modify, merge, publish, distribute,
+sublicense and sell copies of the system, provided the copyright notice and the
+permission notice are included in all copies or substantial portions of it. In
+practice: keep [`LICENSE`](LICENSE) with any copy or derivative you distribute.
+
+Some skills adapt third-party material that carries its own license; the
+attribution lives with the skill itself (for example
+[`SKILLS/visual-frontend-engineering/SKILL.md`](SKILLS/visual-frontend-engineering/SKILL.md)).
+The MIT license of this repository does not override those terms.

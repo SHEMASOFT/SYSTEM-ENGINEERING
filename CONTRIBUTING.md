@@ -96,3 +96,14 @@ published. Do not make tracked code depend on them existing in a fresh clone.
 
 Open an issue with: what you expected, what happened, the exact commands, your
 OS (Windows / WSL / Linux) and the output of `python SCRIPTS/se.py doctor`.
+The issue form asks for the same information.
+
+- **Bugs and feature requests** — <https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/issues>
+- **Questions and help** — [`SUPPORT.md`](.github/SUPPORT.md)
+- **Security vulnerabilities** — [`SECURITY.md`](.github/SECURITY.md); never in a
+  public issue
+
+## Code of conduct
+
+Participation in this project is covered by
+[`CODE_OF_CONDUCT.md`](.github/CODE_OF_CONDUCT.md).
