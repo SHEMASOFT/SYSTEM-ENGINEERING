@@ -368,6 +368,95 @@ Installing SE with `se-installer install --shortcuts` (or the checkbox in
 `se-installer tui`) creates **one** desktop shortcut that starts the console. There is no
 Stop shortcut: the console stops itself (DESIGN-5C D3).
 
+---
+
+## 9. Instalador Web Interactivo (nuevo)
+
+Una **interfaz visual completa** para instalar, desinstalar y gestionar componentes SE desde el navegador.
+
+### Arranque rápido
+
+```bash
+# Opción 1: Script unificado (recomendado - detecta puerto libre, abre navegador)
+# Windows (PowerShell)
+.\SE-INSTALLER\install-web.ps1
+# Linux / macOS
+bash SE-INSTALLER/install-web.sh
+
+# Opción 2: Comando directo (requiere instalación previa)
+pip install -e SE-INSTALLER
+se-installer-web --port 8765 --reload
+
+# Opción 3: Directo con uvicorn (sin instalar paquete)
+python -m uvicorn se_installer_web.main:app --host 127.0.0.1 --port 8765 --reload
+```
+
+El script detecta un puerto libre (8765, 8766, 8767...), abre el navegador automáticamente y limpia el puerto al salir (Ctrl+C).
+
+### Abre en tu navegador
+
+**http://127.0.0.1:8765** (o el puerto que se asigne)
+
+### Pestañas disponibles
+
+| Pestaña | Funcionalidad |
+|---|---|
+| **📦 Instalar** | Lista de 22 componentes con checkboxes. Selección de runtimes (OpenCode, Codex, Claude Code). Opciones: Dry-run, Force reinstall, Skip verification, Crear acceso directo. Botón "Instalar Seleccionados" con barra de progreso. |
+| **🗑️ Desinstalar** | Limpieza completa de artefactos SE en OpenCode. Checkboxes: `--all` (todo SE), `--include-untracked-se-mcps` (se-memory-server, se-skill-server), `--remove-opencode-dir` (capa generada), `--purge-adapter`, `--keep-opencode-jsonc`, `--force`, `--apply`. Botones "Ver Plan (Dry-Run)" y "Aplicar Desinstalación". |
+| **⚙️ Adaptador** | Generar/eliminar adaptador OpenCode (`.opencode/` con agentes, comandos, skills). |
+| **📋 Log** | Streaming en tiempo real vía WebSocket. Muestra progreso de instalación/desinstalación, errores, completado. |
+
+### API REST (para integraciones)
+
+| Endpoint | Descripción |
+|---|---|
+| `GET /api/components` | Lista componentes con estado |
+| `GET /api/status` | Resumen de instalación |
+| `POST /api/install` | Iniciar instalación (async + WebSocket progress) |
+| `POST /api/uninstall` | Desinstalar (stream output) |
+| `POST /api/adapter/generate` | Generar adaptador OpenCode |
+| `POST /api/adapter/remove` | Eliminar `.opencode/` |
+| `WS /ws` | WebSocket para logs en tiempo real |
+
+### Comandos CLI equivalentes
+
+```bash
+# Instalar componentes seleccionados
+se-installer-web --port 8765
+# En la UI: selecciona componentes → clic "Instalar Seleccionados"
+
+# Desinstalar todo (dry-run)
+se-installer-web --all --dry-run
+# O vía se.py:
+python SCRIPTS/se.py uninstall --all --dry-run
+
+# Desinstalar todo (aplicar)
+se-installer-web --all --apply
+# O vía se.py:
+python SCRIPTS/se.py uninstall --all --apply
+
+# Generar adaptador
+se-installer-web --port 8765
+# En la UI: pestaña Adaptador → "Generar Adaptador"
+```
+
+### Requisitos
+
+- Python 3.10+
+- `pip install -e SE-INSTALLER` (instala `se-installer-web` command)
+- O ejecuta directo: `python -m uvicorn se_installer_web.main:app --host 127.0.0.1 --port 8765 --reload`
+
+### Desarrollo
+
+```bash
+# Con auto-reload
+se-installer-web --dev --reload
+# O
+python -m uvicorn se_installer_web.main:app --reload
+```
+
+El frontend está en `SCRIPTS/se_installer_web/static/index.html` (vanilla JS/HTML/CSS, sin build step).
+
 ### Memory (built-in)
 
 SE's persistent memory is **internal**: no third-party tool and no MCP server is
