@@ -166,4 +166,26 @@ if [ "${ARGS[0]:-}" = "tui" ]; then
     echo "bootstrap: if OpenCode was installed, authenticate it: opencode auth login"
 fi
 
+# Offer to run uninstaller/purge for OpenCode SE artifacts
+if [ "${ARGS[0]:-}" = "install" ] && [ "$opencode_requested" -eq 1 ] && [ "$DRY_RUN" -eq 0 ] && [ "$CUSTOM_COMPONENTS" -eq 0 ]; then
+    echo ""
+    echo "bootstrap: ¿Deseas limpiar artefactos de System Engineering de OpenCode?"
+    echo "  (agentes/comandos/skills generados + MCPs SE como se-memory-server, se-skill-server)"
+    echo "  Opciones: [s] Sí, interactivo  [n] No  [t] Solo ver plan (dry-run)"
+    read -r -p "  > " choice
+    case "$choice" in
+        s|S|y|Y)
+            echo "bootstrap: ejecutando desinstalación interactiva..."
+            "$VENV/bin/python" -m se_installer.cli uninstall -i
+            ;;
+        t|T)
+            echo "bootstrap: mostrando plan de desinstalación (dry-run)..."
+            "$VENV/bin/python" -m se_installer.cli uninstall --all --dry-run
+            ;;
+        *)
+            echo "bootstrap: omitiendo desinstalación."
+            ;;
+    esac
+fi
+
 exit 0
