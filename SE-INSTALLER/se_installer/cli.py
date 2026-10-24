@@ -95,6 +95,53 @@ def create_parser() -> argparse.ArgumentParser:
         help="Do not register the selected MCPs in OpenCode after a successful install",
     )
 
+    # uninstall command
+    uninstall_parser = subparsers.add_parser("uninstall", help="Uninstall SE artifacts from OpenCode (interactive)")
+    uninstall_parser.add_argument(
+        "-i", "--interactive", action="store_true",
+        help="Interactive purge with per-item selection"
+    )
+    uninstall_parser.add_argument(
+        "--all", action="store_true",
+        help="Select everything SE-related (managed + untracked SE MCPs + .opencode/)"
+    )
+    uninstall_parser.add_argument(
+        "--include-untracked-se-mcps", action="store_true",
+        help="Also remove SE-related MCPs not tracked in lifecycle-state"
+    )
+    uninstall_parser.add_argument(
+        "--remove-opencode-dir", action="store_true",
+        help="Remove generated .opencode/ directory (with backup)"
+    )
+    uninstall_parser.add_argument(
+        "--purge-adapter", action="store_true",
+        help="Alias for --remove-opencode-dir"
+    )
+    uninstall_parser.add_argument(
+        "--keep-opencode-jsonc", action="store_true",
+        help="Do not touch opencode.jsonc"
+    )
+    uninstall_parser.add_argument(
+        "--force", action="store_true",
+        help="Skip extra confirmations in non-interactive runs"
+    )
+    uninstall_parser.add_argument(
+        "--apply", action="store_true",
+        help="Perform the removal (default is dry-run)"
+    )
+    uninstall_parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Plan only, write nothing"
+    )
+    uninstall_parser.add_argument(
+        "--json", action="store_true",
+        help="Machine-readable output"
+    )
+    uninstall_parser.add_argument(
+        "--project", default=".",
+        help="Target project directory (default: current directory)"
+    )
+
     # doctor command
     doctor_parser = subparsers.add_parser("doctor", help="Run health checks")
     doctor_parser.add_argument(
@@ -231,6 +278,76 @@ def cmd_status(args) -> int:
         print_components(components, show_status=True)
 
     return 0
+
+
+def cmd_uninstall(args) -> int:
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[2]
+    se_cli = repo_root / "SCRIPTS" / "se.py"
+    target = Path(args.project).resolve()
+
+    if not se_cli.is_file():
+        print("Error: SCRIPTS/se.py not found.", file=sys.stderr)
+        return 1
+
+    cmd = [
+        sys.executable,
+        str(se_cli),
+        "uninstall",
+        "--project",
+        str(target),
+    ]
+
+    # Interactive by default if no flags
+    has_flags = args.interactive or args.all or args.include_untracked_se_mcps or \
+                args.remove_opencode_dir or args.purge_adapter or args.keep_opencode_jsonc or \
+                args.force or args.apply or args.dry_run or args.json
+    
+    if not has_flags:
+        cmd += ["-i"]
+    else:
+        if args.interactive:
+            cmd += ["-i"]
+        if args.all:
+            cmd += ["--all"]
+        if args.include_untracked_se_mcps:
+            cmd += ["--include-untracked-se-mcps"]
+        if args.remove_opencode_dir:
+            cmd += ["--remove-opencode-dir"]
+        if args.purge_adapter:
+            cmd += ["--purge-adapter"]
+        if args.keep_opencode_jsonc:
+            cmd += ["--keep-opencode-jsonc"]
+        if args.force:
+            cmd += ["--force"]
+        if args.apply:
+            cmd += ["--apply"]
+        if args.dry_run:
+            cmd += ["--dry-run"]
+        if args.json:
+            cmd += ["--json"]
+
+    print(f"Running: {' '.join(cmd)}")
+    
+    try:
+        completed = subprocess.run(
+            cmd,
+            cwd=str(target),
+            capture_output=False,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        print("Uninstall timed out after 300 seconds.", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"Uninstall failed: {exc}", file=sys.stderr)
+        return 1
+
+    return completed.returncode
 
 
 def cmd_doctor(args) -> int:
@@ -424,6 +541,7 @@ def main() -> int:
         "status": cmd_status,
         "doctor": cmd_doctor,
         "tui": cmd_tui,
+        "uninstall": cmd_uninstall,
     }
 
     return commands[args.command](args)
