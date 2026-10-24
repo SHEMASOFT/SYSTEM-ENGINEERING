@@ -15,12 +15,14 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
 
 from se_core import install  # noqa: E402
 from se_core import lifecycle_state as lc  # noqa: E402
+from se_core import transaction  # noqa: E402
 
 
 class DetectOsTests(unittest.TestCase):
@@ -954,3 +956,184 @@ class EnvironmentTargetTests(unittest.TestCase):
             project_id="p", interpreter="python3", path_mapper=mapper,
         )
         self.assertEqual(spec["command"], ["python3", "/mnt/d/se/s.py"])
+
+
+class TransactionalInstallTests(unittest.TestCase):
+    """RP5: a failed direct write restores config + lifecycle state bytes."""
+
+    PRESENT = ("python", "python3", "node", "npx", "opencode")
+    SKELETON = (
+        '{\n  "mcp": {"servers": {"foreign-server": '
+        '{"type": "local", "command": ["/opt/foreign/bin/server"]}}}\n}\n'
+    )
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.project = Path(self._tmp.name).resolve()
+        self.which = lambda name: name in self.PRESENT
+        self.config = self.project / "opencode.jsonc"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _args(self, with_=None):
+        return types.SimpleNamespace(**{
+            "project": str(self.project), "global": False, "no_register": False,
+            "generate_adapter": False, "dry_run": False, "json": True,
+            "with_": with_,
+        })
+
+    def _run(self, args=None, **overrides):
+        kwargs = {"platform_name": "windows", "which": self.which}
+        kwargs.update(overrides)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = install.run(args or self._args(), **kwargs)
+        return code, buffer.getvalue()
+
+    def _seed(self):
+        self.config.write_text(self.SKELETON, encoding="utf-8")
+        state = lc.new_state(
+            se_version=lc.read_se_version(support.REPO_ROOT),
+            os_name="windows",
+            target=str(self.project),
+        )
+        lc.save_state(state, self.project)
+        return self.config.read_bytes(), lc.state_path(self.project).read_bytes()
+
+    def test_write_failure_on_second_server_rolls_back_config_and_state(self):
+        config_before, state_before = self._seed()
+        original = install.write_server_configs_direct
+        calls = []
+
+        def fake_write(templates, **kwargs):
+            template = templates[0]
+            calls.append(template["name"])
+            if template["name"] == "filesystem":
+                return [{
+                    "server": template["key"],
+                    "name": template["name"],
+                    "status": "skipped",
+                    "reason": "injected write failure",
+                    "added": False,
+                    "updated": False,
+                }]
+            return original(templates, **kwargs)
+
+        with mock.patch.object(
+            install, "write_server_configs_direct", side_effect=fake_write
+        ):
+            code, out = self._run()
+
+        self.assertEqual(code, 1, out)
+        details = json.loads(out)["details"]
+        self.assertEqual(details["status"], "FAIL")
+        self.assertTrue(
+            any("injected write failure" in blocker for blocker in details["blockers"]),
+            details["blockers"],
+        )
+        self.assertIn("rollback", details)
+        self.assertTrue(details["rollback"]["ok"], details["rollback"])
+        self.assertEqual(self.config.read_bytes(), config_before)
+        self.assertEqual(lc.state_path(self.project).read_bytes(), state_before)
+        # writing stops at the first failure: later servers are never written
+        self.assertEqual(calls, ["context7", "filesystem"])
+
+    def test_state_save_failure_rolls_back_config(self):
+        config_before, state_before = self._seed()
+
+        def boom(state, target):
+            raise OSError("injected state write failure")
+
+        with mock.patch.object(lc, "save_state", side_effect=boom):
+            code, out = self._run()
+
+        self.assertEqual(code, 1, out)
+        details = json.loads(out)["details"]
+        self.assertEqual(details["status"], "FAIL")
+        self.assertTrue(
+            any(
+                "failed to record lifecycle state" in blocker
+                and "injected state write failure" in blocker
+                for blocker in details["blockers"]
+            ),
+            details["blockers"],
+        )
+        self.assertIn("rollback", details)
+        self.assertTrue(details["rollback"]["ok"], details["rollback"])
+        self.assertEqual(self.config.read_bytes(), config_before)
+        self.assertEqual(lc.state_path(self.project).read_bytes(), state_before)
+
+    def test_success_commits_the_journal(self):
+        config_before, state_before = self._seed()
+
+        code, out = self._run()
+
+        self.assertEqual(code, 0, out)
+        details = json.loads(out)["details"]
+        self.assertEqual(details["status"], "PASS")
+        self.assertNotIn("rollback", details)
+        self.assertNotEqual(self.config.read_bytes(), config_before)
+        self.assertNotEqual(lc.state_path(self.project).read_bytes(), state_before)
+
+        manifests = sorted(lc.backup_dir(self.project).glob("install-*/manifest.json"))
+        self.assertEqual(len(manifests), 1)
+        manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+        self.assertEqual(manifest["status"], "committed")
+        self.assertEqual(manifest["operation"], "install")
+        state = lc.load_state(self.project)
+        self.assertEqual(
+            set(state["servers"]),
+            {"context7", "filesystem", "se-memory-server", "se-skill-server"},
+        )
+
+    def test_commit_failure_rolls_back_config_and_state(self):
+        config_before, state_before = self._seed()
+
+        with mock.patch.object(
+            transaction, "commit", side_effect=OSError("injected commit failure")
+        ):
+            code, out = self._run()
+
+        self.assertEqual(code, 1, out)
+        details = json.loads(out)["details"]
+        self.assertEqual(details["status"], "FAIL")
+        self.assertTrue(
+            any(
+                "cannot commit transaction" in blocker
+                for blocker in details["blockers"]
+            ),
+            details["blockers"],
+        )
+        self.assertIn("rollback", details)
+        self.assertTrue(details["rollback"]["ok"], details["rollback"])
+        self.assertEqual(self.config.read_bytes(), config_before)
+        self.assertEqual(lc.state_path(self.project).read_bytes(), state_before)
+
+    def test_no_planned_servers_creates_no_journal(self):
+        self._seed()
+        backups = lc.backup_dir(self.project)
+        backups.mkdir(parents=True, exist_ok=True)
+        before = sorted(p.name for p in backups.iterdir())
+
+        # context7 needs node/npx; without them it is skipped, so nothing is
+        # planned and no transaction journal may be created.
+        code, out = self._run(
+            args=self._args(with_="context7"),
+            which=lambda name: name in ("python", "python3", "opencode"),
+        )
+
+        self.assertEqual(code, 0, out)
+        details = json.loads(out)["details"]
+        self.assertEqual(details["status"], "PASS")
+        self.assertEqual(
+            {r["server"]: r["status"] for r in details["registrations"]},
+            {"context7": "skipped"},
+        )
+        after = sorted(p.name for p in backups.iterdir())
+        self.assertEqual(after, before)
+
+
+if __name__ == "__main__":
+    unittest.main()
+

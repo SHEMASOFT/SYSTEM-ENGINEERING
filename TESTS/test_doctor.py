@@ -160,6 +160,14 @@ class RootHygieneTests(unittest.TestCase):
         status, _ = self._check(["README.md", "VERSION", "CORE/", "MASTER SYSTEM/"])
         self.assertEqual(status, "PASS")
 
+    def test_generated_adapter_root_files_are_allowed(self):
+        # `se adapter all` writes these at the root; doctor must not fail the
+        # layout after a legitimate upgrade/install.
+        status, _ = self._check(
+            ["README.md", "AGENTS.md", "CLAUDE.md", ".mcp.json"]
+        )
+        self.assertEqual(status, "PASS")
+
 
 class BaselineLedgerTests(unittest.TestCase):
     """Each ledger state must map to a severity the operator can act on.

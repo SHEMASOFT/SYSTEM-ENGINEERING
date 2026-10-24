@@ -30,6 +30,7 @@ Machine-readable: `COMMANDS/commands.json`. Human summary: `COMMANDS/README.md`.
 | `execute` | G3 | implementer |
 | `observe` | — | implementer |
 | `orchestrate` | varies | coordinator |
+| `upgrade` | — | devops |
 
 `adapter` is a CLI infrastructure group (not a contract command — it consumes the contracts
 to generate tool artifacts):
@@ -41,6 +42,27 @@ python SCRIPTS\se.py adapter opencode --output <dir> # custom output
 ```
 
 See `DOCS/OPENCODE_ADAPTER.md` for the full mapping and guarantees.
+
+### Upgrade
+
+`upgrade` advances the installed Master System to a published tag, fail-closed:
+
+```powershell
+python SCRIPTS\se.py upgrade --check            # resolve target + read-only preflight (writes nothing)
+python SCRIPTS\se.py upgrade --dry-run          # same as --check
+python SCRIPTS\se.py upgrade                    # execute (ff-only, snapshot, migrations, adapters, sync, doctor)
+python SCRIPTS\se.py upgrade --recover          # repair an interrupted run from .se/upgrade-in-progress.json
+```
+
+`--check` and `--dry-run` are read-only: they resolve the target version and run the preflight
+without creating `.se/` or writing any file. Execution is ff-only (`git merge --ff-only <tag>`)
+after a verified snapshot, with an atomic marker, ordered idempotent migrations, adapter
+regeneration, `se sync` and a `se doctor` gate that requires `FAIL == 0` and accepts a recorded
+WARN. Any failure after the marker rolls back: the snapshot is verified, HEAD is restored to the
+recorded pre-upgrade commit, and config/state/ledger are restored with hash verification.
+`--recover` repairs a marker left by an interrupted upgrade (a marker without `git_head_before`
+is blocked). `--include-projects` is opt-in: `PROJECTS/` is never copied into a snapshot by
+default.
 
 ### Project bootstrap
 

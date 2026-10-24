@@ -28,6 +28,7 @@ The conceptual command interface. Machine-readable source: [`commands.json`](com
 | `execute` | G3 | implementer | Execute actionable tasks, fail-closed, with receipts and evidence |
 | `observe` | — | implementer | Read-only view of execution progress, evidence, artifacts and receipts |
 | `orchestrate` | varies | coordinator | Create/execute/list workflows with topological order and gate enforcement |
+| `upgrade` | — | devops | Upgrade the installed system to a published tag (ff-only, snapshot, migrations, rollback, recover) |
 
 Conventions:
 

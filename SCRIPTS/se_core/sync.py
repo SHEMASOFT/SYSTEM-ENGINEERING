@@ -30,7 +30,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from . import install, mcpconfig
+from . import install, mcpconfig, transaction
 from . import lifecycle_state as lc
 from .paths import repo_root
 from .reporting import build_envelope, render_json, wants_json
@@ -213,6 +213,36 @@ def cmd_sync(args, *, platform_name=None, runner=None, which=None) -> int:
 
     state_path = lc.state_path(project)
     state = lc.load_state(project)
+
+    # Repair any journal a previous (interrupted) sync/install left open before
+    # reading the state we are about to reconcile against. A dry-run is strictly
+    # read-only: it only *detects* pending journals and blocks.
+    if dry_run:
+        pending = transaction.list_open(project)
+        if pending:
+            return _finish(
+                args, "sync", "BLOCKED", report=None,
+                blockers=[
+                    "open transaction journal requires recovery: "
+                    f"{journal['journal_dir']}; re-run without --dry-run"
+                    for journal in pending
+                ],
+                project=project, dry_run=dry_run,
+            )
+    else:
+        recovery = transaction.recover_open(project)
+        if recovery["errors"]:
+            return _finish(
+                args, "sync", "BLOCKED", report=None,
+                blockers=[
+                    f"cannot recover an interrupted transaction: {error}"
+                    for error in recovery["errors"]
+                ],
+                project=project, dry_run=dry_run,
+            )
+        if recovery["recovered"]:
+            state = lc.load_state(project)
+
     if state_path.exists() and state is None:
         return _finish(
             args, "sync", "BLOCKED", report=None,
@@ -273,37 +303,92 @@ def cmd_sync(args, *, platform_name=None, runner=None, which=None) -> int:
             register=True,
             preflight=preflight,
         )
-        install.execute_registrations(registrations, runner or install.default_runner)
-        if state is None:
-            state = lc.new_state(
-                se_version=lc.read_se_version(se_root),
-                os_name=os_name,
-                target=str(project),
-                scope=SCOPE,
-            )
-        state["se_version"] = lc.read_se_version(se_root)
-        state["os"] = os_name
-        state["target"] = str(project)
-        for registration in registrations:
-            name = registration["name"]
-            if registration["status"] == "registered":
-                declared_entry = declared[name]
-                lc.record_server(
-                    state,
-                    name,
-                    declared=declared_entry["hash"],
-                    source=declared_entry["template"]["template"],
+        journal = None
+        if registrations:
+            try:
+                journal = transaction.begin(
+                    project, "sync", [config_path, lc.state_path(project)]
+                )
+            except Exception as exc:  # noqa: BLE001 - reported, never propagated
+                report["failures"].append(f"transaction begin failed: {exc}")
+                report["status"] = "FAIL"
+                return _finish(args, "sync", report["status"], report=report)
+
+        failure = None
+        try:
+            if state is None:
+                state = lc.new_state(
+                    se_version=lc.read_se_version(se_root),
+                    os_name=os_name,
+                    target=str(project),
                     scope=SCOPE,
                 )
-                if name in register_names:
-                    report["applied"]["register"].append(name)
+            state["se_version"] = lc.read_se_version(se_root)
+            state["os"] = os_name
+            state["target"] = str(project)
+            # One registration at a time: the first one that does not end
+            # ``registered`` stops the run so nothing else is written.
+            for registration in registrations:
+                install.execute_registrations(
+                    [registration], runner or install.default_runner
+                )
+                name = registration["name"]
+                if registration["status"] == "registered":
+                    declared_entry = declared[name]
+                    lc.record_server(
+                        state,
+                        name,
+                        declared=declared_entry["hash"],
+                        source=declared_entry["template"]["template"],
+                        scope=SCOPE,
+                    )
+                    if name in register_names:
+                        report["applied"]["register"].append(name)
+                    else:
+                        report["applied"]["update"].append(name)
+                    continue
+                reason = str(registration.get("reason") or "registration failed")
+                if reason.startswith("registration failed"):
+                    report["failures"].append(f"{name}: {reason}")
+                    failure = f"{name}: {reason}"
                 else:
-                    report["applied"]["update"].append(name)
-            elif str(registration.get("reason") or "").startswith("registration failed"):
-                report["failures"].append(f"{name}: {registration['reason']}")
-            else:
-                report["skipped"].append({"name": name, "reason": registration.get("reason")})
-        lc.save_state(state, project)
+                    # Preflight skip (e.g. missing dependency): nothing was
+                    # written for this server, so it is reported, not a
+                    # transaction failure.
+                    report["skipped"].append(
+                        {"name": name, "reason": registration.get("reason")}
+                    )
+                break
+            if failure is None:
+                lc.save_state(state, project)
+        except Exception as exc:  # noqa: BLE001 - structured report, no crash
+            failure = f"sync aborted: {exc}"
+            report["failures"].append(failure)
+
+        if failure is None and journal is not None:
+            try:
+                transaction.commit(journal)
+            except Exception as exc:  # noqa: BLE001 - rollback, never propagate
+                failure = f"cannot commit transaction: {exc}"
+                report["failures"].append(failure)
+
+        if failure is not None:
+            if journal is not None:
+                rolled = transaction.rollback(journal)
+                report["rollback"] = {
+                    "journal": journal.get("journal_dir"),
+                    "reason": failure,
+                    "ok": rolled["ok"],
+                    "restored": rolled["restored"],
+                    "removed": rolled["removed"],
+                    "errors": rolled["errors"],
+                    "hashes": rolled["hashes"],
+                    "changed_since_begin": rolled["changed_since_begin"],
+                }
+                report["rolled_back"] = True
+            report["applied"] = {"register": [], "update": []}
+            report["status"] = "FAIL"
+            return _finish(args, "sync", report["status"], report=report)
 
     if report["failures"]:
         report["status"] = "FAIL"

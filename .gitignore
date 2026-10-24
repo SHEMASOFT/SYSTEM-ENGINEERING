@@ -64,6 +64,9 @@ PROJECTS/*
 # Generated runtime adapters for other runtimes (regenerate via `se adapter ...`)
 .claude/
 .codex/
+/AGENTS.md
+/CLAUDE.md
+/.mcp.json
 
 # Any environment file (belt-and-suspenders on top of .env / .env.*)
 *.env

@@ -1,6 +1,6 @@
 {
   "adapter_id": "opencode",
-  "adapter_version": "0.10.1",
+  "adapter_version": "0.11.0",
   "capabilities": {
     "agents": "SUPPORTED",
     "commands": "SUPPORTED",
@@ -82,7 +82,7 @@
     ],
     "registry": "CORE/capabilities/capabilities.json"
   },
-  "engine_version": "0.10.1",
+  "engine_version": "0.11.0",
   "input": {
     "agents": "AGENTS/*/agent.json",
     "commands": "COMMANDS/commands.json",
@@ -127,6 +127,7 @@
       "commands/review.md": "821bd51078d1b082b044f34232c6d9a559d820e3b6a81c40f3ff5b8dc759993b",
       "commands/transition.md": "0f8c221cd00671f7c90c015c33d2ffc797f63543c2acece8671f85eb858ad30f",
       "commands/update.md": "9124716cd1a402f740ccebb680e16d24d80fe4a4a8a737609b868b5811131bee",
+      "commands/upgrade.md": "cec66cbf22a063114ecb266415d89665fb8007e2da3c39b92bb8396f104e7f85",
       "commands/validate.md": "f1c9f6c2e5c8ce9e8c4d2cc8f9710dbb7bef54572775baa043c54d076518bdb8",
       "commands/verify.md": "d09a5746d996c582ae4d3fe1fa962dc218c9b0469b13b47ed5b4518477d6b318",
       "mcp/context7.json": "fac6ca9a48cb85ab6212167489578a2f6d3888bf2611548a5178e99c03a9f7e5",
@@ -152,7 +153,7 @@
     },
     "counts": {
       "agents": 12,
-      "commands": 24,
+      "commands": 25,
       "policies": 9,
       "skills": 7
     },
@@ -377,6 +378,12 @@
         "type": "command"
       },
       {
+        "description": "Upgrade the installed Master System to a published tag with a verifiable snapshot, rollback and recovery.",
+        "format": "markdown",
+        "path": ".opencode/commands/upgrade.md",
+        "type": "command"
+      },
+      {
         "description": "Skill checkpoint-release",
         "format": "markdown",
         "path": ".opencode/skills/checkpoint-release/SKILL.md",
@@ -545,6 +552,7 @@
       "commands/review.md",
       "commands/transition.md",
       "commands/update.md",
+      "commands/upgrade.md",
       "commands/validate.md",
       "commands/verify.md",
       "mcp/context7.json",
