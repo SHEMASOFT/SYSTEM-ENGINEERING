@@ -155,19 +155,9 @@ if [ "$want_register" -eq 1 ] && [ "$opencode_requested" -eq 1 ]; then
     fi
 fi
 
-if [ "${ARGS[0]:-}" = "install" ] && [ "$opencode_requested" -eq 1 ] && [ "$DRY_RUN" -eq 0 ] && [ "$CUSTOM_COMPONENTS" -eq 0 ]; then
-    echo "bootstrap: next steps"
-    echo "  1. Authenticate OpenCode if it has no provider yet: opencode auth login"
-    echo "  2. Start OpenCode from this repository: opencode"
-fi
-
-if [ "${ARGS[0]:-}" = "tui" ]; then
-    echo "bootstrap: TUI finished; selected MCPs are registered automatically after a successful install."
-    echo "bootstrap: if OpenCode was installed, authenticate it: opencode auth login"
-fi
-
-# Offer to run uninstaller/purge for OpenCode SE artifacts
-if [ "${ARGS[0]:-}" = "install" ] && [ "$opencode_requested" -eq 1 ] && [ "$DRY_RUN" -eq 0 ] && [ "$CUSTOM_COMPONENTS" -eq 0 ]; then
+# Optional: clean SE artifacts from OpenCode. Only offered interactively, so a
+# non-interactive run (CI, pipe, cron) never blocks waiting on stdin.
+if [ "${ARGS[0]:-}" = "install" ] && [ "$opencode_requested" -eq 1 ] && [ "$DRY_RUN" -eq 0 ] && [ "$CUSTOM_COMPONENTS" -eq 0 ] && [ -t 0 ]; then
     echo ""
     echo "bootstrap: ¿Deseas limpiar artefactos de System Engineering de OpenCode?"
     echo "  (agentes/comandos/skills generados + MCPs SE como se-memory-server, se-skill-server)"
@@ -187,5 +177,17 @@ if [ "${ARGS[0]:-}" = "install" ] && [ "$opencode_requested" -eq 1 ] && [ "$DRY_
             ;;
     esac
 fi
+
+if [ "${ARGS[0]:-}" = "install" ] && [ "$opencode_requested" -eq 1 ] && [ "$DRY_RUN" -eq 0 ] && [ "$CUSTOM_COMPONENTS" -eq 0 ]; then
+    echo "bootstrap: next steps"
+    echo "  1. Authenticate OpenCode if it has no provider yet: opencode auth login"
+    echo "  2. Start OpenCode from this repository: opencode"
+fi
+
+if [ "${ARGS[0]:-}" = "tui" ]; then
+    echo "bootstrap: TUI finished; selected MCPs are registered automatically after a successful install."
+    echo "bootstrap: if OpenCode was installed, authenticate it: opencode auth login"
+fi
+
 
 exit 0

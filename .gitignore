@@ -84,6 +84,12 @@ PROJECTS/*
 # Local operator scripts and ad-hoc fixes (machine-specific; never committed)
 .local/
 
+# Backups produced by uninstall/repair runs. They are recoverable copies, not
+# source: never commit them. `se doctor` still reports them under root hygiene,
+# so the right move is to relocate them outside the clone.
+.opencode.backup/
+.se-uninstall-all-backup/
+
 # Memory records written by skills (runtime provenance; never committed)
 # Anchored to the repository root so it does not shadow source packages that
 # happen to be named "memory" (e.g. SCRIPTS/se_core/memory, SCHEMAS/memory).

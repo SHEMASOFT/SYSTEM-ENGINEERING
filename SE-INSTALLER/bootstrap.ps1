@@ -348,6 +348,30 @@ if ($ShouldRegister) {
     }
 }
 
+if (($Command -ieq "install") -and (-not $DryRun) -and (-not $HasExplicitComponents) -and (Test-OpenCodeRuntimeRequested) -and (-not [Console]::IsInputRedirected)) {
+    # Optional: clean SE artifacts from OpenCode. Only offered when stdin is a
+    # real console, so a non-interactive run (CI, pipe, scheduled task) never
+    # blocks waiting on Read-Host.
+    Write-Host ""
+    Write-Host "bootstrap: Deseas limpiar artefactos de System Engineering de OpenCode?"
+    Write-Host "  (agentes/comandos/skills generados + MCPs SE como se-memory-server, se-skill-server)"
+    Write-Host "  Opciones: [s] Si, interactivo  [n] No  [t] Solo ver plan (dry-run)"
+    $cleanupChoice = Read-Host "  > "
+    switch ($cleanupChoice.Trim().ToLower()) {
+        { $_ -in @("s", "si", "y", "yes") } {
+            Write-Host "bootstrap: ejecutando desinstalacion interactiva..."
+            & $VenvPython -m se_installer.cli uninstall -i
+        }
+        { $_ -in @("t", "plan", "dry-run") } {
+            Write-Host "bootstrap: mostrando plan de desinstalacion (dry-run)..."
+            & $VenvPython -m se_installer.cli uninstall --all --dry-run
+        }
+        default {
+            Write-Host "bootstrap: omitiendo desinstalacion."
+        }
+    }
+}
+
 if (($Command -ieq "install") -and (-not $DryRun) -and (-not $HasExplicitComponents) -and (Test-OpenCodeRuntimeRequested)) {
     Write-Host ""
     Write-Host "bootstrap: next steps"
