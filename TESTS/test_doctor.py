@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -14,9 +15,21 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
 
+
+def git(cwd, *args):
+    """Run one git command in a throwaway repository, silently."""
+    return subprocess.run(
+        ["git", "-C", cwd, *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+
 from se_core.doctor import (  # noqa: E402
     check_baseline_ledger,
     check_manifests,
+    check_project_alignment,
     check_root_hygiene,
     check_secrets,
     check_self_containment,
@@ -498,6 +511,81 @@ class SecretScanTests(unittest.TestCase):
             status, detail = check_secrets(root)
 
         self.assertEqual(status, "FAIL", detail)
+
+
+class ProjectAlignmentTests(unittest.TestCase):
+    """Severity follows what the stale manifest says about *this repository*.
+
+    `PROJECTS/*` is excluded from version control, so a stale project living
+    there is the operator's local workspace: informational, still visible.
+    A stale project that git actually tracks is shipped by this repository,
+    so it stays WARN.
+    """
+
+    MASTER = "0.11.0"
+    FLOOR = "0.10.1"
+
+    def _build_root(self, tmp, name, published):
+        root = Path(tmp)
+        (root / "PROJECTS" / name).mkdir(parents=True, exist_ok=True)
+        (root / "SYSTEM.json").write_text(
+            json.dumps({"master_system_version": self.MASTER}), encoding="utf-8"
+        )
+        (root / "PROJECTS" / name / "PROJECT.json").write_text(
+            json.dumps({"name": name, "master_system_version": self.FLOOR}),
+            encoding="utf-8",
+        )
+        if published:
+            # A shipped project is tracked, so git no longer reports it as
+            # ignored-and-untracked even with the ignore rule in place.
+            git(str(root), "init")
+            git(str(root), "add", "--force", "PROJECTS")
+        else:
+            git(str(root), "init")
+            (root / ".gitignore").write_text("PROJECTS/*\n", encoding="utf-8")
+        return root
+
+    def test_local_workspace_behind_master_is_informational(self):
+        if not shutil.which("git"):
+            self.skipTest("git not on PATH; the classification cannot be exercised")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._build_root(tmp, "LocalApp", published=False)
+
+            status, detail = check_project_alignment(root)
+
+            self.assertEqual(status, "PASS", detail)
+            self.assertIn("informational", detail)
+            self.assertIn("LocalApp", detail)
+            self.assertIn(self.MASTER, detail)
+
+    def test_published_project_behind_master_is_warn(self):
+        if not shutil.which("git"):
+            self.skipTest("git not on PATH; the classification cannot be exercised")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._build_root(tmp, "ShippedApp", published=True)
+
+            status, detail = check_project_alignment(root)
+
+        self.assertEqual(status, "WARN", detail)
+        self.assertIn("ShippedApp", detail)
+        self.assertIn("run `se init <project>` to reconcile", detail)
+
+    def test_aligned_project_is_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "PROJECTS" / "CurrentApp").mkdir(parents=True, exist_ok=True)
+            (root / "SYSTEM.json").write_text(
+                json.dumps({"master_system_version": self.MASTER}), encoding="utf-8"
+            )
+            (root / "PROJECTS" / "CurrentApp" / "PROJECT.json").write_text(
+                json.dumps({"name": "CurrentApp", "master_system_version": self.MASTER}),
+                encoding="utf-8",
+            )
+
+            status, detail = check_project_alignment(root)
+
+        self.assertEqual(status, "PASS", detail)
+        self.assertIn("aligned to master", detail)
 
 
 if __name__ == "__main__":
