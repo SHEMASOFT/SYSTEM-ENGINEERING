@@ -22,11 +22,73 @@ rewrite of an existing file.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .lifecycle_state import backup_dir
+
+
+#: Patterns that indicate an MCP server is part of System Engineering
+SE_MCP_PATTERNS = (
+    re.compile(r"se_core[\\/]+mcp[\\/]+"),
+    re.compile(r"SCRIPTS[\\/]+se_core[\\/]+mcp[\\/]+"),
+    re.compile(r"\\blaunch\.mjs\b"),
+    re.compile(r"\\bmemory_server\.py\\b"),
+    re.compile(r"\\bskill_server\.py\\b"),
+)
+
+#: Known SE MCP server names
+SE_MCP_KNOWN = {"se-memory-server", "se-skill-server"}
+
+
+def is_se_related_server(name: str, entry: dict, se_root: Path | None = None) -> tuple[bool, str]:
+    """Return (True, reason) if an MCP entry looks like it's from System Engineering.
+
+    Conservative by design: only flags entries that clearly point to SE code or
+    use known SE server names/paths. Never flags arbitrary user MCPs.
+    """
+    if not isinstance(entry, dict):
+        return False, ""
+
+    name = str(name or "")
+
+    if name in SE_MCP_KNOWN:
+        return True, f"known SE MCP: {name}"
+
+    # Collect all relevant strings to inspect
+    parts = []
+    cmd = entry.get("command")
+    if isinstance(cmd, str):
+        parts.append(cmd)
+    elif isinstance(cmd, list):
+        parts.extend(str(x) for x in cmd)
+    if entry.get("args") is not None:
+        parts.extend(str(x) for x in entry.get("args") or [])
+    env = entry.get("env") or entry.get("environment") or {}
+    if isinstance(env, dict):
+        parts.extend(str(v) for v in env.values())
+    if entry.get("cwd"):
+        parts.append(str(entry["cwd"]))
+
+    blob = " ".join(parts)
+
+    for pat in SE_MCP_PATTERNS:
+        if pat.search(blob):
+            return True, f"matches SE MCP pattern ({pat.pattern})"
+
+    if "${SE_ROOT}" in blob or "${SE_PROJECT_ROOT}" in blob:
+        for pat in SE_MCP_PATTERNS:
+            if pat.search(blob):
+                return True, "uses SE paths with SE environment variables"
+        if name.startswith("se-"):
+            return True, "uses SE environment variables and has 'se-' prefix"
+
+    if name.startswith("se-") and ("se_core" in blob or "memory_server" in blob or "skill_server" in blob):
+        return True, "se- prefixed server pointing to SE code"
+
+    return False, ""
 
 #: Candidate config file names, in preference order.
 CONFIG_NAMES = ("opencode.jsonc", "opencode.json")

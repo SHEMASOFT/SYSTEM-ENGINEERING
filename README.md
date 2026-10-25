@@ -229,6 +229,29 @@ In the TUI, `Space` selects, `A` selects the recommended set, `Enter` installs,
 TUI registers the selected MCPs that have a template, just like the one-command
 `install`. Pass `--skip-mcp-registration` to opt out.
 
+### Web Installer (nuevo)
+
+Interfaz visual en el navegador para instalar/desinstalar componentes SE:
+
+```powershell
+# Windows
+.\SE-INSTALLER\install-web.ps1          # Auto port, abre navegador
+
+# Linux / macOS
+bash SE-INSTALLER/install-web.sh
+```
+
+O directo (requiere `pip install -e SE-INSTALLER`):
+```bash
+se-installer-web --port 8765 --reload
+# o
+python -m uvicorn se_installer_web.main:app --port 8765 --reload
+```
+
+Abre **http://127.0.0.1:8765** → 4 pestañas: Instalar, Desinstalar, Adaptador, Log (WebSocket tiempo real).
+
+Ver [`DOCS/reference/installation.md#9-instalador-web-interactivo-nuevo`](DOCS/reference/installation.md#9-instalador-web-interactivo-nuevo) para detalles.
+
 See [`DOCS/reference/installation.md`](DOCS/reference/installation.md) for the full path.
 
 > **Where the venv goes.** The installer keeps its own venv at `SE-INSTALLER/.venv`,

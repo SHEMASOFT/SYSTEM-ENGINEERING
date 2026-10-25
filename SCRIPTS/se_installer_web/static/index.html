@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SE Installer Web</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117; color: #e6edf3; line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #30363d; }
+        h1 { font-size: 1.8rem; font-weight: 600; }
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 500;
+        }
+        .status-badge.connected { background: #1f6feb; color: white; }
+        .status-badge.disconnected { background: #da3633; color: white; }
+        .status-badge.installing { background: #d29922; color: black; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+        .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #161b22; border-radius: 8px; padding: 4px; }
+        .tab {
+            flex: 1; padding: 12px 24px; border: none; background: transparent; color: #8b949e;
+            font-size: 0.95rem; font-weight: 500; cursor: pointer; border-radius: 6px; transition: all 0.2s;
+        }
+        .tab:hover { background: #21262d; color: #e6edf3; }
+        .tab.active { background: #1f6feb; color: white; }
+
+        .panel { display: none; }
+        .panel.active { display: block; animation: fadeIn 0.2s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+        .grid { display: grid; grid-template-columns: 1fr 400px; gap: 24px; }
+        @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+
+        .card {
+            background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+            padding: 24px; margin-bottom: 20px;
+        }
+        .card h3 { margin-bottom: 16px; font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .card h3::before { content: ""; width: 4px; height: 20px; background: #1f6feb; border-radius: 2px; }
+
+        .component-list { max-height: 500px; overflow-y: auto; }
+        .component-item {
+            display: flex; align-items: flex-start; gap: 12px; padding: 14px;
+            background: #0d1117; border: 1px solid #21262d; border-radius: 8px; margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+        .component-item:hover { border-color: #30363d; background: #161b22; }
+        .component-item.selected { border-color: #1f6feb; background: rgba(31, 111, 235, 0.1); }
+        .comp-checkbox { width: 20px; height: 20px; accent-color: #1f6feb; flex-shrink: 0; margin-top: 2px; }
+        .comp-info { flex: 1; min-width: 0; }
+        .comp-name { font-weight: 600; margin-bottom: 4px; }
+        .comp-meta { display: flex; gap: 12px; font-size: 0.8rem; color: #8b949e; flex-wrap: wrap; }
+        .comp-tag { background: #21262d; padding: 2px 8px; border-radius: 4px; }
+        .comp-tag.recommended { background: #1f6feb; color: white; }
+        .comp-tag.installed { background: #238636; color: white; }
+        .comp-desc { margin-top: 6px; color: #8b949e; font-size: 0.85rem; }
+
+        .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; padding-top: 20px; border-top: 1px solid #30363d; }
+        .btn {
+            padding: 10px 20px; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 500;
+            cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: #1f6feb; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #388bfd; }
+        .btn-secondary { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+        .btn-secondary:hover:not(:disabled) { background: #30363d; }
+        .btn-danger { background: #da3633; color: white; }
+        .btn-danger:hover:not(:disabled) { background: #f85149; }
+        .btn-success { background: #238636; color: white; }
+        .btn-success:hover:not(:disabled) { background: #2ea043; }
+
+        .log-container {
+            background: #0d1117; border: 1px solid #21262d; border-radius: 8px;
+            height: 300px; overflow-y: auto; padding: 16px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8rem;
+        }
+        .log-line { margin-bottom: 4px; display: flex; gap: 8px; }
+        .log-time { color: #8b949e; white-space: nowrap; }
+        .log-event { color: #e6edf3; }
+        .log-event.started { color: #d29922; }
+        .log-event.completed { color: #238636; }
+        .log-event.error { color: #f85149; }
+        .log-event.output { color: #8b949e; }
+
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.9rem; }
+        .checkbox-group { display: flex; flex-direction: column; gap: 10px; }
+        .checkbox-label {
+            display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px 12px;
+            background: #0d1117; border: 1px solid #21262d; border-radius: 6px; transition: all 0.2s;
+        }
+        .checkbox-label:hover { background: #161b22; border-color: #30363d; }
+        .checkbox-label input { width: 18px; height: 18px; accent-color: #1f6feb; }
+
+        .progress-bar {
+            height: 8px; background: #21262d; border-radius: 4px; overflow: hidden; margin: 16px 0;
+        }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, #1f6feb, #388bfd);
+            border-radius: 4px; transition: width 0.3s; width: 0%;
+        }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: #8b949e; }
+        .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5; }
+
+        .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #58a6ff; }
+        .stat-label { font-size: 0.85rem; color: #8b949e; margin-top: 4px; }
+        .stat.installed .stat-value { color: #3fb950; }
+        .stat.pending .stat-value { color: #d29922; }
+        .stat.failed .stat-value { color: #f85149; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔧 SE Installer Web</h1>
+            <div class="status-badge disconnected" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span>Desconectado</span>
+            </div>
+        </header>
+
+        <div class="summary" id="summary">
+            <div class="stat"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Total</div></div>
+            <div class="stat installed"><div class="stat-value" id="statInstalled">0</div><div class="stat-label">Instalados</div></div>
+            <div class="stat pending"><div class="stat-value" id="statPending">0</div><div class="stat-label">Pendientes</div></div>
+            <div class="stat failed"><div class="stat-value" id="statFailed">0</div><div class="stat-label">Fallidos</div></div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="install">📦 Instalar</button>
+            <button class="tab" data-tab="uninstall">🗑️ Desinstalar</button>
+            <button class="tab" data-tab="adapter">⚙️ Adaptador</button>
+            <button class="tab" data-tab="log">📋 Log</button>
+        </div>
+
+        <!-- INSTALL TAB -->
+        <div class="panel active" id="panel-install">
+            <div class="grid">
+                <div>
+                    <div class="card">
+                        <h3>Componentes Disponibles</h3>
+                        <div class="component-list" id="componentList">
+                            <div class="empty-state">Cargando componentes...</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <h3>Opciones de Instalación</h3>
+                        <div class="form-group">
+                            <label class="form-label">Runtimes objetivo</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label"><input type="checkbox" id="rt-opencode" checked> OpenCode</label>
+                                <label class="checkbox-label"><input type="checkbox" id="rt-codex"> Codex</label>
+                                <label class="checkbox-label"><input type="checkbox" id="rt-claude"> Claude Code</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Opciones</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label"><input type="checkbox" id="opt-dryrun"> Dry Run (simular)</label>
+                                <label class="checkbox-label"><input type="checkbox" id="opt-force"> Forzar reinstalación</label>
+                                <label class="checkbox-label"><input type="checkbox" id="opt-skip-verify"> Saltar verificación</label>
+                                <label class="checkbox-label"><input type="checkbox" id="opt-shortcuts"> Crear acceso directo</label>
+                            </div>
+                        </div>
+                        <div class="progress-bar" id="installProgress"><div class="progress-fill"></div></div>
+                        <div class="actions">
+                            <button class="btn btn-primary" id="btnInstall" onclick="startInstall()">
+                                <span>🚀</span> Instalar Seleccionados
+                            </button>
+                            <button class="btn btn-secondary" id="btnInstallRecommended" onclick="selectRecommended()">
+                                <span>⭐</span> Solo Recomendados
+                            </button>
+                            <button class="btn btn-secondary" id="btnRefresh" onclick="loadComponents()">
+                                <span>🔄</span> Refrescar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- UNINSTALL TAB -->
+        <div class="panel" id="panel-uninstall">
+            <div class="grid">
+                <div>
+                    <div class="card">
+                        <h3>🗑️ Desinstalar Artefactos SE de OpenCode</h3>
+                        <p style="color:#8b949e;margin-bottom:20px;font-size:.9rem;">
+                            Elimina componentes generados por System Engineering: MCPs rastreados/no rastreados, capa .opencode/, etc.
+                            Los MCPs ajenos (context7, filesystem) <strong>NUNCA</strong> se tocan.
+                        </p>
+                        <div class="form-group">
+                            <label class="form-label">Opciones</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label"><input type="checkbox" id="un-all" checked> <strong>--all</strong> Todo SE (MCPs + .opencode/)</label>
+                                <label class="checkbox-label"><input type="checkbox" id="un-untracked"> <strong>--include-untracked-se-mcps</strong> MCPs SE no rastreados (se-memory-server, se-skill-server)</label>
+                                <label class="checkbox-label"><input type="checkbox" id="un-opencode"> <strong>--remove-opencode-dir</strong> Eliminar .opencode/ generado (con backup)</label>
+                                <label class="checkbox-label"><input type="checkbox" id="un-purge"> <strong>--purge-adapter</strong> Alias de --remove-opencode-dir</label>
+                                <label class="checkbox-label"><input type="checkbox" id="un-keep-jsonc"> <strong>--keep-opencode-jsonc</strong> No tocar opencode.jsonc</label>
+                                <label class="checkbox-label"><input type="checkbox" id="un-force"> <strong>--force</strong> Sin confirmaciones extra</label>
+                                <label class="checkbox-label"><input type="checkbox" id="un-apply"> <strong>--apply</strong> Ejecutar (sin dry-run)</label>
+                            </div>
+                        </div>
+                        <div class="progress-bar" id="uninstallProgress"><div class="progress-fill"></div></div>
+                        <div class="actions">
+                            <button class="btn btn-secondary" id="btnUninstallDryrun" onclick="startUninstall(false)">
+                                <span>👁️</span> Ver Plan (Dry-Run)
+                            </button>
+                            <button class="btn btn-danger" id="btnUninstallApply" onclick="startUninstall(true)">
+                                <span>💥</span> Aplicar Desinstalación
+                            </button>
+                            <button class="btn btn-secondary" id="btnUninstallRefresh" onclick="loadStatus()">
+                                <span>🔄</span> Refrescar Estado
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <h3>Estado Actual</h3>
+                        <div id="uninstallStatus" class="empty-state">Cargando...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADAPTER TAB -->
+        <div class="panel" id="panel-adapter">
+            <div class="grid">
+                <div>
+                    <div class="card">
+                        <h3>⚙️ Adaptador OpenCode</h3>
+                        <p style="color:#8b949e;margin-bottom:20px;font-size:.9rem;">
+                            Genera la capa de agentes, comandos y skills para OpenCode desde las fuentes canónicas de SE.
+                        </p>
+                        <div class="actions">
+                            <button class="btn btn-primary" onclick="generateAdapter()">
+                                <span>🔨</span> Generar Adaptador
+                            </button>
+                            <button class="btn btn-danger" onclick="removeAdapter()">
+                                <span>🗑️</span> Eliminar .opencode/
+                            </button>
+                        </div>
+                        <div id="adapterStatus" style="margin-top:16px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOG TAB -->
+        <div class="panel" id="panel-log">
+            <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <h3>📋 Log en Tiempo Real</h3>
+                    <button class="btn btn-secondary" onclick="clearLog()">🗑️ Limpiar</button>
+                </div>
+                <div class="log-container" id="logContainer">
+                    <div class="log-line"><span class="log-time">[--:--:--]</span><span class="log-event">Conectando...</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ---------- WebSocket & State ----------
+        let ws = null;
+        let selectedComponents = new Set();
+        let isInstalling = false;
+
+        const statusEl = document.getElementById('connectionStatus');
+        const logContainer = document.getElementById('logContainer');
+
+        function connectWS() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+            ws.onopen = () => {
+                statusEl.className = 'status-badge connected';
+                statusEl.innerHTML = '<span class="status-dot"></span><span>Conectado</span>';
+                addLog('connected', 'Conectado al servidor');
+            };
+
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                handleWSMessage(msg);
+            };
+
+            ws.onclose = () => {
+                statusEl.className = 'status-badge disconnected';
+                statusEl.innerHTML = '<span class="status-dot"></span><span>Desconectado</span>';
+                addLog('error', 'Desconectado. Reintentando en 3s...');
+                setTimeout(connectWS, 3000);
+            };
+
+            ws.onerror = (err) => {
+                addLog('error', 'Error de conexión: ' + err.message);
+            };
+        }
+
+        function handleWSMessage(msg) {
+            switch (msg.event) {
+                case 'connected':
+                    updateSummary(msg.data);
+                    loadComponents();
+                    break;
+                case 'started':
+                    addLog('started', msg.data.command || msg.data.message || 'Iniciado');
+                    setInstalling(true);
+                    break;
+                case 'output':
+                    addLog('output', msg.data.line);
+                    break;
+                case 'component_start':
+                    updateProgress(msg.data.index + 1, msg.data.total, msg.data.component);
+                    break;
+                case 'status_change':
+                    if (msg.data.version) {
+                        addLog('completed', `${msg.data.component} v${msg.data.version} instalado`);
+                    }
+                    if (msg.data.error) {
+                        addLog('error', `${msg.data.component}: ${msg.data.error}`);
+                    }
+                    loadComponents(); // refresh status
+                    break;
+                case 'completed':
+                    addLog(msg.data.success ? 'completed' : 'error',
+                        msg.data.success ? 'Instalación completada' : `Falló (exit ${msg.data.exit_code || '?'})`);
+                    setInstalling(false);
+                    loadStatus();
+                    loadComponents();
+                    break;
+                case 'error':
+                    addLog('error', msg.data.message);
+                    setInstalling(false);
+                    break;
+            }
+        }
+
+        // ---------- UI Helpers ----------
+        function addLog(type, message) {
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = 'log-line';
+            div.innerHTML = `<span class="log-time">[${time}]</span><span class="log-event ${type}">${escapeHtml(message)}</span>`;
+            logContainer.appendChild(div);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function clearLog() {
+            logContainer.innerHTML = '';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function setInstalling(installing) {
+            isInstalling = installing;
+            document.getElementById('btnInstall').disabled = installing;
+            document.getElementById('btnInstallRecommended').disabled = installing;
+            document.getElementById('btnUninstallDryrun').disabled = installing;
+            document.getElementById('btnUninstallApply').disabled = installing;
+        }
+
+        function updateProgress(current, total, component) {
+            const pct = Math.round((current / total) * 100);
+            const fill = document.querySelector('#installProgress .progress-fill');
+            if (fill) fill.style.width = pct + '%';
+            addLog('started', `[${current}/${total}] ${component}`);
+        }
+
+        // ---------- Tab Switching ----------
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // ---------- API Calls ----------
+        async function api(path, options = {}) {
+            const res = await fetch('/api' + path, {
+                headers: { 'Content-Type': 'application/json' },
+                ...options
+            });
+            if (!res.ok) throw new Error(await res.text());
+            return res.json();
+        }
+
+        // ---------- Components ----------
+        async function loadComponents() {
+            try {
+                const data = await api('/components');
+                renderComponents(data.components);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderComponents(components) {
+            const container = document.getElementById('componentList');
+            if (!components.length) {
+                container.innerHTML = '<div class="empty-state">No hay componentes</div>';
+                return;
+            }
+            container.innerHTML = components.map(c => `
+                <div class="component-item ${selectedComponents.has(c.id) ? 'selected' : ''}" data-id="${c.id}">
+                    <input type="checkbox" class="comp-checkbox" ${selectedComponents.has(c.id) ? 'checked' : ''} onchange="toggleComponent('${c.id}', this.checked)">
+                    <div class="comp-info">
+                        <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag ${c.component_type}">${c.component_type}</span> ${c.recommended ? '<span class="comp-tag recommended">★ Recomendado</span>' : ''} ${c.status === 'success' ? '<span class="comp-tag installed">✓ Instalado</span>' : ''}</div>
+                        <div class="comp-meta">
+                            ${c.category ? `<span class="comp-tag">${escapeHtml(c.category)}</span>` : ''}
+                            ${c.installed_version ? `<span class="comp-tag">v${escapeHtml(c.installed_version)}</span>` : ''}
+                        </div>
+                        <div class="comp-desc">${escapeHtml(c.description)}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleComponent(id, checked) {
+            const el = document.querySelector(`.component-item[data-id="${id}"]`);
+            if (checked) {
+                selectedComponents.add(id);
+                el?.classList.add('selected');
+            } else {
+                selectedComponents.delete(id);
+                el?.classList.remove('selected');
+            }
+        }
+
+        function selectRecommended() {
+            const checkboxes = document.querySelectorAll('.comp-checkbox');
+            checkboxes.forEach(cb => {
+                const item = cb.closest('.component-item');
+                const isRecommended = item?.querySelector('.comp-tag.recommended');
+                if (isRecommended && !cb.checked) {
+                    cb.checked = true;
+                    toggleComponent(item.dataset.id, true);
+                } else if (!isRecommended && cb.checked) {
+                    cb.checked = false;
+                    toggleComponent(item.dataset.id, false);
+                }
+            });
+        }
+
+        // ---------- Install ----------
+        async function startInstall() {
+            if (!selectedComponents.size) {
+                alert('Selecciona al menos un componente');
+                return;
+            }
+            const runtimes = [];
+            if (document.getElementById('rt-opencode').checked) runtimes.push('opencode');
+            if (document.getElementById('rt-codex').checked) runtimes.push('codex');
+            if (document.getElementById('rt-claude').checked) runtimes.push('claude_code');
+
+            await api('/install', {
+                method: 'POST',
+                body: JSON.stringify({
+                    component_ids: Array.from(selectedComponents),
+                    runtimes,
+                    dry_run: document.getElementById('opt-dryrun').checked,
+                    force: document.getElementById('opt-force').checked,
+                    skip_verification: document.getElementById('opt-skip-verify').checked,
+                    create_shortcuts: document.getElementById('opt-shortcuts').checked
+                })
+            });
+        }
+
+        // ---------- Uninstall ----------
+        async function startUninstall(apply) {
+            const opts = {
+                all: document.getElementById('un-all').checked,
+                include_untracked_se_mcps: document.getElementById('un-untracked').checked,
+                remove_opencode_dir: document.getElementById('un-opencode').checked,
+                purge_adapter: document.getElementById('un-purge').checked,
+                keep_opencode_jsonc: document.getElementById('un-keep-jsonc').checked,
+                force: document.getElementById('un-force').checked,
+                apply: apply,
+                dry_run: !apply
+            };
+            await api('/uninstall', { method: 'POST', body: JSON.stringify(opts) });
+        }
+
+        async function loadStatus() {
+            const data = await api('/status');
+            updateSummary(data);
+            renderUninstallStatus(data);
+        }
+
+        function updateSummary(data) {
+            document.getElementById('statTotal').textContent = data.total;
+            document.getElementById('statInstalled').textContent = data.installed;
+            document.getElementById('statPending').textContent = data.pending;
+            document.getElementById('statFailed').textContent = data.failed;
+        }
+
+        function renderUninstallStatus(data) {
+            const container = document.getElementById('uninstallStatus');
+            if (data.installed_components.length) {
+                container.innerHTML = data.installed_components.map(c => `
+                    <div class="component-item" style="margin-bottom:8px;">
+                        <div class="comp-info">
+                            <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag installed">✓ ${escapeHtml(c.version || '')}</span></div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<div class="empty-state">No hay componentes SE instalados</div>';
+            }
+        }
+
+        // ---------- Adapter ----------
+        async function generateAdapter() {
+            await api('/adapter/generate', { method: 'POST' });
+        }
+        async function removeAdapter() {
+            const data = await api('/adapter/remove', { method: 'POST' });
+            document.getElementById('adapterStatus').innerHTML = `<div style="color:${data.status==='removed'?'#3fb950':'#8b949e'}">${data.status === 'removed' ? '✅ Eliminado: ' + data.path : 'No encontrado'}</div>`;
+            loadComponents();
+        }
+
+        // ---------- Init ----------
+        connectWS();
+        loadComponents();
+        loadStatus();
+    </script>
+</body>
+</html>
