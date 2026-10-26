@@ -9,6 +9,11 @@ python -m unittest discover -s INTEGRATIONS/ci/tests -p "test_*.py"
 
 From the repository root. The same command runs on Linux and Windows.
 
+The suite is also part of the master system run: `TESTS/run_tests.py` discovers
+every `INTEGRATIONS/*/tests` directory, so `python TESTS/run_tests.py` (and the
+CI "Tests" step that calls it) covers it without a per-integration step. Run the
+command above to isolate this suite while debugging it.
+
 ## What is covered
 
 | Area | Cases |

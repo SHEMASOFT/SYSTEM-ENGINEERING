@@ -582,7 +582,7 @@ is documented in [`DOCS/reference/commands.md`](DOCS/reference/commands.md).
 | `TEMPLATES/` | Fill-in templates for artifacts, projects and MCP servers |
 | `SCRIPTS/` | Reference Python CLI (`se.py`, `se_core/`) |
 | `POLICIES/` | Human-readable policies (permissions, evidence, release, security) |
-| `INTEGRATIONS/` | Runtime adapters (OpenCode, Claude Code, Codex) |
+| `INTEGRATIONS/` | Runtime adapters (OpenCode, Claude Code, Codex) and the provider-neutral CI governance adapter |
 | `SE-CONSOLE/` | Local-first web console: read-only views, authenticated actions |
 | `SE-INSTALLER/` | Unified installer + TUI for SE + MCP servers + runtimes |
 | `DOCS/` | Architecture, references and working records |
