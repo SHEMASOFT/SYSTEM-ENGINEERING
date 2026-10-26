@@ -202,7 +202,10 @@ approves, attests, transitions or mutates anything.
 
 Results are `PASS` / `WARN` / `FAIL`; the command exits non-zero if any `FAIL`. The doctor
 never reports `PASS` for a check it could not actually perform (e.g. a missing dependency
-is a `FAIL`, an unavailable tool is a `WARN`).
+is a `FAIL`, an unavailable tool is a `WARN`). A managed workspace under `PROJECTS/` that is
+behind master is reported as an informational `PASS` detail when it is excluded from version
+control (reconcile it with `se init <project>` when you work on it); a project that is
+shipped by this repository and behind master stays `WARN`.
 
 ---
 

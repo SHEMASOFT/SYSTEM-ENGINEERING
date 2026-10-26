@@ -376,6 +376,34 @@
       var by = prompt("by (opcional):", "");
       if (by === null) return;
       if (by.trim()) params.by = by.trim();
+    } else if (actionId === "transition.attest") {
+      // action_params comes from read_model.build_attention: { to, conditions[], context[] }
+      var ap = item && item.action_params;
+      if (!ap || !ap.to || !ap.conditions || !ap.conditions.length) {
+        alert("Faltan parámetros de transición: to y conditions son obligatorios.");
+        return;
+      }
+      params.to = ap.to;
+      params.conditions = ap.conditions;
+
+      // Show context to the human so they know what they're attesting to
+      var ctx = ap.context || [];
+      var detailLines = ctx.map(function (c) {
+        return "- " + (c.id || "?") + ": " + (c.description || c.detail || "sin descripción");
+      }).join("\n");
+      var msg = "Confirmar attest para la transición a " + ap.to + ".\nCondiciones:\n" + detailLines +
+        "\n\nEscribe 'ATTEST' para confirmar (mayúsculas requeridas):";
+      var attest = prompt(msg, "");
+      if (attest === null) return;
+      if (attest !== "ATTEST") {
+        alert("Attest cancelado: se esperaba 'ATTEST' exacto.");
+        return;
+      }
+      params.attest = "confirmed";
+
+      var by = prompt("by (opcional, identificación del humano):", "");
+      if (by === null) return;
+      if (by.trim()) params.by = by.trim();
     }
 
     var payload = {
