@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "project_id": "PRJ-CI-STATE-MISSING",
+  "name": "CI Fixture State Missing",
+  "description": "No lifecycle_state: the applicable gate cannot be determined, so the adapter must fail operationally.",
+  "owner": "fixture-owner",
+  "domains": [
+    "software"
+  ],
+  "criticality": "low",
+  "blocked": false,
+  "version": "1.0.0",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "master_system_version": "0.11.0",
+  "source": "ci fixture",
+  "metadata": {
+    "category": "MANAGED",
+    "fixture": true
+  }
+}

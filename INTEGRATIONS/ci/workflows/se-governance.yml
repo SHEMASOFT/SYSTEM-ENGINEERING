@@ -1,0 +1,197 @@
+name: SE governance
+
+# Reference adapter only: copy this file to `.github/workflows/se-governance.yml`
+# in the PRODUCT repository. It reads governance from SYSTEM-ENGINEERING and
+# never re-implements it.
+#
+# Enforcement boundary: this workflow produces a status check. It blocks a merge
+# only when the product branch is protected and this job is a required check.
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      se_repository:
+        description: "SYSTEM-ENGINEERING repository (owner/name)"
+        required: false
+        default: "SHEMASOFT/SYSTEM-ENGINEERING"
+      se_ref:
+        description: "SE release tag (empty = resolve from PROJECT.json)"
+        required: false
+        default: ""
+      project_path:
+        description: "Project path inside the product checkout"
+        required: false
+        default: "."
+
+permissions:
+  contents: read
+
+concurrency:
+  group: se-governance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  se-governance:
+    name: se-governance
+    runs-on: ubuntu-latest
+    env:
+      SE_REPOSITORY: ${{ github.event.inputs.se_repository || 'SHEMASOFT/SYSTEM-ENGINEERING' }}
+      SE_REF: ${{ github.event.inputs.se_ref || '' }}
+      SE_PROJECT_PATH: ${{ github.event.inputs.project_path || '.' }}
+      SE_REPORTS: ${{ runner.temp }}/se-ci
+    steps:
+      - name: Checkout product
+        uses: actions/checkout@v4
+
+      - name: Resolve SE release ref
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$SE_REPOSITORY" "$SE_REF" "$SE_PROJECT_PATH" <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          repository, requested, project_path = sys.argv[1:4]
+          manifest_path = os.path.join(project_path, "PROJECT.json")
+          if not os.path.isfile(manifest_path):
+              print(f"::error::no PROJECT.json at {manifest_path}", file=sys.stderr)
+              raise SystemExit(1)
+          try:
+              with open(manifest_path, encoding="utf-8") as handle:
+                  manifest = json.load(handle)
+          except (OSError, json.JSONDecodeError) as exc:
+              print(f"::error::cannot read {manifest_path}: {exc}", file=sys.stderr)
+              raise SystemExit(1)
+          version = manifest.get("master_system_version")
+          if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+              print(
+                  "::error::PROJECT.json master_system_version is missing or not X.Y.Z "
+                  f"(got {version!r})",
+                  file=sys.stderr,
+              )
+              raise SystemExit(1)
+
+          ref = requested.strip()
+          if not ref:
+              url = f"https://github.com/{repository}.git"
+              completed = subprocess.run(
+                  ["git", "ls-remote", "--tags", "--refs", url],
+                  capture_output=True,
+                  text=True,
+                  encoding="utf-8",
+                  errors="replace",
+                  shell=False,
+              )
+              if completed.returncode != 0:
+                  detail = (completed.stderr or completed.stdout or "").strip()[-800:]
+                  print(
+                      f"::error::cannot resolve SE release {version} from {url}: {detail}",
+                      file=sys.stderr,
+                  )
+                  raise SystemExit(1)
+              tags = set()
+              for line in completed.stdout.splitlines():
+                  parts = line.split()
+                  if len(parts) >= 2:
+                      tags.add(parts[1].removeprefix("refs/tags/"))
+              for candidate in (f"v{version}", version):
+                  if candidate in tags:
+                      ref = candidate
+                      break
+              if not ref:
+                  print(
+                      f"::error::no published SE tag for version {version} "
+                      f"(expected v{version} or {version})",
+                      file=sys.stderr,
+                  )
+                  raise SystemExit(1)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"ref={ref}\n")
+              handle.write(f"version={version}\n")
+          print(f"SE release ref: {ref} (declared version {version})")
+          PY
+
+      - name: Checkout pinned SE engine
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SE_REPOSITORY }}
+          ref: ${{ steps.release.outputs.ref }}
+          path: .se-engine
+          fetch-depth: 0
+          # Private SE repository: uncomment and configure a read-only token.
+          # token: ${{ secrets.SE_REPOSITORY_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SE validation dependency
+        run: python -m pip install --disable-pip-version-check jsonschema
+
+      - name: Verify SE release pin
+        id: version
+        run: |
+          python .se-engine/INTEGRATIONS/ci/scripts/se_ci_version.py \
+            --project "$SE_PROJECT_PATH" \
+            --se-root .se-engine \
+            --expected-ref "${{ steps.release.outputs.ref }}" \
+            --require-exact-tag \
+            --remote origin \
+            --json --output "$SE_REPORTS/version.json"
+
+      - name: Validate project contracts
+        id: validate
+        if: always() && steps.version.outcome == 'success'
+        run: |
+          python .se-engine/INTEGRATIONS/ci/scripts/se_ci_validate.py \
+            --project "$SE_PROJECT_PATH" \
+            --se-root .se-engine \
+            --json --output "$SE_REPORTS/validate.json"
+
+      - name: Evaluate declared gates
+        id: gate
+        if: always() && steps.version.outcome == 'success'
+        run: |
+          python .se-engine/INTEGRATIONS/ci/scripts/se_ci_gate.py \
+            --project "$SE_PROJECT_PATH" \
+            --se-root .se-engine \
+            --json --output "$SE_REPORTS/gate.json"
+
+      - name: SE doctor (informational)
+        id: doctor
+        if: always() && steps.version.outcome == 'success'
+        run: |
+          python .se-engine/INTEGRATIONS/ci/scripts/se_ci_doctor.py \
+            --se-root .se-engine \
+            --json --output "$SE_REPORTS/doctor.json"
+
+      - name: Governance summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f .se-engine/INTEGRATIONS/ci/scripts/se_ci_report.py ]; then
+            {
+              echo "## SE governance - OPERATIONAL ERROR"
+              echo
+              echo "The SE engine checkout is unavailable; governance was NOT verified."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 3
+          fi
+          set +e
+          python .se-engine/INTEGRATIONS/ci/scripts/se_ci_report.py \
+            --input-dir "$SE_REPORTS" \
+            --output "$SE_REPORTS/summary.md"
+          status=$?
+          set -e
+          if [ -f "$SE_REPORTS/summary.md" ]; then
+            cat "$SE_REPORTS/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
