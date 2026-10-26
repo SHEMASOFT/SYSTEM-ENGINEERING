@@ -48,4 +48,7 @@ artifacts, never edited by hand.
 
 - `INTEGRATIONS/opencode/README.md`, `INTEGRATIONS/claude-code/README.md`,
   `INTEGRATIONS/codex/README.md` — per-runtime notes.
+- `INTEGRATIONS/ci/README.md` — a different plane: a CI adapter that runs SE
+  governance (pinned release, `se validate`, declared gates) inside any provider.
+  SE decides; the provider enforces.
 - `DOCS/reference/work-modes.md` — when to run which mode.
