@@ -1,0 +1,22 @@
+{
+  "schema_version": "1",
+  "project_id": "PRJ-CI-PLANNING",
+  "name": "CI Fixture Planning",
+  "description": "PLANNING -> ACTIVE declares two gates (G2 and G3); both must be evaluated.",
+  "owner": "fixture-owner",
+  "domains": [
+    "software"
+  ],
+  "criticality": "low",
+  "lifecycle_state": "PLANNING",
+  "blocked": false,
+  "version": "1.0.0",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "master_system_version": "0.11.0",
+  "source": "ci fixture",
+  "metadata": {
+    "category": "MANAGED",
+    "fixture": true
+  }
+}
