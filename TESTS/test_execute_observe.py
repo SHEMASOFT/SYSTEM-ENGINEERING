@@ -269,6 +269,88 @@ class ExecuteCommandTests(unittest.TestCase):
             self.assertFalse(data["results"][0]["success"])
             self.assertIn("IMPLEMENT", data["results"][0].get("error", ""))
 
+    def _ready_full_project(self, tmp):
+        project = support.make_full_project(Path(tmp) / "p")
+        task_path = project / "tasks" / "TASK-0001.json"
+        task = json.loads(task_path.read_text(encoding="utf-8"))
+        task["status"] = "READY"
+        support.write_json(task_path, task)
+        return project, task_path
+
+    def test_execute_text_mode_prints_summary(self):
+        """F1-B: text mode must not depend on the JSON-only envelope.
+
+        Before the fix, ``print(render_json(envelope))`` ran unconditionally while
+        ``envelope`` was only built for ``--json``, so every text-mode execution
+        raised UnboundLocalError after the work had already been written.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            project, _ = self._ready_full_project(tmp)
+
+            code, out = support.run_cli("execute", "--project", str(project), "--task", "TASK-0001")
+
+            self.assertEqual(code, 0, out)
+            self.assertIn("EXECUTION SUMMARY", out)
+            self.assertIn("Executed: 1", out)
+            self.assertIn("DONE:    TASK-0001", out)
+            # The summary must print the identifiers returned by _execute_task
+            # (plain strings), not index them as dictionaries.
+            self.assertIn("evidence: EVD-", out)
+            self.assertIn("artifact: ART-", out)
+            self.assertNotIn("unexpected error", out)
+            self.assertNotIn('"contract"', out)
+
+    def test_execute_text_mode_reports_failure(self):
+        """F1-B: the text-mode failure branch must work as well."""
+        with tempfile.TemporaryDirectory() as tmp:
+            project = support.make_full_project(Path(tmp) / "p")
+            support.write_json(
+                project / "tasks" / "TASK-0002.json",
+                support.task(
+                    id="TASK-0002",
+                    status="READY",
+                    authorized_actions=["READ", "ANALYZE"],
+                    related_requirements=["REQ-0001"],
+                ),
+            )
+
+            code, out = support.run_cli("execute", "--project", str(project), "--task", "TASK-0002")
+
+            self.assertEqual(code, 1, out)
+            self.assertIn("Failed:   1", out)
+            self.assertIn("FAILED:  TASK-0002", out)
+            self.assertIn("IMPLEMENT", out)
+            self.assertNotIn("unexpected error", out)
+            self.assertNotIn('"contract"', out)
+
+    def test_execute_text_and_json_report_the_same_counts(self):
+        """F1-B: both output modes describe the same execution."""
+        observed = {}
+        for mode in ("text", "json"):
+            with tempfile.TemporaryDirectory() as tmp:
+                project, _ = self._ready_full_project(tmp)
+                argv = ["execute", "--project", str(project), "--task", "TASK-0001"]
+                if mode == "json":
+                    argv.append("--json")
+
+                code, out = support.run_cli(*argv)
+                self.assertEqual(code, 0, out)
+
+                if mode == "json":
+                    data = _load(out)
+                    observed[mode] = (
+                        data["executed"], data["failed"], data["skipped"], data["status"]
+                    )
+                else:
+                    observed[mode] = (
+                        int(out.split("Executed:")[1].split()[0]),
+                        int(out.split("Failed:")[1].split()[0]),
+                        int(out.split("Skipped:")[1].split()[0]),
+                        "PASS",
+                    )
+
+        self.assertEqual(observed["text"], observed["json"])
+
 
 class ObserveCommandTests(unittest.TestCase):
     def test_observe_emits_envelope(self):
