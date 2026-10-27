@@ -389,6 +389,21 @@ class ConsoleTestCase(unittest.TestCase):
         body.update(over)
         return body
 
+    def attest_payload(self, **over) -> dict:
+        body = {
+            "action": "transition.attest",
+            "project": PROJECT_REL,
+            "params": {
+                "to": "NEXT_STATE",
+                "attest": "confirmed",
+                "conditions": ["C1", "C2"],
+                "by": "tester",
+            },
+            "idempotency_key": "test-key-attest-0001",
+        }
+        body.update(over)
+        return body
+
     def assert_se_not_invoked(self) -> None:
         """A refused request must leave every observable SE trace untouched."""
         self.assertEqual(self.run_bytes(), json.dumps(BASELINE_RUN, indent=2).encode("utf-8"))
@@ -597,6 +612,70 @@ class ValidationTests(ConsoleTestCase):
             self.checkpoint_payload(params={"next_step": "--json"}), token=TOKEN
         )
         self.assertEqual(status, 400, body)
+        self.assert_se_not_invoked()
+
+    # --- transition.attest validation --------------------------------------
+    def test_attest_missing_to_is_refused(self):
+        before = len(self.audit_entries())
+        status, body, _ = self.post(
+            self.attest_payload(params={"attest": "confirmed", "conditions": ["C1"]}), token=TOKEN
+        )
+        self.assertEqual(status, 400, body)
+        self.assertEqual(len(self.audit_entries()), before)
+        self.assert_se_not_invoked()
+
+    def test_attest_missing_attest_is_refused(self):
+        before = len(self.audit_entries())
+        status, body, _ = self.post(
+            self.attest_payload(params={"to": "NEXT", "conditions": ["C1"]}), token=TOKEN
+        )
+        self.assertEqual(status, 400, body)
+        self.assertEqual(len(self.audit_entries()), before)
+        self.assert_se_not_invoked()
+
+    def test_attest_missing_conditions_is_refused(self):
+        before = len(self.audit_entries())
+        status, body, _ = self.post(
+            self.attest_payload(params={"to": "NEXT", "attest": "confirmed"}), token=TOKEN
+        )
+        self.assertEqual(status, 400, body)
+        self.assertEqual(len(self.audit_entries()), before)
+        self.assert_se_not_invoked()
+
+    def test_attest_empty_conditions_is_refused(self):
+        before = len(self.audit_entries())
+        status, body, _ = self.post(
+            self.attest_payload(params={"to": "NEXT", "attest": "confirmed", "conditions": []}), token=TOKEN
+        )
+        self.assertEqual(status, 400, body)
+        self.assertEqual(len(self.audit_entries()), before)
+        self.assert_se_not_invoked()
+
+    def test_attest_conditions_must_be_list(self):
+        before = len(self.audit_entries())
+        status, body, _ = self.post(
+            self.attest_payload(params={"to": "NEXT", "attest": "confirmed", "conditions": "C1"}), token=TOKEN
+        )
+        self.assertEqual(status, 400, body)
+        self.assertEqual(len(self.audit_entries()), before)
+        self.assert_se_not_invoked()
+
+    def test_attest_condition_value_looks_like_flag_is_refused(self):
+        before = len(self.audit_entries())
+        status, body, _ = self.post(
+            self.attest_payload(params={"to": "NEXT", "attest": "confirmed", "conditions": ["--condition"]}), token=TOKEN
+        )
+        self.assertEqual(status, 400, body)
+        self.assertEqual(len(self.audit_entries()), before)
+        self.assert_se_not_invoked()
+
+    def test_attest_unknown_param_is_refused(self):
+        before = len(self.audit_entries())
+        status, body, _ = self.post(
+            self.attest_payload(params={"to": "NEXT", "attest": "confirmed", "conditions": ["C1"], "evil": "y"}), token=TOKEN
+        )
+        self.assertEqual(status, 400, body)
+        self.assertEqual(len(self.audit_entries()), before)
         self.assert_se_not_invoked()
 
 

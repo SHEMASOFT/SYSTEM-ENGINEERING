@@ -1,0 +1,41 @@
+{
+  "schema_version": "1",
+  "summary": "Ship a generic CI governance adapter for SE-managed products.",
+  "findings": [
+    {
+      "area": "governance",
+      "detail": "Gate applicability is declared by CORE/lifecycle/lifecycle.json.",
+      "confidence": "HIGH"
+    }
+  ],
+  "unknowns": [
+    {
+      "id": "UNK-0001",
+      "question": "Which CI provider the adopter uses for enforcement (adapter scripts stay neutral).",
+      "impact": "Only the provider adapter changes, not governance."
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "ASM-0001",
+      "statement": "The product repository is private and CI runs with least privilege.",
+      "basis": "Adoption guidance in INTEGRATIONS/ci/README.md."
+    }
+  ],
+  "constraints": [
+    {
+      "id": "CON-0001",
+      "statement": "No governance logic may be duplicated outside SYSTEM-ENGINEERING.",
+      "basis": "ADR-0004 tool independence."
+    }
+  ],
+  "risks": [
+    {
+      "id": "RSK-0001",
+      "statement": "A tag is a mutable ref: existence does not prove provenance.",
+      "basis": "No signature verification exists in the adapter."
+    }
+  ],
+  "reviewed_by": "fixture-owner",
+  "reviewed_at": "2026-01-01T00:00:00Z"
+}

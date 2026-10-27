@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "objective_id": "OBJ-0001",
+  "project_id": "PRJ-CI-MANUAL",
+  "title": "Verify governance in CI",
+  "description": "Fixture objective used by the CI governance adapter regression tests.",
+  "status": "PROPOSED",
+  "epistemic_status": "OBJECTIVE",
+  "priority": "medium",
+  "success_criteria": [
+    "CI reports manual conditions without satisfying them."
+  ],
+  "rationale": "The fixture exercises G1 manual attestation.",
+  "related_requirements": [],
+  "related_decisions": [],
+  "evidence": [],
+  "owner": "fixture-owner",
+  "author": "fixture-owner",
+  "version": "1.0.0",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "metadata": {}
+}

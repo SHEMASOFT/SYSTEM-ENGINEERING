@@ -25,27 +25,27 @@
         "environment": {},
         "cwd": "."
       },
-      "se-skill-server": {
-        "type": "local",
-        "command": [
-          "node",
-          "SCRIPTS/se_core/mcp/launch.mjs",
-          "SCRIPTS/se_core/mcp/skill_server.py"
-        ],
-        "environment": {},
-        "cwd": "."
+        "se-memory-server": {
+          "type": "local",
+          "command": [
+            "node",
+            "SCRIPTS/se_core/mcp/launch.mjs",
+            "SCRIPTS/se_core/mcp/memory_server.py"
+          ],
+          "environment": {},
+          "cwd": "."
+        },
+        "se-skill-server": {
+          "type": "local",
+          "command": [
+            "node",
+            "SCRIPTS/se_core/mcp/launch.mjs",
+            "SCRIPTS/se_core/mcp/skill_server.py"
+          ],
+          "environment": {},
+          "cwd": "."
+        }
       },
-      "se-memory-server": {
-        "type": "local",
-        "command": [
-          "node",
-          "SCRIPTS/se_core/mcp/launch.mjs",
-          "SCRIPTS/se_core/mcp/memory_server.py"
-        ],
-        "environment": {},
-        "cwd": "."
-      }
-    },
     "timeout": {
       "startup": 60000
     }

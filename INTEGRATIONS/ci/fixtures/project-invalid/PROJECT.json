@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "project_id": "PRJ-CI-INVALID",
+  "name": "CI Fixture Invalid",
+  "description": "Fixture whose PROJECT.json violates the project schema (owner is missing).",
+  "domains": [
+    "software"
+  ],
+  "criticality": "low",
+  "lifecycle_state": "DRAFT",
+  "blocked": false,
+  "version": "1.0.0",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "master_system_version": "0.11.0",
+  "source": "ci fixture",
+  "metadata": {
+    "category": "MANAGED",
+    "fixture": true
+  }
+}

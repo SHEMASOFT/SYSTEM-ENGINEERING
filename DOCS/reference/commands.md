@@ -202,4 +202,43 @@ approves, attests, transitions or mutates anything.
 
 Results are `PASS` / `WARN` / `FAIL`; the command exits non-zero if any `FAIL`. The doctor
 never reports `PASS` for a check it could not actually perform (e.g. a missing dependency
-is a `FAIL`, an unavailable tool is a `WARN`).
+is a `FAIL`, an unavailable tool is a `WARN`). A managed workspace under `PROJECTS/` that is
+behind master is reported as an informational `PASS` detail when it is excluded from version
+control (reconcile it with `se init <project>` when you work on it); a project that is
+shipped by this repository and behind master stays `WARN`.
+
+---
+
+## Web Installer (se-installer-web)
+
+Interfaz web interactiva para instalar, desinstalar y gestionar componentes SE.
+
+```powershell
+# Arranque rápido (detecta puerto libre, abre navegador)
+.\SE-INSTALLER\install-web.ps1          # Windows
+bash SE-INSTALLER/install-web.sh        # Linux/macOS
+
+# Comando directo (requiere pip install -e SE-INSTALLER)
+se-installer-web --port 8765 --reload
+
+# Directo con uvicorn (sin instalar)
+python -m uvicorn se_installer_web.main:app --host 127.0.0.1 --port 8765 --reload
+```
+
+Abre **http://127.0.0.1:8765** (o el puerto asignado) en el navegador.
+
+### Pestañas
+| Pestaña | Descripción |
+|---|---|
+| **📦 Instalar** | Componentes, runtimes, dry-run, force, shortcuts |
+| **🗑️ Desinstalar** | --all, --include-untracked-se-mcps, --remove-opencode-dir, --apply |
+| **⚙️ Adaptador** | Generar/eliminar .opencode/ |
+| **📋 Log** | Streaming WebSocket tiempo real |
+
+### API
+- `GET /api/components` - Lista componentes
+- `GET /api/status` - Resumen
+- `POST /api/install` - Instalar (async + WS)
+- `POST /api/uninstall` - Desinstalar (stream)
+- `POST /api/adapter/generate|remove` - Adaptador
+- `WS /ws` - WebSocket logs tiempo real

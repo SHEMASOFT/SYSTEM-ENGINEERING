@@ -103,6 +103,79 @@ def register_mcps(
     return 0
 
 
+def run_uninstall(
+    *,
+    repo_root: Path | str | None = None,
+    project: Path | str | None = None,
+    interactive: bool = False,
+    all_flag: bool = False,
+    include_untracked: bool = False,
+    remove_opencode: bool = False,
+    purge_adapter: bool = False,
+    keep_jsonc: bool = False,
+    force: bool = False,
+    apply: bool = False,
+    dry_run: bool = True,
+    json_output: bool = False,
+) -> int:
+    """Run the ``se uninstall`` command with the given options."""
+    repo = Path(repo_root).resolve() if repo_root else Path(__file__).resolve().parents[2]
+    target = Path(project).resolve() if project else repo
+    se_cli = repo / "SCRIPTS" / "se.py"
+
+    if not se_cli.is_file():
+        print("Error: SCRIPTS/se.py not found.", file=sys.stderr)
+        return 1
+
+    cmd = [
+        sys.executable,
+        str(se_cli),
+        "uninstall",
+        "--project",
+        str(target),
+    ]
+
+    if interactive:
+        cmd += ["-i"]
+    if all_flag:
+        cmd += ["--all"]
+    if include_untracked:
+        cmd += ["--include-untracked-se-mcps"]
+    if remove_opencode:
+        cmd += ["--remove-opencode-dir"]
+    if purge_adapter:
+        cmd += ["--purge-adapter"]
+    if keep_jsonc:
+        cmd += ["--keep-opencode-jsonc"]
+    if force:
+        cmd += ["--force"]
+    if apply:
+        cmd += ["--apply"]
+    if dry_run:
+        cmd += ["--dry-run"]
+    if json_output:
+        cmd += ["--json"]
+
+    print(f"Running: {' '.join(cmd)}")
+
+    try:
+        completed = subprocess.run(
+            cmd,
+            cwd=str(target),
+            capture_output=False,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        print("Uninstall timed out after 300 seconds.", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"Uninstall failed: {exc}", file=sys.stderr)
+        return 1
+
+    return completed.returncode
+
+
 class ComponentTree(Tree):
     """Tree widget for component selection."""
     
@@ -313,33 +386,70 @@ class InstallerApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         
-        with Horizontal():
-            # Sidebar - Component Selection
-            with Vertical(id="sidebar"):
-                yield Static("## Componentes a Instalar", id="sidebar-title")
-                yield Static("SPACE=select | ENTER=install | A=recommended", id="hint")
-                yield ComponentTree(self.get_components_by_cat(), id="component-tree")
-                yield Checkbox(
-                    "Crear acceso directo en el Escritorio (SE Console)",
-                    id="chk-shortcuts",
-                )
-                
-                with Horizontal(id="buttons"):
-                    yield Button("Instalar Seleccionados", id="btn-install", variant="primary")
-                    yield Button("Solo Recomendados", id="btn-recommended")
-                    yield Button("Refrescar", id="btn-refresh")
-                    yield Button("Dry Run: OFF", id="btn-dryrun")
+        with TabbedContent():
+            # Tab 1: Instalar
+            with TabPane("Instalar", id="tab-install"):
+                with Horizontal():
+                    # Sidebar - Component Selection
+                    with Vertical(id="sidebar"):
+                        yield Static("## Componentes a Instalar", id="sidebar-title")
+                        yield Static("SPACE=select | ENTER=install | A=recommended", id="hint")
+                        yield ComponentTree(self.get_components_by_cat(), id="component-tree")
+                        yield Checkbox(
+                            "Crear acceso directo en el Escritorio (SE Console)",
+                            id="chk-shortcuts",
+                        )
+                        
+                        with Horizontal(id="buttons"):
+                            yield Button("Instalar Seleccionados", id="btn-install", variant="primary")
+                            yield Button("Solo Recomendados", id="btn-recommended")
+                            yield Button("Refrescar", id="btn-refresh")
+                            yield Button("Dry Run: OFF", id="btn-dryrun")
+                    
+                    # Main - Progress + Detail + Log
+                    with Vertical(id="main"):
+                        yield Static("## Detalle del Componente", id="detail-title")
+                        yield ComponentDetailPanel(id="detail-panel")
+                        
+                        with Container(id="progress-container"):
+                            yield ProgressWidget(id="progress-widget")
+                        
+                        yield Static("## Log de Instalación", id="log-title")
+                        yield LogWidget(id="log-widget")
             
-            # Main - Progress + Detail + Log
-            with Vertical(id="main"):
-                yield Static("## Detalle del Componente", id="detail-title")
-                yield ComponentDetailPanel(id="detail-panel")
-                
-                with Container(id="progress-container"):
-                    yield ProgressWidget(id="progress-widget")
-                
-                yield Static("## Log de Instalación", id="log-title")
-                yield LogWidget(id="log-widget")
+            # Tab 2: Desinstalar
+            with TabPane("Desinstalar", id="tab-uninstall"):
+                with Vertical(id="uninstall-container"):
+                    yield Static("## Desinstalar System Engineering de OpenCode", id="uninstall-title")
+                    yield Static(
+                        "Esta herramienta elimina artefactos generados por SE en OpenCode:\n"
+                        "• MCPs gestionados por SE (lifecycle-state)\n"
+                        "• MCPs SE no rastreados (se-memory-server, se-skill-server, etc.)\n"
+                        "• Capa generada de OpenCode (.opencode/ con agentes, comandos, skills)\n\n"
+                        "Los MCPs ajenos (context7, filesystem, etc.) NUNCA se tocan.",
+                        id="uninstall-description"
+                    )
+                    
+                    with Horizontal(id="uninstall-options"):
+                        with Vertical(id="uninstall-left"):
+                            yield Checkbox("Interactivo (selección por elemento)", id="chk-uninstall-interactive", value=True)
+                            yield Checkbox("Todo (--all): MCPs gestionados + no rastreados + .opencode/", id="chk-uninstall-all")
+                            yield Checkbox("Incluir MCPs SE no rastreados (se-memory-server, etc.)", id="chk-uninstall-untracked")
+                            yield Checkbox("Eliminar .opencode/ generado (con backup)", id="chk-uninstall-opencode")
+                        
+                        with Vertical(id="uninstall-right"):
+                            yield Checkbox("Alias --purge-adapter (igual que --remove-opencode-dir)", id="chk-uninstall-purge")
+                            yield Checkbox("No tocar opencode.jsonc (--keep-opencode-jsonc)", id="chk-uninstall-keep-jsonc")
+                            yield Checkbox("Forzar sin confirmaciones extra (--force)", id="chk-uninstall-force")
+                            yield Checkbox("Aplicar cambios (--apply) - por defecto es dry-run", id="chk-uninstall-apply")
+                    
+                    with Horizontal(id="uninstall-buttons"):
+                        yield Button("Ejecutar Desinstalación (Dry-Run)", id="btn-uninstall-dryrun", variant="default")
+                        yield Button("Ejecutar Desinstalación (Aplicar)", id="btn-uninstall-apply", variant="primary")
+                        yield Button("Refrescar Estado", id="btn-uninstall-refresh")
+                    
+                    yield Static("## Log de Desinstalación", id="uninstall-log-title")
+                    yield LogWidget(id="uninstall-log-widget")
         
         yield Footer()
     
@@ -549,3 +659,104 @@ class InstallerApp(App):
         if plan and state.load_plan(plan):
             self.selected_ids = {c.id for c in plan.components if c.status != InstallStatus.SKIPPED}
             self._refresh_tree_labels()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses for uninstall tab."""
+        button_id = event.button.id
+        
+        if button_id == "btn-uninstall-dryrun":
+            self._run_uninstall(apply=False)
+        elif button_id == "btn-uninstall-apply":
+            self._run_uninstall(apply=True)
+        elif button_id == "btn-uninstall-refresh":
+            self._refresh_uninstall_status()
+
+    def _refresh_uninstall_status(self) -> None:
+        """Show current status of SE artifacts in OpenCode."""
+        log = self.query_one("#uninstall-log-widget", LogWidget)
+        log.add_entry("INFO", "Refrescando estado de artefactos SE en OpenCode...")
+        # We can run a quick dry-run to show what would be removed
+        self._run_uninstall(apply=False, dry_run=True, capture_output=True)
+
+    def _run_uninstall(self, apply: bool = False, dry_run: bool = True, capture_output: bool = False) -> None:
+        """Run the uninstall command with current checkbox selections."""
+        log = self.query_one("#uninstall-log-widget", LogWidget)
+        
+        # Read checkbox values
+        interactive = self.query_one("#chk-uninstall-interactive", Checkbox).value
+        all_flag = self.query_one("#chk-uninstall-all", Checkbox).value
+        include_untracked = self.query_one("#chk-uninstall-untracked", Checkbox).value
+        remove_opencode = self.query_one("#chk-uninstall-opencode", Checkbox).value
+        purge_adapter = self.query_one("#chk-uninstall-purge", Checkbox).value
+        keep_jsonc = self.query_one("#chk-uninstall-keep-jsonc", Checkbox).value
+        force = self.query_one("#chk-uninstall-force", Checkbox).value
+        
+        # If apply checkbox is checked, override the dry_run parameter
+        if self.query_one("#chk-uninstall-apply", Checkbox).value:
+            apply = True
+            dry_run = False
+        
+        log.add_entry("INFO", f"Ejecutando desinstalación (apply={apply}, dry_run={dry_run})...")
+        
+        # Disable buttons during execution
+        self.query_one("#btn-uninstall-dryrun", Button).disabled = True
+        self.query_one("#btn-uninstall-apply", Button).disabled = True
+        self.query_one("#btn-uninstall-refresh", Button).disabled = True
+        
+        # Run in background worker
+        self.run_worker(
+            self._run_uninstall_worker,
+            interactive=interactive,
+            all_flag=all_flag,
+            include_untracked=include_untracked,
+            remove_opencode=remove_opencode,
+            purge_adapter=purge_adapter,
+            keep_jsonc=keep_jsonc,
+            force=force,
+            apply=apply,
+            dry_run=dry_run,
+            exclusive=True
+        )
+
+    async def _run_uninstall_worker(
+        self,
+        interactive: bool,
+        all_flag: bool,
+        include_untracked: bool,
+        remove_opencode: bool,
+        purge_adapter: bool,
+        keep_jsonc: bool,
+        force: bool,
+        apply: bool,
+        dry_run: bool,
+    ) -> None:
+        """Worker to run uninstall command."""
+        log = self.query_one("#uninstall-log-widget", LogWidget)
+        
+        try:
+            exit_code = run_uninstall(
+                interactive=interactive,
+                all_flag=all_flag,
+                include_untracked=include_untracked,
+                remove_opencode=remove_opencode,
+                purge_adapter=purge_adapter,
+                keep_jsonc=keep_jsonc,
+                force=force,
+                apply=apply,
+                dry_run=dry_run,
+            )
+            
+            if exit_code == 0:
+                log.add_entry("SUCCESS", "Desinstalación completada exitosamente")
+                self.notify("Desinstalación completada", severity="success")
+            else:
+                log.add_entry("ERROR", f"Desinstalación falló (exit {exit_code})")
+                self.notify("Desinstalación falló", severity="error")
+        except Exception as exc:
+            log.add_entry("ERROR", f"Error ejecutando desinstalación: {exc}")
+            self.notify(f"Error: {exc}", severity="error")
+        finally:
+            # Re-enable buttons
+            self.query_one("#btn-uninstall-dryrun", Button).disabled = False
+            self.query_one("#btn-uninstall-apply", Button).disabled = False
+            self.query_one("#btn-uninstall-refresh", Button).disabled = False

@@ -382,13 +382,27 @@ def build_parser() -> argparse.ArgumentParser:
     # uninstall
     p_uninstall = sub.add_parser(
         "uninstall",
-        help="Remove only SE-managed MCP servers (plan by default; use --apply to perform)",
+        help="Remove SE-managed MCP servers and optionally purge SE artifacts from OpenCode (plan by default; use --apply to perform)",
     )
     p_uninstall.add_argument("--project", default=".", help="Target project directory (default: current directory)")
     p_uninstall.add_argument("--apply", action="store_true",
                              help="Perform the removal (default is a plan-only dry-run)")
     p_uninstall.add_argument("--dry-run", dest="dry_run", action="store_true",
                              help="Force a plan-only run (the default)")
+    p_uninstall.add_argument("-i", "--interactive", action="store_true",
+                             help="Interactive purge with per-item selection")
+    p_uninstall.add_argument("--all", action="store_true",
+                             help="Select everything SE-related (managed + untracked SE MCPs + .opencode/)")
+    p_uninstall.add_argument("--include-untracked-se-mcps", action="store_true",
+                             help="Also remove SE-related MCPs not tracked in lifecycle-state (e.g., se-memory-server)")
+    p_uninstall.add_argument("--remove-opencode-dir", action="store_true",
+                             help="Remove generated .opencode/ directory (with backup)")
+    p_uninstall.add_argument("--purge-adapter", action="store_true",
+                             help="Alias for --remove-opencode-dir")
+    p_uninstall.add_argument("--keep-opencode-jsonc", action="store_true",
+                             help="Do not touch opencode.jsonc")
+    p_uninstall.add_argument("--force", action="store_true",
+                             help="Skip extra confirmations in non-interactive runs")
     p_uninstall.add_argument("--json", action="store_true",
                              help="Emit a machine-readable se.report/1 envelope")
     p_uninstall.set_defaults(func=commands.cmd_uninstall)

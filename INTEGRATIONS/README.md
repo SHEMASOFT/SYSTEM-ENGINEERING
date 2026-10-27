@@ -15,6 +15,7 @@ Available adapters:
 | Adapter | Status |
 |---------|--------|
 | [opencode](opencode/README.md) | Implemented (`se adapter opencode` + `se init <project>`, docs: `DOCS/reference/opencode-adapter.md`, `DOCS/reference/project-bootstrap.md`) |
+| [ci](ci/README.md) | Implemented (neutral scripts + GitHub Actions reference workflow; `se validate`/`se gate` adapted, manual conditions reported, never attested) |
 | reference CLI (`SCRIPTS/se.py`) | Implemented |
 
 Adding an adapter must not require changes to CORE or SCHEMAS. If it does, that is a design
