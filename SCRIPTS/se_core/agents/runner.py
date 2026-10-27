@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ..llm.factory import create_provider_from_config
-from ..llm.providers import LLMMessage, LLMProvider
+from ..llm.providers import DummyProvider, LLMMessage, LLMProvider
 from ..paths import repo_root, load_json
 from ..schemas import load_schemas, validate
 
@@ -37,7 +37,12 @@ class AgentRunner:
         # Load agent configuration
         self.agent_config = self._load_agent_config()
         self.llm_provider = self._create_llm_provider()
-        
+
+        # A simulated provider is never presented as a real execution. The
+        # `se subagent` command refuses to run it unless the user passes
+        # --simulate explicitly.
+        self.simulated = isinstance(self.llm_provider, DummyProvider)
+
         # Load available tools
         self.tools = self._load_tools()
         
@@ -66,7 +71,10 @@ class AgentRunner:
         llm_config = self.override_llm_config or self.agent_config.get("llm_config", {})
         
         if not llm_config:
-            # Fallback to dummy provider for testing
+            # Backward-compatible fallback for tests and the internal
+            # orchestration route. It is NOT a real execution: `self.simulated`
+            # exposes it and `se subagent` refuses to run it unless --simulate
+            # was requested explicitly.
             from ..llm.factory import create_provider
             return create_provider("dummy", "dummy")
         
@@ -437,18 +445,8 @@ Return results as JSON with the following structure:
                 "output": {},
                 "telemetry": telemetry,
             }
-        
-        # Process tool calls if any
-        if response.tool_calls:
-            return self._execute_tool_calls(response.tool_calls, context)
-        
-        # Parse response content as JSON
-        try:
-            output = json.loads(response.content)
-        except json.JSONDecodeError:
-            output = {"raw_output": response.content}
-        
-        # Combine telemetry with provider usage
+
+        finish_reason = getattr(response, "finish_reason", None)
         usage = getattr(response, "usage", {}) or {}
         full_telemetry = {
             "context_processing": telemetry,
@@ -457,9 +455,94 @@ Return results as JSON with the following structure:
                 "completion_tokens": usage.get("completion_tokens", 0),
                 "total_tokens": usage.get("total_tokens", 0),
             },
-            "finish_reason": getattr(response, "finish_reason", None),
+            "finish_reason": finish_reason,
         }
-        
+
+        # Providers report transport/API failures through finish_reason
+        # instead of raising; that must not become a successful result.
+        if finish_reason == "error":
+            raw = getattr(response, "raw_response", None) or {}
+            detail = raw.get("error") if isinstance(raw, dict) else None
+            return {
+                "status": "FAILED",
+                "error": f"LLM provider error: {detail or 'unknown provider error'}",
+                "output": {},
+                "usage": usage,
+                "finish_reason": finish_reason,
+                "telemetry": full_telemetry,
+            }
+
+        # Process tool calls if any
+        if response.tool_calls:
+            result = self._execute_tool_calls(response.tool_calls, context)
+            result.setdefault("usage", usage)
+            result.setdefault("finish_reason", finish_reason)
+            result.setdefault("telemetry", full_telemetry)
+            if result.get("status") == "COMPLETED" and self.simulated:
+                result["status"] = "SIMULATED"
+            return result
+
+        content = response.content or ""
+        if not content.strip():
+            return {
+                "status": "FAILED",
+                "error": "LLM provider returned an empty response",
+                "output": {},
+                "usage": usage,
+                "finish_reason": finish_reason,
+                "telemetry": full_telemetry,
+            }
+
+        # Parse response content as JSON. The prompt requires a JSON object
+        # with a status field, so a malformed response is a failure even
+        # though no exception was raised.
+        try:
+            output = json.loads(content)
+        except json.JSONDecodeError as e:
+            excerpt = content.strip()[:200]
+            return {
+                "status": "FAILED",
+                "error": f"LLM provider returned non-JSON output: {e}: {excerpt!r}",
+                "output": {},
+                "usage": usage,
+                "finish_reason": finish_reason,
+                "telemetry": full_telemetry,
+            }
+
+        if not isinstance(output, dict):
+            return {
+                "status": "FAILED",
+                "error": "LLM provider returned JSON that is not an object",
+                "output": {},
+                "usage": usage,
+                "finish_reason": finish_reason,
+                "telemetry": full_telemetry,
+            }
+
+        provider_status = output.get("status")
+        if provider_status not in ("COMPLETED", "FAILED"):
+            return {
+                "status": "FAILED",
+                "error": (
+                    "LLM provider returned JSON without a valid status "
+                    f"(expected COMPLETED|FAILED, got {provider_status!r})"
+                ),
+                "output": {},
+                "usage": usage,
+                "finish_reason": finish_reason,
+                "telemetry": full_telemetry,
+            }
+
+        if provider_status == "FAILED":
+            return {
+                "status": "FAILED",
+                "error": output.get("error") or "LLM provider reported FAILED",
+                "output": output,
+                "usage": usage,
+                "finish_reason": finish_reason,
+                "telemetry": full_telemetry,
+            }
+
         # Log provider usage
         logger.info(
             "AgentRunner usage: agent=%s action=%s "
@@ -469,12 +552,19 @@ Return results as JSON with the following structure:
             usage.get("completion_tokens", 0),
             usage.get("total_tokens", 0),
         )
-        
+
+        # The DummyProvider payload is synthetic. Its nested status must not
+        # claim a real COMPLETED result, so keep the top-level and nested
+        # statuses consistent without discarding the rest of the payload.
+        if self.simulated:
+            output = dict(output)
+            output["status"] = "SIMULATED"
+
         return {
-            "status": "COMPLETED",
+            "status": "SIMULATED" if self.simulated else "COMPLETED",
             "output": output,
             "usage": usage,
-            "finish_reason": getattr(response, "finish_reason", None),
+            "finish_reason": finish_reason,
             "telemetry": full_telemetry,
         }
 
@@ -504,12 +594,23 @@ Return results as JSON with the following structure:
                 "result": result,
             })
         
-        # For now, return the tool results as output
-        return {
-            "status": "COMPLETED",
+        # A failed tool must not be reported as a completed operation.
+        failures = []
+        for item in results:
+            inner = item.get("result")
+            if isinstance(inner, dict) and inner.get("status") == "ERROR":
+                failures.append(
+                    f"{item.get('name')}: {inner.get('error', 'tool failed')}"
+                )
+
+        payload = {
+            "status": "FAILED" if failures else "COMPLETED",
             "output": {"tool_results": results},
             "tool_results": results,
         }
+        if failures:
+            payload["error"] = "Tool execution failed: " + "; ".join(failures)
+        return payload
 
     def _invoke_tool(
         self,

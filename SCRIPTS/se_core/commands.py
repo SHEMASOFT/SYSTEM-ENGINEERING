@@ -4683,11 +4683,46 @@ def cmd_subagent(args) -> int:
     project_manifest = read_manifest(project_path)
     project_id = project_manifest.get("project_id", project_path.name)
 
-    # Create AgentRunner
+    # Create AgentRunner. Simulation is opt-in: --simulate forces the
+    # deterministic DummyProvider and the result is reported as SIMULATED.
+    simulate = bool(getattr(args, "simulate", False))
+    override_llm_config = (
+        {"provider": "dummy", "model": "dummy"} if simulate else None
+    )
     try:
-        runner = AgentRunner(agent_name=agent, project_dir=project_path)
+        runner = AgentRunner(
+            agent_name=agent,
+            project_dir=project_path,
+            override_llm_config=override_llm_config,
+        )
     except Exception as e:
         print(f"FAIL: failed to create agent runner for {agent}: {e}")
+        return 1
+
+    # A simulated provider must not silently report a real COMPLETED result.
+    # The fallback stays available for tests and the internal orchestration
+    # route, but `se subagent` requires an explicit flag. Derive the cause from
+    # the declared configuration instead of always claiming llm_config is absent.
+    if runner.simulated and not simulate:
+        llm_config = runner.override_llm_config or runner.agent_config.get("llm_config")
+        declared_provider = (
+            str(llm_config.get("provider", "")).strip().lower()
+            if isinstance(llm_config, dict)
+            else ""
+        )
+        if not llm_config:
+            cause = f"agent '{agent}' has no LLM configuration (llm_config)"
+            remedy = f"Configure AGENTS/{agent}/agent.json or pass --simulate."
+        elif declared_provider == "dummy":
+            cause = (
+                f"agent '{agent}' is configured with the simulated DummyProvider "
+                "(llm_config.provider='dummy')"
+            )
+            remedy = "Configure a real provider or pass --simulate to run it explicitly."
+        else:
+            cause = f"agent '{agent}' resolved to the simulated DummyProvider"
+            remedy = "Check its llm_config/provider resolution or pass --simulate."
+        print(f"FAIL: {cause}; refusing to run a simulated execution. {remedy}")
         return 1
 
     # Resolve max_tokens
@@ -4706,15 +4741,20 @@ def cmd_subagent(args) -> int:
         print(f"FAIL: subagent execution failed: {e}")
         return 1
 
-    # Output
+    # Output. Exit codes: 0=COMPLETED, 1=FAILED, 3=SIMULATED (explicit
+    # simulation, no model invoked). 2 is reserved for argparse usage errors.
+    status = result.get("status", "UNKNOWN")
+    exit_code = 0 if status == "COMPLETED" else (3 if status == "SIMULATED" else 1)
+
     if args.json:
         from .reporting import render_json
         print(render_json(result))
-        return 0 if result.get("status") == "COMPLETED" else 1
+        return exit_code
 
     # Human-readable output
-    status = result.get("status", "UNKNOWN")
     print(f"Status: {status}")
+    if status == "SIMULATED":
+        print("WARNING: simulated execution (DummyProvider); no model was invoked.")
     if result.get("error"):
         print(f"Error: {result['error']}")
     if result.get("output"):
@@ -4732,7 +4772,7 @@ def cmd_subagent(args) -> int:
               f"completion_tokens={prov.get('completion_tokens', 0)} "
               f"total_tokens={prov.get('total_tokens', 0)}")
 
-    return 0 if status == "COMPLETED" else 1
+    return exit_code
 
 
 def cmd_intelligence(args) -> int:

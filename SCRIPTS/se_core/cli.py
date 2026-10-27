@@ -784,7 +784,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_orch_list.set_defaults(func=commands.cmd_orchestrate)
 
     # subagent
-    p_subagent = sub.add_parser("subagent", help="Execute a subagent with full token economy (reuses AgentRunner)")
+    p_subagent = sub.add_parser(
+        "subagent",
+        help="Execute a subagent with full token economy (reuses AgentRunner)",
+        epilog=(
+            "Exit codes for this command only: 0=COMPLETED, "
+            "1=failure/refusal/error, 2=argparse usage error, 3=SIMULATED. "
+            "This mapping is not a global CLI convention."
+        ),
+    )
     p_subagent.add_argument("--project", required=True, help="Managed project workspace")
     p_subagent.add_argument("--agent", required=True, help="Agent role (analyst, architect, planner, implementer, tester, reviewer, security, documentation, explorer, devops, visual)")
     p_subagent.add_argument("--action", required=True, help="Action to execute (e.g., analyze_requirements, create_design, implement_task)")
@@ -792,6 +800,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_subagent.add_argument("--context", default="{}", help="JSON context for the agent")
     p_subagent.add_argument("--max-tokens", type=int, default=None, help="Override max tokens (default: agent config)")
     p_subagent.add_argument("--temperature", type=float, default=None, help="Override temperature (default: agent config)")
+    p_subagent.add_argument("--simulate", action="store_true", help="Run with the deterministic DummyProvider (no model call). Result is reported as SIMULATED and exits 3.")
     p_subagent.add_argument("--json", action="store_true", help="Emit machine-readable JSON output")
     p_subagent.set_defaults(func=commands.cmd_subagent)
 

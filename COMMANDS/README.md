@@ -48,6 +48,21 @@ Conventions:
   boundary: adding a subcommand means choosing between the contract (a governed change:
   ADR + `VERSION` bump, per ADR-0020) and this support list.
 
+### Support command exit codes: `se subagent`
+
+`subagent` is a documented support command, not a contract command, so its exit codes are
+command-specific and do not extend the global conventions above:
+
+| Exit code | Meaning |
+|-----------|---------|
+| 0 | `COMPLETED`: a real provider execution completed. |
+| 1 | Failure, refusal, or execution error. |
+| 2 | `argparse` usage error. |
+| 3 | `SIMULATED`: `--simulate` ran the deterministic `DummyProvider`; no model was called. |
+
+Code `3` is not a global exit code: other commands may use `3` for an operational error. Do
+not infer this mapping for any command other than `se subagent`.
+
 ## Lifecycle control
 
 `transition` is a **gate controller**, not a state setter. It only accepts a target state
