@@ -197,6 +197,25 @@ class OrchestrateExecuteExitCodeTests(unittest.TestCase):
         code, out = self._run("FAILED", "--json")
         self.assertEqual(code, 1, out)
 
+    def test_simulated_exits_three(self):
+        """SIMULATED execution status must exit with code 3."""
+        code, out = self._run("SIMULATED")
+        self.assertEqual(code, 3, out)
+        self.assertIn("SIMULATED", out)
+
+    def test_simulated_with_json_exits_three(self):
+        """SIMULATED execution status with --json must exit with code 3."""
+        import json
+        code, out = self._run("SIMULATED", "--json")
+        self.assertEqual(code, 3, out)
+        payload = json.loads(out)
+        self.assertEqual(payload["status"], "SIMULATED")
+
+    def test_unknown_state_is_treated_as_failed(self):
+        """Unknown execution status must be treated as FAILED (fail-safe)."""
+        code, out = self._run("UNKNOWN_STATE")
+        self.assertEqual(code, 1, out)
+
 
 class OrchestrationContextFilteringTests(unittest.TestCase):
     """Tests for context filtering in _execute_node (token economy)."""

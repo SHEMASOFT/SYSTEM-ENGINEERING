@@ -147,18 +147,16 @@ class AgentRunnerResultTests(_ProjectTestCase):
         self.assertIn("echo", result["output"]["output"])
 
 
-class OrchestrationConsumerDebtTests(_ProjectTestCase):
-    """DEBT I-1: the engine turns a SIMULATED result into COMPLETED.
+class OrchestrationConsumerRegressionTests(_ProjectTestCase):
+    """I-1 regression tests: the engine must propagate SIMULATED correctly.
 
-    This is a characterization test for the known residual false success. A real
-    ``AgentRunner`` + ``DummyProvider`` returns ``SIMULATED``, but
-    ``OrchestrationEngine`` only treats ``FAILED`` as failure, so it marks the
-    node and the execution ``COMPLETED``. That is the current bug, not the
-    desired contract.
-
-    The guard below makes this test fail as soon as the engine is authorized to
-    propagate ``SIMULATED`` or fail on it, forcing this characterization test to
-    become a negative regression test instead of normalizing the behavior.
+    These tests verify that a real AgentRunner + DummyProvider returning
+    SIMULATED is correctly handled by OrchestrationEngine:
+    - The engine receives SIMULATED from the runner
+    - The engine returns SIMULATED (not COMPLETED) as execution status
+    - The node state is SIMULATED (not COMPLETED)
+    - No decision memory is saved for simulated nodes
+    - Outputs are not propagated to context
     """
 
     PROJECT_ID = "PRJ-TEST-001"
@@ -170,7 +168,7 @@ class OrchestrationConsumerDebtTests(_ProjectTestCase):
                 "schema_version": "1",
                 "workflow_id": "WF-0001",
                 "project_id": self.PROJECT_ID,
-                "name": "Simulated consumer debt",
+                "name": "Simulated consumer regression",
                 "version": "1.0.0",
                 "status": "DRAFT",
                 "nodes": [
@@ -187,21 +185,20 @@ class OrchestrationConsumerDebtTests(_ProjectTestCase):
             },
         )
 
-    def test_debt_engine_converts_simulated_result_into_completed(self):
+    def test_engine_propagates_simulated_status(self):
+        """Engine must return SIMULATED when a node returns SIMULATED."""
         from se_core.orchestration.engine import OrchestrationEngine
 
         self._write_workflow()
 
-        # 1. Real runner path: the agent has no llm_config, so AgentRunner
-        #    selects the DummyProvider and returns SIMULATED.
+        # 1. Real runner path: agent has no llm_config, so AgentRunner
+        #    selects DummyProvider and returns SIMULATED.
         runner = AgentRunner(agent_name="analyst", project_dir=self.project)
         self.assertTrue(runner.simulated)
         simulated = runner.run(action="analyze", inputs={}, context={})
         self.assertEqual(simulated["status"], "SIMULATED")
 
-        # 2. Feed a real SIMULATED result into the shared consumer. The
-        #    wrapper records what the engine actually received; it is not a
-        #    synthetic result.
+        # 2. Feed real SIMULATED result into the engine.
         engine = OrchestrationEngine(root=self.project.parent)
         engine._find_project_dir = mock.MagicMock(return_value=self.project)
         real_run = AgentRunner.run
@@ -217,19 +214,79 @@ class OrchestrationConsumerDebtTests(_ProjectTestCase):
                 with mock.patch.object(engine, "_auto_save_memory"):
                     result = engine.execute("WF-0001", self.PROJECT_ID)
 
+        # 3. Engine must receive SIMULATED from runner.
         self.assertEqual(received.get("status"), "SIMULATED")
 
-        # 3. Known-bad characterization. This is the DEBT, not the contract:
-        #    the engine currently reports apparent success. The assertions below
-        #    document the defect; they are not acceptance criteria.
-        if result["status"] != "COMPLETED":
-            self.fail(
-                "DEBT I-1 appears fixed: OrchestrationEngine no longer converts "
-                "SIMULATED into COMPLETED. Convert this characterization test "
-                "into a negative regression test."
-            )
-        self.assertEqual(result["status"], "COMPLETED")
-        self.assertEqual(result["node_states"]["n1"]["status"], "COMPLETED")
+        # 4. Engine must return SIMULATED (not COMPLETED) as execution status.
+        self.assertEqual(result["status"], "SIMULATED")
+
+        # 5. Node state must be SIMULATED (not COMPLETED).
+        self.assertEqual(result["node_states"]["n1"]["status"], "SIMULATED")
+
+    def test_engine_does_not_propagate_simulated_outputs_to_context(self):
+        """Outputs from SIMULATED node must not pollute execution context."""
+        from se_core.orchestration.engine import OrchestrationEngine
+
+        self._write_workflow()
+
+        engine = OrchestrationEngine(root=self.project.parent)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+
+        with mock.patch.object(engine.memory_engine, "get", return_value=None):
+            with mock.patch.object(engine, "_auto_save_memory"):
+                result = engine.execute("WF-0001", self.PROJECT_ID)
+
+        # Context should be empty since SIMULATED node outputs are not propagated
+        self.assertEqual(result["context"], {})
+
+    def test_engine_does_not_save_decision_memory_for_simulated(self):
+        """No decision memory should be saved for SIMULATED nodes."""
+        from se_core.orchestration.engine import OrchestrationEngine
+
+        self._write_workflow()
+
+        engine = OrchestrationEngine(root=self.project.parent)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        memory_calls = []
+
+        def mock_save_memory(**kwargs):
+            memory_calls.append(kwargs)
+
+        with mock.patch.object(engine.memory_engine, "get", return_value=None):
+            with mock.patch.object(engine, "_auto_save_memory", side_effect=mock_save_memory):
+                result = engine.execute("WF-0001", self.PROJECT_ID)
+
+        # Check that no decision memory was saved for the simulated node
+        decision_calls = [c for c in memory_calls if c.get("memory_type") == "decision"]
+        self.assertEqual(len(decision_calls), 0, "No decision memory should be saved for SIMULATED nodes")
+
+    def test_checkpoint_contains_simulated_node(self):
+        """Checkpoint must include SIMULATED node with correct status."""
+        from se_core.orchestration.engine import OrchestrationEngine
+        from se_core.orchestration.checkpoint import CheckpointManager
+
+        self._write_workflow()
+
+        engine = OrchestrationEngine(root=self.project.parent)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+
+        with mock.patch.object(engine.memory_engine, "get", return_value=None):
+            with mock.patch.object(engine, "_auto_save_memory"):
+                result = engine.execute("WF-0001", self.PROJECT_ID)
+
+        # Load the latest checkpoint
+        cp_manager = CheckpointManager(self.project)
+        checkpoints = cp_manager.list_checkpoints("WF-0001")
+        self.assertGreater(len(checkpoints), 0)
+        latest = checkpoints[0]
+        cp = cp_manager.load(latest["checkpoint_id"])
+
+        # Checkpoint status should be SIMULATED
+        self.assertEqual(cp["status"], "SIMULATED")
+        # Node result should be SIMULATED
+        self.assertEqual(cp["node_results"]["n1"]["status"], "SIMULATED")
+        # Completed nodes should NOT include the simulated node
+        self.assertNotIn("n1", cp["completed_nodes"])
 
 
 class SubagentCliTests(_ProjectTestCase):

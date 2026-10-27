@@ -4573,23 +4573,35 @@ def cmd_orchestrate(args) -> int:
             return 1
 
         # A dry-run is an intentional, successful plan: it is not a failure.
-        succeeded = result.get("status") in ("COMPLETED", "DRY_RUN")
+        # SIMULATED is a terminal state but not a success.
+        status = result.get("status")
+        succeeded = status == "COMPLETED"
+        is_simulated = status == "SIMULATED"
+        is_dry_run = status == "DRY_RUN"
 
         if wants_json(args):
             from .reporting import render_json
             print(render_json(result))
-            return 0 if succeeded else 1
+            if is_simulated:
+                return 3
+            return 0 if succeeded or is_dry_run else 1
 
         # Human-readable output
         print(f"Execution: {result['execution_id']}")
         print(f"Workflow: {result['workflow_id']}")
-        print(f"Status: {result['status']}")
+        print(f"Status: {status}")
+        if is_simulated:
+            print("WARNING: workflow contained simulated nodes (no real execution)")
         if result.get("completed_at"):
             print(f"Completed: {result['completed_at']}")
         if result.get("execution_order"):
             print(f"Execution order: {' -> '.join(result['execution_order'])}")
         if result.get("error"):
             print(f"Error: {result['error']}")
+        if is_simulated:
+            return 3
+        if is_dry_run:
+            return 0
         return 0 if succeeded else 1
 
     elif args.orchestrate_command == "list":

@@ -20,7 +20,7 @@
       "additionalProperties": {
         "type": "object",
         "properties": {
-          "status": { "enum": ["COMPLETED", "FAILED", "SKIPPED"] },
+          "status": { "enum": ["COMPLETED", "FAILED", "SIMULATED", "SKIPPED"] },
           "outputs": { "type": "object" },
           "error": { "type": ["string", "null"] },
           "started_at": { "type": ["string", "null"], "format": "date-time" },
@@ -43,6 +43,6 @@
     },
     "context": { "type": "object" },
     "created_at": { "type": "string", "format": "date-time" },
-    "status": { "enum": ["IN_PROGRESS", "COMPLETED", "FAILED", "RESUMED"] }
+    "status": { "enum": ["IN_PROGRESS", "COMPLETED", "FAILED", "SIMULATED", "RESUMED"] }
   }
 }

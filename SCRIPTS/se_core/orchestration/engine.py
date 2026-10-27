@@ -48,7 +48,7 @@ class NodeState:
 
 
 def _checkpoint_node_snapshot(node_states: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-    """Return only the nodes that actually ran (COMPLETED/FAILED).
+    """Return only the nodes that actually ran (COMPLETED/FAILED/SIMULATED).
 
     PENDING and RUNNING nodes are intentionally excluded: a checkpoint records
     work that provably finished, so a resume never re-does or skips a node whose
@@ -57,7 +57,7 @@ def _checkpoint_node_snapshot(node_states: Dict[str, Dict[str, Any]]) -> Dict[st
     return {
         node_id: dict(state)
         for node_id, state in node_states.items()
-        if state.get("status") in ("COMPLETED", "FAILED")
+        if state.get("status") in ("COMPLETED", "FAILED", "SIMULATED")
     }
 
 
@@ -316,7 +316,48 @@ class OrchestrationEngine:
                     f"Node {node_id} failed: {result.get('error', 'unknown error')}"
                 )
 
-            # Update context with node outputs
+            if result["status"] == "SIMULATED":
+                # A simulated node is a terminal state that is NOT a real completion.
+                # Do not propagate outputs to context, do not add to completed_nodes,
+                # do not save decision memory. Return a SIMULATED execution result.
+                node_states[node_id]["status"] = "SIMULATED"
+                node_states[node_id]["completed_at"] = now_utc()
+                node_states[node_id]["outputs"] = result.get("outputs", {})
+                
+                checkpoint_manager.save(
+                    workflow_id=workflow_id,
+                    execution_id=execution_id_final,
+                    completed_nodes=completed_nodes,
+                    node_results=_checkpoint_node_snapshot(node_states),
+                    gate_results=gate_results,
+                    context=context,
+                    status="SIMULATED",
+                )
+                self._auto_save_memory(
+                    project_id=workflow["project_id"],
+                    memory_type="constraint",
+                    content={
+                        "summary": f"Node {node_id} simulated (no real execution)",
+                        "node_id": node_id,
+                        "agent": node.get("agent"),
+                        "action": node.get("action"),
+                        "outputs": result.get("outputs", {}),
+                    },
+                    tags=["simulated", "node", node_id],
+                    topic_key=f"simulated:{workflow_id}:{node_id}",
+                )
+                return {
+                    "execution_id": execution_id_final,
+                    "workflow_id": workflow["workflow_id"],
+                    "project_id": workflow["project_id"],
+                    "status": "SIMULATED",
+                    "completed_at": now_utc(),
+                    "node_states": node_states,
+                    "gate_results": gate_results,
+                    "context": context,
+                }
+
+            # Update context with node outputs (only for real COMPLETED)
             node_outputs = result.get("outputs", {})
             context.update(node_outputs)
             completed_nodes.append(node_id)
@@ -351,7 +392,13 @@ class OrchestrationEngine:
                 status="IN_PROGRESS",
             )
 
-        # Final checkpoint with COMPLETED status
+        # Determine final execution status
+        has_simulated = any(
+            state.get("status") == "SIMULATED" for state in node_states.values()
+        )
+        final_status = "SIMULATED" if has_simulated else "COMPLETED"
+
+        # Final checkpoint
         checkpoint_manager.save(
             workflow_id=workflow_id,
             execution_id=execution_id_final,
@@ -359,19 +406,19 @@ class OrchestrationEngine:
             node_results=_checkpoint_node_snapshot(node_states),
             gate_results=gate_results,
             context=context,
-            status="COMPLETED",
+            status=final_status,
         )
         self._auto_save_memory(
             project_id=workflow["project_id"],
             memory_type="checkpoint",
             content={
-                "summary": f"Workflow {workflow_id} completed",
+                "summary": f"Workflow {workflow_id} {final_status.lower()}",
                 "workflow_id": workflow_id,
                 "execution_id": execution_id_final,
                 "completed_nodes": list(completed_nodes),
                 "node_count": len(completed_nodes),
             },
-            tags=["workflow", "completed", workflow_id],
+            tags=["workflow", final_status.lower(), workflow_id],
             topic_key=f"workflow:{workflow_id}",
         )
 
@@ -379,7 +426,7 @@ class OrchestrationEngine:
             "execution_id": execution_id_final,
             "workflow_id": workflow["workflow_id"],
             "project_id": workflow["project_id"],
-            "status": "COMPLETED",
+            "status": final_status,
             "completed_at": now_utc(),
             "node_states": node_states,
             "gate_results": gate_results,

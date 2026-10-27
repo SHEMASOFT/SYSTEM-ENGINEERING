@@ -381,5 +381,129 @@ class OrchestrateCheckpointCliTests(unittest.TestCase):
         self.assertIn("--resume-from", out)
 
 
+class SimulatedNodeRegressionTests(unittest.TestCase):
+    """Regression tests for SIMULATED node handling in checkpoints and resume."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.project = support.make_project(self.root / "proj")
+        self.project_id = "PRJ-TEST-001"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write_workflow(self, workflow_id, nodes, edges=None, gates=None):
+        data = {
+            "schema_version": "1",
+            "workflow_id": workflow_id,
+            "project_id": self.project_id,
+            "name": "Test workflow",
+            "version": "1.0.0",
+            "status": "DRAFT",
+            "nodes": nodes,
+            "edges": edges or [],
+            "gates": gates or [],
+        }
+        support.write_json(self.project / "workflows" / f"{workflow_id}.json", data)
+
+    def _node(self, node_id, action, agent="analyst", inputs=None, outputs=None):
+        return {
+            "node_id": node_id,
+            "agent": agent,
+            "action": action,
+            "inputs": inputs or {},
+            "outputs": outputs or {},
+        }
+
+    def test_checkpoint_contains_simulated_node_status(self):
+        """Checkpoint must preserve SIMULATED node status correctly."""
+        from se_core.orchestration.engine import OrchestrationEngine
+        from se_core.orchestration.checkpoint import CheckpointManager
+
+        self._write_workflow("WF-0001", [self._node("n1", "analyze")])
+
+        engine = OrchestrationEngine(root=self.root)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+
+        with mock.patch.object(engine.memory_engine, "get", return_value=None):
+            with mock.patch.object(engine, "_auto_save_memory"):
+                result = engine.execute("WF-0001", self.project_id)
+
+        self.assertEqual(result["status"], "SIMULATED")
+        self.assertEqual(result["node_states"]["n1"]["status"], "SIMULATED")
+
+        # Load checkpoint and verify SIMULATED status is preserved
+        cp_manager = CheckpointManager(self.project)
+        checkpoints = cp_manager.list_checkpoints("WF-0001")
+        self.assertGreater(len(checkpoints), 0)
+        latest_cp = cp_manager.load(checkpoints[0]["checkpoint_id"])
+
+        self.assertEqual(latest_cp["status"], "SIMULATED")
+        self.assertEqual(latest_cp["node_results"]["n1"]["status"], "SIMULATED")
+        self.assertNotIn("n1", latest_cp["completed_nodes"])
+
+    def test_resume_does_not_skip_simulated_node(self):
+        """Resume must re-execute SIMULATED nodes, not skip them."""
+        from se_core.orchestration.engine import OrchestrationEngine
+        from se_core.agents.runner import AgentRunner
+
+        # Two nodes: n1 (simulated on first run) -> n2 (real)
+        # On resume, n1 should be re-executed with real provider
+        self._write_workflow("WF-0002", [
+            self._node("n1", "analyze"),
+            self._node("n2", "plan", inputs={"prev": "context:n1_out"}),
+        ], edges=[{"from": "n1", "to": "n2"}])
+
+        engine = OrchestrationEngine(root=self.root)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+
+        # Track which nodes are executed and how many times
+        execution_count = {"n1": 0, "n2": 0}
+
+        def make_mock_run(should_simulate):
+            """Create a mock run that returns SIMULATED or COMPLETED based on flag."""
+            def mock_run(instance, action, inputs, context, max_tokens=None):
+                node_id = "n1" if action == "analyze" else "n2"
+                execution_count[node_id] += 1
+                if node_id == "n1" and should_simulate:
+                    return {"status": "SIMULATED", "output": {}, "outputs": {"n1_out": "simulated"}}
+                # Real execution returns COMPLETED with real outputs
+                return {"status": "COMPLETED", "output": {}, "outputs": {"n1_out": "real"} if node_id == "n1" else {}}
+            return mock_run
+
+        # First execution: n1 is SIMULATED (no llm_config)
+        with mock.patch.object(AgentRunner, "run", make_mock_run(should_simulate=True)):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                with mock.patch.object(engine, "_auto_save_memory"):
+                    result1 = engine.execute("WF-0002", self.project_id)
+
+        self.assertEqual(result1["status"], "SIMULATED")
+        self.assertEqual(execution_count["n1"], 1)
+        self.assertEqual(execution_count["n2"], 0)  # n2 never executed because n1 was SIMULATED
+
+        # Load checkpoint and resume
+        from se_core.orchestration.checkpoint import CheckpointManager
+        cp_manager = CheckpointManager(self.project)
+        checkpoints = cp_manager.list_checkpoints("WF-0002")
+        self.assertGreater(len(checkpoints), 0)
+        resume_cp = checkpoints[0]["checkpoint_id"]
+
+        # Reset counter
+        execution_count = {"n1": 0, "n2": 0}
+
+        # Resume: n1 should be re-executed with REAL provider (should_simulate=False)
+        # n2 should execute after n1 completes with real outputs
+        with mock.patch.object(AgentRunner, "run", make_mock_run(should_simulate=False)):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                with mock.patch.object(engine, "_auto_save_memory"):
+                    result2 = engine.execute("WF-0002", self.project_id, resume_from_checkpoint=resume_cp)
+
+        # n1 should be re-executed (not skipped), n2 should execute after
+        self.assertEqual(execution_count["n1"], 1, "SIMULATED node must be re-executed on resume")
+        self.assertEqual(execution_count["n2"], 1, "Downstream node must execute after SIMULATED node is re-run")
+        self.assertEqual(result2["status"], "COMPLETED", "Full execution with real provider should complete")
+
+
 if __name__ == "__main__":
     unittest.main()
