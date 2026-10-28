@@ -108,7 +108,7 @@ TOKEN_HEADER = "X-SE-Console-Token"
 
 sys.path.insert(0, CONSOLE_ROOT)
 
-from console import auth, read_model  # noqa: E402
+from console import auth, read_model, se_cli  # noqa: E402
 
 # --------------------------------------------------------------------------
 # Fixture
@@ -408,6 +408,85 @@ class ConsoleTestCase(unittest.TestCase):
         """A refused request must leave every observable SE trace untouched."""
         self.assertEqual(self.run_bytes(), json.dumps(BASELINE_RUN, indent=2).encode("utf-8"))
         self.assertEqual(self.mutation_entries(), [])
+
+
+# --------------------------------------------------------------------------
+# The second gate: the argv every action is delegated with
+# --------------------------------------------------------------------------
+
+
+class AllowlistTests(unittest.TestCase):
+    """`_action_allows` decides which argv shapes may be delegated to `se`.
+
+    It reads the shape from the entry itself, so every entry declares its own
+    prefix length and which flags may repeat. Nothing here starts a server:
+    this is the pure function that used to refuse `transition.attest` outright,
+    because its prefix is one token and the comparison window was two.
+    """
+
+    def attest_argv(self, conditions=("C1", "C2")) -> list[str]:
+        args = [
+            "transition",
+            "--project", PROJECT_REL,
+            "--to", "NEXT_STATE",
+            "--attest", "confirmed",
+        ]
+        for condition in conditions:
+            args += ["--condition", condition]
+        return args
+
+    def test_attest_argv_is_allowed_through(self):
+        self.assertEqual(se_cli._action_allows(self.attest_argv()), "transition.attest")
+
+    def test_every_repeatable_flag_may_repeat(self):
+        """`--condition` is declared repeatable, so several must be allowed."""
+        self.assertEqual(
+            se_cli._action_allows(self.attest_argv(conditions=("C1", "C2", "C3"))),
+            "transition.attest",
+        )
+
+    def test_a_flag_that_is_not_repeatable_may_not_repeat(self):
+        argv = self.attest_argv()
+        argv += ["--to", "ANOTHER_STATE"]  # --to is single-valued
+        self.assertIsNone(se_cli._action_allows(argv))
+
+    def test_a_required_flag_must_be_present(self):
+        self.assertIsNone(se_cli._action_allows(self.attest_argv(conditions=())))
+
+    def test_an_unknown_flag_is_refused(self):
+        argv = self.attest_argv() + ["--evil", "value"]
+        self.assertIsNone(se_cli._action_allows(argv))
+
+    def test_a_flag_shaped_value_is_refused(self):
+        argv = self.attest_argv(conditions=("C1",))
+        argv[argv.index("--attest") + 1] = "--to"
+        self.assertIsNone(se_cli._action_allows(argv))
+
+    def test_a_truncated_argv_is_refused(self):
+        self.assertIsNone(se_cli._action_allows(["transition", "--project"]))
+
+    def test_the_two_token_prefixes_still_work(self):
+        self.assertEqual(
+            se_cli._action_allows(
+                ["run", "checkpoint", "--project", PROJECT_REL, "--run", RUN_ID]
+            ),
+            "run.checkpoint",
+        )
+        self.assertEqual(
+            se_cli._action_allows(
+                [
+                    "run", "close", "--project", PROJECT_REL, "--run", RUN_ID,
+                    "--state", "COMPLETED",
+                ]
+            ),
+            "run.close",
+        )
+
+    def test_read_only_verbs_are_not_actions(self):
+        """A read-only verb must fall through, not be mistaken for a write."""
+        self.assertIsNone(se_cli._action_allows(["health", "--project", PROJECT_REL]))
+        self.assertIsNone(se_cli._action_allows(["doctor"]))
+        self.assertIsNone(se_cli._action_allows(["review", "--project", PROJECT_REL]))
 
 
 # --------------------------------------------------------------------------
@@ -718,6 +797,36 @@ class DelegationTests(ConsoleTestCase):
         self.assertEqual(line["argv"][:3], ["se", "run", "checkpoint"])
         self.assertTrue(line["actor"])
         self.assertTrue(line["at"])
+
+    def test_attest_is_delegated_and_audited(self):
+        """A well-formed attest must reach the engine, not the read-only gate.
+
+        The argv gate is what stands between a valid request and `se`. Two of
+        its assumptions used to fail for `transition.attest`: the prefix window
+        was fixed at two tokens while this action's prefix is one, and the
+        flags an entry declares as `repeatable` were refused on their second
+        occurrence. Either way the request never left the console, so nothing
+        was audited and the client only saw a refusal.
+        """
+        before = len(self.audit_entries())
+        status, body, _ = self.post(self.attest_payload(), token=TOKEN)
+        self.assertEqual(status, 200, body)
+        self.assertNotIn(
+            "refused: 'transition'", json.dumps(body), "argv gate refused a valid attest"
+        )
+        # The verdict is the engine's, relayed verbatim: not a console refusal.
+        # (The fixture's lifecycle does not satisfy every gate, so the engine's
+        # own answer is a FAIL -- what matters here is that it answered.)
+        self.assertIn(body["status"], ("PASS", "FAIL"), body)
+        self.assertIn("exit_code", body["result"], body)
+
+        # The console recorded the delegation, so `se` really ran.
+        audit = self.audit_entries()
+        self.assertEqual(len(audit), before + 1, "expected exactly one new audit line")
+        line = audit[-1]
+        self.assertEqual(line["action"], "transition.attest")
+        self.assertEqual(line["project"], PROJECT_REL)
+        self.assertEqual(line["argv"][:2], ["se", "transition"])
 
     def test_replay_of_the_same_idempotency_key_has_no_duplicate_effect(self):
         payload = self.checkpoint_payload(
