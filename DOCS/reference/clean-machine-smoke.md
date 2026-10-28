@@ -95,9 +95,13 @@ SMOKE: PASS (5 checks)
 ```
 
 `se doctor` currently reports `PASS=21 WARN=0 FAIL=0` on a clean machine: the
-self-containment guidance token check is resolved (hardcoded host paths were
-replaced by `{env:SE_ROOT}` and the historical record roots are declared in
-`.se/doctor-record-roots.json`). The script only fails on a non-zero exit code.
+self-containment guidance token check is resolved because the reference documents
+carry no absolute host paths. A published document must not name a host directory;
+where a host-specific value is unavoidable the config uses the runtime
+substitution `{env:SE_ROOT}`, so what reaches the repository stays independent of
+the machine that produced it. Site-only record roots stay out of the repository and
+are declared in the gitignored `.se/doctor-record-roots.json` file. The script only
+fails on a non-zero exit code.
 
 ## CI
 
