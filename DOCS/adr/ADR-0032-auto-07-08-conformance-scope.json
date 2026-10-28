@@ -1,0 +1,37 @@
+{
+  "schema_version": "1",
+  "decision_id": "ADR-0032",
+  "project_id": "PRJ-SYSTEM-ENGINEERING",
+  "category": "architecture",
+  "date": "2026-10-28",
+  "context": "AUTO-07 (skill conformance) and AUTO-08 (adapter conformance) are implemented as `se health --scope conformance`, six read-only controls (CONF-01..CONF-06) in SCRIPTS/se_core/commands.py:run_conformance_checks, which reads CATALOG/skills.json and .opencode/adapter-manifest.json. The scope shipped without an ADR and without tests, and its CONF-06 control was wrong: it read `capability_plan.skills` from the manifest, a key that does not exist in that schema. `capability_plan` describes PROVIDER capabilities (keys available/mapping/registry, registry pointing at CORE/capabilities/capabilities.json); it never listed skills. The declared set was therefore always empty and every project failed with 'In catalog but not in plan: {all 7 skills}'. CONF-05 already proves the adapter can discover the same 7 skills that are installed, so the mismatch was a defect in the control, not drift in the data. The sibling consistency scope (AUTO-05, ADR-0029) is documented; this scope was not.",
+  "problem": "What must CONF-06 actually compare, so that the conformance scope reports a real coherence between the skill catalog and the adapter, and how do health scopes avoid shipping controls that read fields the schema does not define?",
+  "options_considered": [
+    {
+      "option": "Keep comparing `capability_plan.skills` and add that key to the manifest",
+      "pros": ["Smallest diff in commands.py", "The check would pass on the shipped tree"],
+      "cons": ["Conflates the provider capability plan with the skill catalog", "The key is hand-written into a generated manifest and lost on regeneration", "The control would compare a field that means something else", "No test would notice the conflation"]
+    },
+    {
+      "option": "Read the skills the adapter actually declares: output.artifacts of type 'skill', their generated_files peers and metadata.counts.skills, compared against the skills the catalog reports as installed (CHOSEN)",
+      "pros": ["Compares two things that are the same thing: named skills", "Uses fields the manifest schema actually has", "Catches real drift: a skill added to the catalog without regenerating the adapter, or an adapter declaring a skill that is not installed", "Keeps the manifest internally coherent (artifacts = generated_files = counts)", "Testable without a network or a real project"]
+    },
+    {
+      "option": "Delete CONF-06 because CONF-01..CONF-05 already cover skills",
+      "pros": ["Less code", "No false failure"],
+      "cons": ["Loses the catalog<->adapter name-for-name check the other controls do not make", "CONF-03 hashes files and CONF-04 counts artifacts, but nothing verifies that the catalog's installed set equals the adapter's declared set"]
+    }
+  ],
+  "decision": "CONF-06 compares the INSTALLED skills in CATALOG/skills.json (name where installation_state == 'installed') against the skills the adapter declares in .opencode/adapter-manifest.json: the set of names derived from output.artifacts entries with type 'skill' (path '.opencode/skills/<name>/SKILL.md'), cross-checked against output.generated_files entries under 'skills/' and against metadata.counts.skills. FAIL lists each direction separately ('installed in the catalog but not declared by the adapter', 'declared by the adapter but not installed in the catalog', artifacts-vs-generated_files disagreement, count disagreement); PASS reports 'Skill catalog and adapter agree (N installed skills)'. A catalog skill that is not installed is not the adapter's responsibility and is ignored. The check never reads capability_plan for skills: that field describes providers, not skills.",
+  "reason": "The defect was a schema mismatch, not data drift, and the fix must make the control impossible to get wrong the same way twice: the comparison now uses the manifest's real schema and the test suite runs the control itself. Reading a nonexistent key produced an empty set, which silently turned a coherence check into an always-fail alarm; that class of bug is only catchable by tests that execute the control.",
+  "consequences": "The conformance scope becomes green on a coherent tree (6/6 PASS) and stays meaningful: adding a skill to the catalog without regenerating the adapter, or the reverse, fails CONF-06 with the offending names. TESTS/test_conformance_scope.py pins the contract: 8 hermetic tests covering catalog/adapter agreement, both mismatch directions, non-installed catalog skills, count drift, artifacts-vs-generated_files drift and a missing catalog, plus a repository-level regression test that runs the real scope over the shipped tree (7 of those 8 fail against the previous implementation). HEALTH SCOPE RULE introduced: every `se health --scope` ships with tests that execute its controls and with its ADR; a scope that cannot demonstrate a failing case is not ready. The conformance scope remains undocumented in DOCS/reference/commands.md; that documentation gap is recorded as follow-up work, not fixed here. Exit codes stay 0/1/2/3 and the envelope stays se.auto/1 with health_operation='conformance'.",
+  "affected_components": [
+    "SCRIPTS/se_core/commands.py",
+    "TESTS",
+    "DOCS/adr"
+  ],
+  "status": "ACCEPTED",
+  "supersedes": null,
+  "superseded_by": null,
+  "author": "shema-ai-coordinador"
+}

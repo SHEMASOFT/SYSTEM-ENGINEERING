@@ -36,6 +36,7 @@ Master System itself (`project_id: PRJ-SYSTEM-ENGINEERING`).
 | [ADR-0029](ADR-0029-auto-05-consistency-scope.json) | AUTO-05 Consistency as `se health --scope consistency` |
 | [ADR-0030](ADR-0030-auto-04-execute-observe.json) | AUTO-04 Execute/Observe pipeline commands |
 | [ADR-0031](ADR-0031-se-upgrade-contract.json) | `se upgrade` as a contract command |
+| [ADR-0032](ADR-0032-auto-07-08-conformance-scope.json) | AUTO-07/08 conformance scope and the CONF-06 contract |
 
 These files are also validated by the test suite as real DECISION artifacts, exercising the
 decision schema in practice.
