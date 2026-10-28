@@ -94,9 +94,10 @@ SMOKE: PASS (5 checks)
 [PASS] se doctor after install
 ```
 
-`se doctor` currently reports `PASS=20 WARN=1 FAIL=0` because of the
-self-containment guidance token check; the WARN is expected and not a smoke
-failure. The script only fails on a non-zero exit code.
+`se doctor` currently reports `PASS=21 WARN=0 FAIL=0` on a clean machine: the
+self-containment guidance token check is resolved (hardcoded host paths were
+replaced by `{env:SE_ROOT}` and the historical record roots are declared in
+`.se/doctor-record-roots.json`). The script only fails on a non-zero exit code.
 
 ## CI
 
