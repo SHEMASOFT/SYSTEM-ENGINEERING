@@ -144,6 +144,60 @@ def se_health(rel_path: str, *, timeout: int = 90) -> dict:
     }
 
 
+def se_consistency(rel_path: str, *, timeout: int = 90) -> dict:
+    """Relay AUTO-05 `se health --scope consistency --project <rel> --json`.
+
+    The consistency scope (CON-01..CON-10) checks task-execution integrity,
+    artifact/evidence integrity, checksums, execution states, cross-references,
+    adapter/manifest conformance, version alignment, and gate ordering.
+    """
+    env, meta = se_cli.run_se(
+        ["health", "--project", rel_path, "--scope", "consistency"],
+        timeout=timeout
+    )
+    degraded = _is_degraded(env)
+    return {
+        "source": _fact("se health --scope consistency (AUTO-05)", "OBSERVED", "COMMANDS/commands.json"),
+        "command_id": _fact("CMD-0016 (scope=consistency)", "OBSERVED", "COMMANDS/commands.json"),
+        "available": _fact(not _is_degraded(env), "OBSERVED", "se health --scope consistency"),
+        "status": _fact(env.get("status"), "OBSERVED", "se health --scope consistency"),
+        "health": _fact(
+            health_of(env.get("status")), "DERIVED", "presentation mapping of se consistency status"
+        ),
+        "reason": _fact(_degraded_reason(env), "OBSERVED" if _is_degraded(env) else "DERIVED", "se health --scope consistency"),
+        "envelope": _fact(env, "OBSERVED", "se health --scope consistency (verbatim)"),
+        "transport": _fact(meta.get("transport"), "OBSERVED", "console transport"),
+        "exit_code": _fact(meta.get("exit_code"), "OBSERVED", "console transport"),
+    }
+
+
+def se_conformance(rel_path: str, *, timeout: int = 90) -> dict:
+    """Relay B3/AUTO-07/08 `se health --scope conformance --project <rel> --json`.
+
+    The conformance scope (CONF-01..CONF-06) checks skill frontmatter/schema,
+    catalog/FS sync, adapter hashes, adapter counts, skill discovery paths,
+    and capability plan coherence.
+    """
+    env, meta = se_cli.run_se(
+        ["health", "--project", rel_path, "--scope", "conformance"],
+        timeout=timeout
+    )
+    degraded = _is_degraded(env)
+    return {
+        "source": _fact("se health --scope conformance (B3/AUTO-07/08)", "OBSERVED", "COMMANDS/commands.json"),
+        "command_id": _fact("CMD-0016 (scope=conformance)", "OBSERVED", "COMMANDS/commands.json"),
+        "available": _fact(not _is_degraded(env), "OBSERVED", "se health --scope conformance"),
+        "status": _fact(env.get("status"), "OBSERVED", "se health --scope conformance"),
+        "health": _fact(
+            health_of(env.get("status")), "DERIVED", "presentation mapping of se conformance status"
+        ),
+        "reason": _fact(_degraded_reason(env), "OBSERVED" if _is_degraded(env) else "DERIVED", "se health --scope conformance"),
+        "envelope": _fact(env, "OBSERVED", "se health --scope conformance (verbatim)"),
+        "transport": _fact(meta.get("transport"), "OBSERVED", "console transport"),
+        "exit_code": _fact(meta.get("exit_code"), "OBSERVED", "console transport"),
+    }
+
+
 def _health_command_declaration(commands: dict) -> dict:
     """Report CMD-0016's *declared* status, separately from engine operability.
 
@@ -438,6 +492,7 @@ def build_project_list() -> dict[str, Any]:
             p["lifecycle"] = _fact(None, "UNKNOWN", "no PROJECT.json", p.get("reason"))
             p["health"] = UNKNOWN
             continue
+        # Context (AUTO-02)
         env, meta = se_cli.run_se(["context", "--project", p["rel_path"], "--json"])
         p["health"] = health_of(env.get("status"))
         p["context_status"] = _fact(env.get("status"), "OBSERVED", "se context")
@@ -456,6 +511,18 @@ def build_project_list() -> dict[str, Any]:
             "se context",
         )
         p["warnings"] = _fact(env.get("warnings") or [], "OBSERVED", "se context")
+
+        # Consistency (AUTO-05)
+        cons = se_consistency(p["rel_path"])
+        p["consistency"] = cons["health"]
+        p["consistency_envelope"] = _fact(cons.get("envelope"), "OBSERVED", "se health --scope consistency")
+        p["consistency_status"] = _fact(cons.get("status"), "OBSERVED", "se health --scope consistency")
+
+        # Conformance (B3/AUTO-07/08)
+        conf = se_conformance(p["rel_path"])
+        p["conformance"] = conf["health"]
+        p["conformance_envelope"] = _fact(conf.get("envelope"), "OBSERVED", "se health --scope conformance")
+        p["conformance_status"] = _fact(conf.get("status"), "OBSERVED", "se health --scope conformance")
 
     return {
         "generated_at": _now(),
