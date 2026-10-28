@@ -204,11 +204,11 @@ For global config (any directory), use absolute paths:
   "type": "local",
   "command": [
     "node",
-    "D:/servidor-ia/SYSTEM-ENGINEERING/SCRIPTS/se_core/mcp/launch.mjs",
-    "D:/servidor-ia/SYSTEM-ENGINEERING/SCRIPTS/se_core/mcp/memory_server.py"
+    "{env:SE_ROOT}/SCRIPTS/se_core/mcp/launch.mjs",
+    "{env:SE_ROOT}/SCRIPTS/se_core/mcp/memory_server.py"
   ],
   "environment": {},
-  "cwd": "D:/servidor-ia/SYSTEM-ENGINEERING"
+  "cwd": "{env:SE_ROOT}"
 }
 ```
 
