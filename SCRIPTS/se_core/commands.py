@@ -1774,12 +1774,7 @@ def cmd_execute(args) -> int:
         # avoid None access
         continue
         
-        if not result["success"] and not getattr(args, "continue_on_error", False):
-            # Fail-closed: stop on first failure
-            break
-    
     # Build summary
-    executed = [r for r in results if r.get("status") == "DONE" or (r.get("success") and not r.get("skipped") and r.get("status") != "INFO" and r.get("status") != "SKIPPED (already DONE)")]
     # Also count cases where execution produced effect but status not DONE? (INFO means no effect - see semantics; PASS requires effect)
     # But for backward compat with existing tests, treat successful non-skipped actual executions as executed when they produced evidence/artifact or when not INFO?
     # Better: count as executed if it ran and succeeded in performing/attempting actual execution (not skipped). Also INFO cases ran but no external effect.
@@ -1795,19 +1790,18 @@ def cmd_execute(args) -> int:
     if not g3_ok:
         overall_status = "FAIL"
     
-    if wants_json(args):
-        envelope = {
-            "contract": "se.execute/1",
-            "operation": "execute",
-            "status": overall_status,
-            "project_id": read_manifest(project).get("project_id"),
-            "executed": len(executed),
-            "failed": len(failed),
-            "skipped": len(skipped),
-            "results": results,
-            "execution_receipts": [r["receipt"] for r in results if r.get("receipt")],
-            "observation": {"observed_at": now_utc(), "tool": "se", "source_root": str(repo_root())},
-        }
+    envelope = {
+        "contract": "se.execute/1",
+        "operation": "execute",
+        "status": overall_status,
+        "project_id": read_manifest(project).get("project_id"),
+        "executed": len(executed),
+        "failed": len(failed),
+        "skipped": len(skipped),
+        "results": results,
+        "execution_receipts": [r["receipt"] for r in results if r.get("receipt")],
+        "observation": {"observed_at": now_utc(), "tool": "se", "source_root": str(repo_root())},
+    }
     # Load full receipts if needed (tests expect full objects with evidence_ids/artifact_ids)
     try:
         recs = []
@@ -1826,7 +1820,8 @@ def cmd_execute(args) -> int:
         envelope["execution_receipts"] = recs
     except Exception:
         pass
-    print(render_json(envelope))
+    if wants_json(args):
+        print(render_json(envelope))
     
     if not wants_json(args):
         print(f"EXECUTION SUMMARY")
@@ -1837,7 +1832,7 @@ def cmd_execute(args) -> int:
             if r.get("skipped"):
                 print(f"  SKIPPED: {r['task_id']} ({r.get('status', r.get('error'))})")
             elif r["success"]:
-                print(f"  DONE:    {r['task_id']} (evidence: {r['evidence']['id'] if r.get('evidence') else 'none'}, artifact: {r['artifact']['artifact_id'] if r.get('artifact') else 'none'})")
+                print(f"  DONE:    {r['task_id']} (evidence: {r.get('evidence') or 'none'}, artifact: {r.get('artifact') or 'none'})")
             else:
                 print(f"  FAILED:  {r['task_id']} - {r.get('error')}")
     
