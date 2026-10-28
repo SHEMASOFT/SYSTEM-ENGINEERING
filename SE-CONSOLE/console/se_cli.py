@@ -257,16 +257,23 @@ def _action_allows(args: list[str]) -> str | None:
     not parse as exactly one of the approved shapes falls through to the
     read-only allow-list (where `run ...` is refused, since it is not on it).
     """
-    if len(args) < 3:
-        return None
     for action_id, spec in ACTION_ALLOWLIST.items():
         prefix = tuple(spec["prefix"])
-        if tuple(args[:2]) != prefix:
+        # Each entry declares its own prefix length ("transition" is ONE token,
+        # "run checkpoint" is two). A window sized for one entry matches only
+        # the entries it happens to fit and refuses every other one: comparing
+        # two tokens against ("transition",) never matches, so the attest
+        # delegation fell through to the read-only gate and was refused.
+        if len(args) < len(prefix) + 2 or tuple(args[: len(prefix)]) != prefix:
             continue
         required = set(spec["required"])
         allowed = spec["allowed"]
+        # `repeatable` names the flags that MAY occur more than once. Ignoring
+        # it refuses any multi-valued delegation: `transition.attest` takes one
+        # `--condition` per condition, so a list of conditions never matched.
+        repeatable = set(spec.get("repeatable", ()))
         seen: set[str] = set()
-        index = 2
+        index = len(prefix)
         while index < len(args):
             flag = args[index]
             value = args[index + 1] if index + 1 < len(args) else None
@@ -274,7 +281,7 @@ def _action_allows(args: list[str]) -> str | None:
                 not flag.startswith("--")
                 or "=" in flag
                 or flag not in allowed
-                or flag in seen
+                or (flag in seen and flag not in repeatable)
                 or value is None
                 or value.startswith("--")
             ):
