@@ -204,13 +204,20 @@ For global config (any directory), use absolute paths:
   "type": "local",
   "command": [
     "node",
-    "D:/servidor-ia/SYSTEM-ENGINEERING/SCRIPTS/se_core/mcp/launch.mjs",
-    "D:/servidor-ia/SYSTEM-ENGINEERING/SCRIPTS/se_core/mcp/memory_server.py"
+    "{env:SE_ROOT}/SCRIPTS/se_core/mcp/launch.mjs",
+    "{env:SE_ROOT}/SCRIPTS/se_core/mcp/memory_server.py"
   ],
   "environment": {},
-  "cwd": "D:/servidor-ia/SYSTEM-ENGINEERING"
+  "cwd": "{env:SE_ROOT}"
 }
 ```
+
+For the global config to work, `SE_ROOT` must be exported in the environment of the
+process that runs OpenCode (on Windows, `setx SE_ROOT "C:\path\to\SYSTEM-ENGINEERING"`,
+or set it system-wide). An unset variable resolves to an empty string, which leaves the
+command pointing at `/SCRIPTS/se_core/mcp/launch.mjs` instead of the launcher, so the
+memory server fails to start. Prefer `se install` / `se sync` on a managed project: they
+write the runtime-relative configuration themselves and keep no host path.
 
 ### Storage scopes
 
