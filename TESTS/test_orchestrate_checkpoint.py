@@ -303,6 +303,31 @@ class WorkflowRecoveryIntegrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._execute_with({"step1": [_completed()]}, [], resume_from_checkpoint=other)
 
+    def test_agentrunner_output_normalized_to_outputs_in_context(self):
+        """C4 regression: AgentRunner returns 'output', OrchestrationEngine receives 'outputs'."""
+        self._write_workflow(
+            WORKFLOW_ID,
+            [
+                _node("n1", "step1", outputs={}),
+                _node("n2", "step2", inputs={"from_n1": "context:step1_val"}),
+            ],
+            edges=[{"from": "n1", "to": "n2"}],
+        )
+
+        # Mock returns the format that fixed AgentRunner produces (both 'output' and 'outputs')
+        script = {
+            "step1": [{"status": "COMPLETED", "output": {"step1_val": "hello"}, "outputs": {"step1_val": "hello"}}],
+            "step2": [{"status": "COMPLETED", "output": {}}],
+        }
+        calls = []
+        result = self._execute_with(script, calls)
+
+        self.assertEqual(result["status"], "COMPLETED")
+        # The downstream node should receive the upstream output via context
+        n2_inputs = [c["inputs"] for c in calls if c["action"] == "step2"]
+        self.assertEqual(len(n2_inputs), 1)
+        self.assertEqual(n2_inputs[0].get("from_n1"), "hello")
+
 
 class OrchestrateCheckpointCliTests(unittest.TestCase):
     """The `se orchestrate checkpoint` surface and the `--resume-from` flag."""
@@ -379,6 +404,60 @@ class OrchestrateCheckpointCliTests(unittest.TestCase):
 
         self.assertEqual(code, 0, out)
         self.assertIn("--resume-from", out)
+
+    def test_resume_from_reaches_engine_via_cli(self):
+        """The --resume-from flag value reaches engine.execute(resume_from_checkpoint=...)."""
+        # Write a simple workflow
+        support.write_json(
+            self.project / "workflows" / f"{WORKFLOW_ID}.json",
+            {
+                "schema_version": "1",
+                "workflow_id": WORKFLOW_ID,
+                "project_id": PROJECT_ID,
+                "name": "Resume test",
+                "version": "1.0.0",
+                "status": "DRAFT",
+                "nodes": [
+                    {"node_id": "n1", "agent": "analyst", "action": "step1", "inputs": {}, "outputs": {}}
+                ],
+                "edges": [],
+                "gates": [],
+            },
+        )
+
+        # Create a checkpoint to resume from
+        from se_core.orchestration.checkpoint import CheckpointManager
+        manager = CheckpointManager(self.project)
+        cp_id = manager.save(WORKFLOW_ID, "WEX-0001", [], {}, {}, {})
+
+        # Capture what engine.execute receives
+        captured = {}
+
+        def fake_execute(self, workflow_id, project_id, execution_id=None, dry_run=False, start_node=None, resume_from_checkpoint=None):
+            captured["resume_from_checkpoint"] = resume_from_checkpoint
+            # Return minimal successful result
+            return {
+                "execution_id": execution_id or "WEX-0002",
+                "workflow_id": workflow_id,
+                "status": "COMPLETED",
+                "completed_at": "2026-01-01T00:00:00Z",
+                "node_states": {},
+                "gate_results": {},
+                "context": {},
+            }
+
+        from se_core.orchestration.engine import OrchestrationEngine
+        with mock.patch.object(OrchestrationEngine, "execute", fake_execute):
+            code, out = support.run_cli(
+                "orchestrate", "execute",
+                "--workflow", WORKFLOW_ID,
+                "--project", str(self.project),
+                "--resume-from", cp_id,
+                "--json",
+            )
+
+        self.assertEqual(code, 0, out)
+        self.assertEqual(captured.get("resume_from_checkpoint"), cp_id)
 
 
 class SimulatedNodeRegressionTests(unittest.TestCase):

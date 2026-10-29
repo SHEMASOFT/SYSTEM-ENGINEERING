@@ -123,10 +123,18 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("gap:", out)
 
-    def test_rdd_object_evidence_does_not_crash(self):
+    def test_rdd_object_evidence_is_resolved_not_skipped(self):
         # Regression: an RDD's `evidence` entries are objects, not ids. They used to be
-        # fed to the id index, which raised `unhashable type: 'dict'` and made
-        # `se review` fail on every project whose profile requires a receipt.
+        # fed to the id index, which raised `unhashable type: 'dict'`. Skipping them
+        # was not the fix either: the `id` inside each entry is a reference and a
+        # dangling one must be reported (it used to produce "no findings").
+        support.write_json(self.project / "rdds" / "RDD-0001.json", rdd())
+        code, out = support.run_cli("review", "--project", str(self.project))
+        self.assertEqual(code, 1, out)
+        self.assertIn("unresolved reference EVD-0001", out)
+
+    def test_rdd_object_evidence_resolves_when_the_evd_exists(self):
+        support.write_json(self.project / "evidence" / "EVD-0001.json", support.evidence())
         support.write_json(self.project / "rdds" / "RDD-0001.json", rdd())
         code, out = support.run_cli("review", "--project", str(self.project))
         self.assertEqual(code, 0, out)

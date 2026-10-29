@@ -62,6 +62,32 @@ class ExecuteCommandTests(unittest.TestCase):
             self.assertEqual(data["status"], "FAIL")
             self.assertTrue(any("G3 gate not passed" in c for c in data["conflicts"]))
 
+    def test_execute_g3_fail_blocks_normal_execution_no_mutation(self):
+        """C5 regression: G3=FAIL must block normal execution before any mutation."""
+        with tempfile.TemporaryDirectory() as tmp:
+            project = support.make_project(Path(tmp) / "p")
+            # Create an approved requirement but NO task covering it -> G3.2 FAIL
+            support.write_json(project / "objectives" / "OBJ-0001.json", support.objective())
+            support.write_json(project / "requirements" / "REQ-0001.json", support.requirement(status="APPROVED"))
+            # Add a task that would mutate if executed (but G3 should block first)
+            support.write_json(
+                project / "tasks" / "TASK-0001.json",
+                support.task(status="READY", authorized_actions=["READ", "ANALYZE", "IMPLEMENT"],
+                            metadata={"action": {"kind": "write_file", "path": "output.txt", "content": "mutated"}}),
+            )
+            before_snapshot = {
+                p: p.read_bytes() for p in project.rglob("*") if p.is_file()
+            }
+
+            code, out = support.run_cli("execute", "--project", str(project), "--json")
+            self.assertEqual(code, 1, out)
+            data = _load(out)
+            self.assertEqual(data["status"], "FAIL")
+            self.assertTrue(any("G3 gate not passed" in c for c in data["conflicts"]))
+            # No mutation: task file unchanged, no evidence, no artifact, no receipt
+            after_snapshot = {p: p.read_bytes() for p in project.rglob("*") if p.is_file()}
+            self.assertEqual(before_snapshot, after_snapshot)
+
     def test_execute_skips_done_tasks_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             project = support.make_full_project(Path(tmp) / "p")
@@ -203,45 +229,48 @@ class ExecuteCommandTests(unittest.TestCase):
 
     def test_execute_fail_closed_stops_on_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
-            project = support.make_project(Path(tmp) / "p")
-            # Create task without authorized_actions IMPLEMENT
-            support.write_json(
-                project / "tasks" / "TASK-0001.json",
-                support.task(id="TASK-0001", authorized_actions=["READ", "ANALYZE"]),
-            )
+            # Use a full project that satisfies G3, then add a task without IMPLEMENT
+            project = support.make_full_project(Path(tmp) / "p")
+            # Add a task that is READY but lacks IMPLEMENT in authorized_actions
             support.write_json(
                 project / "tasks" / "TASK-0002.json",
-                support.task(id="TASK-0002", authorized_actions=["READ", "ANALYZE", "IMPLEMENT"]),
+                support.task(
+                    id="TASK-0002",
+                    status="READY",
+                    authorized_actions=["READ", "ANALYZE"],
+                    related_requirements=["REQ-0001"],
+                ),
             )
-            support.write_json(project / "objectives" / "OBJ-0001.json", support.objective())
-            support.write_json(project / "requirements" / "REQ-0001.json", support.requirement())
             
             code, out = support.run_cli("execute", "--project", str(project), "--json")
             self.assertEqual(code, 1, out)
             data = _load(out)
             self.assertEqual(data["status"], "FAIL")
-            # Only first task should have been attempted (fail-closed)
-            self.assertEqual(len(data["results"]), 1)
-            self.assertFalse(data["results"][0]["success"])
+            # TASK-0001 is DONE (skipped), TASK-0002 fails -> execution stops after first failure
+            # Results: 1 skip + 1 failure = 2 total, but only 1 failure
+            self.assertEqual(len(data["results"]), 2)
+            self.assertEqual(len([r for r in data["results"] if not r.get("success")]), 1)
+            self.assertFalse(data["results"][-1]["success"])
 
     def test_execute_continue_on_error(self):
         with tempfile.TemporaryDirectory() as tmp:
-            project = support.make_project(Path(tmp) / "p")
-            support.write_json(
-                project / "tasks" / "TASK-0001.json",
-                support.task(id="TASK-0001", authorized_actions=["READ", "ANALYZE"]),
-            )
+            project = support.make_full_project(Path(tmp) / "p")
+            # Add a task that is READY but lacks IMPLEMENT in authorized_actions
             support.write_json(
                 project / "tasks" / "TASK-0002.json",
-                support.task(id="TASK-0002", authorized_actions=["READ", "ANALYZE", "IMPLEMENT"]),
+                support.task(
+                    id="TASK-0002",
+                    status="READY",
+                    authorized_actions=["READ", "ANALYZE"],
+                    related_requirements=["REQ-0001"],
+                ),
             )
-            support.write_json(project / "objectives" / "OBJ-0001.json", support.objective())
-            support.write_json(project / "requirements" / "REQ-0001.json", support.requirement())
             
             code, out = support.run_cli("execute", "--project", str(project), "--continue-on-error", "--json")
             data = _load(out)
             self.assertEqual(data["status"], "FAIL")
             # Both tasks should have been attempted
+            # TASK-0001 is DONE (skipped), TASK-0002 fails -> 2 results (skip + failure)
             self.assertEqual(len(data["results"]), 2)
 
     def test_execute_respects_authorized_actions(self):

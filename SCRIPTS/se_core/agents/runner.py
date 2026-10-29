@@ -434,7 +434,7 @@ Return results as JSON with the following structure:
         try:
             response = self.llm_provider.chat(
                 messages=messages,
-                tools=self.tools,
+                tools=all_tools,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
@@ -443,6 +443,7 @@ Return results as JSON with the following structure:
                 "status": "FAILED",
                 "error": f"LLM call failed: {e}",
                 "output": {},
+                "outputs": {},
                 "telemetry": telemetry,
             }
 
@@ -458,22 +459,36 @@ Return results as JSON with the following structure:
             "finish_reason": finish_reason,
         }
 
+        # Process tool calls first - valid tool calls are not errors regardless of finish_reason
+        if response.tool_calls:
+            result = self._execute_tool_calls(response.tool_calls, context)
+            result.setdefault("usage", usage)
+            result.setdefault("finish_reason", finish_reason)
+            result.setdefault("telemetry", full_telemetry)
+            # Ensure outputs key exists for OrchestrationEngine compatibility
+            result.setdefault("outputs", result.get("output", {}))
+            if result.get("status") == "COMPLETED" and self.simulated:
+                result["status"] = "SIMULATED"
+            return result
+
         # Providers report transport/API failures through finish_reason
         # instead of raising; that must not become a successful result.
-        if finish_reason == "error":
+        # Only treat actual provider errors as failures.
+        # "content_filter" = policy violation; "error" = transport/API failure.
+        # "length" = truncated response, try to parse what we have.
+        # "function_call"/"tool_calls" are handled above via response.tool_calls.
+        if finish_reason in ("error", "content_filter"):
             raw = getattr(response, "raw_response", None) or {}
             detail = raw.get("error") if isinstance(raw, dict) else None
             return {
                 "status": "FAILED",
-                "error": f"LLM provider error: {detail or 'unknown provider error'}",
+                "error": f"LLM provider error ({finish_reason}): {detail or finish_reason}",
                 "output": {},
+                "outputs": {},
                 "usage": usage,
                 "finish_reason": finish_reason,
                 "telemetry": full_telemetry,
             }
-
-        # Process tool calls if any
-        if response.tool_calls:
             result = self._execute_tool_calls(response.tool_calls, context)
             result.setdefault("usage", usage)
             result.setdefault("finish_reason", finish_reason)
@@ -488,6 +503,7 @@ Return results as JSON with the following structure:
                 "status": "FAILED",
                 "error": "LLM provider returned an empty response",
                 "output": {},
+                "outputs": {},
                 "usage": usage,
                 "finish_reason": finish_reason,
                 "telemetry": full_telemetry,
@@ -504,6 +520,7 @@ Return results as JSON with the following structure:
                 "status": "FAILED",
                 "error": f"LLM provider returned non-JSON output: {e}: {excerpt!r}",
                 "output": {},
+                "outputs": {},
                 "usage": usage,
                 "finish_reason": finish_reason,
                 "telemetry": full_telemetry,
@@ -514,6 +531,7 @@ Return results as JSON with the following structure:
                 "status": "FAILED",
                 "error": "LLM provider returned JSON that is not an object",
                 "output": {},
+                "outputs": {},
                 "usage": usage,
                 "finish_reason": finish_reason,
                 "telemetry": full_telemetry,
@@ -528,6 +546,7 @@ Return results as JSON with the following structure:
                     f"(expected COMPLETED|FAILED, got {provider_status!r})"
                 ),
                 "output": {},
+                "outputs": {},
                 "usage": usage,
                 "finish_reason": finish_reason,
                 "telemetry": full_telemetry,
@@ -538,6 +557,7 @@ Return results as JSON with the following structure:
                 "status": "FAILED",
                 "error": output.get("error") or "LLM provider reported FAILED",
                 "output": output,
+                "outputs": output,
                 "usage": usage,
                 "finish_reason": finish_reason,
                 "telemetry": full_telemetry,
@@ -563,6 +583,7 @@ Return results as JSON with the following structure:
         return {
             "status": "SIMULATED" if self.simulated else "COMPLETED",
             "output": output,
+            "outputs": output,
             "usage": usage,
             "finish_reason": finish_reason,
             "telemetry": full_telemetry,
@@ -598,14 +619,18 @@ Return results as JSON with the following structure:
         failures = []
         for item in results:
             inner = item.get("result")
-            if isinstance(inner, dict) and inner.get("status") == "ERROR":
-                failures.append(
-                    f"{item.get('name')}: {inner.get('error', 'tool failed')}"
-                )
+            if isinstance(inner, dict):
+                # Check for various error status indicators
+                status = inner.get("status", "").lower()
+                if status in ("error", "failed", "failure") or inner.get("error"):
+                    failures.append(
+                        f"{item.get('name')}: {inner.get('error', 'tool failed')}"
+                    )
 
         payload = {
             "status": "FAILED" if failures else "COMPLETED",
             "output": {"tool_results": results},
+            "outputs": {"tool_results": results},
             "tool_results": results,
         }
         if failures:

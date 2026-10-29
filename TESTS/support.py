@@ -190,6 +190,45 @@ def artifact(**over):
     return data
 
 
+REAL_HASH = "34a906c6694b405f948dc5f1010cd2e29ba0bddf"
+
+
+def template(kind):
+    """Load a record template from the repository (the same file `se new` copies)."""
+    with (REPO_ROOT / "TEMPLATES" / f"{kind}.template.json").open(encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def sdd(**over):
+    """A schema-valid SDD that references nothing outside the project by default."""
+    data = template("sdd")
+    data.update({
+        "sdd_id": "SDD-0001",
+        "project_id": "PRJ-TEST-001",
+        "status": "APPROVED",
+        "requirements_coverage": [],
+        "related_decisions": [],
+        "related_tasks": [],
+    })
+    data.update(over)
+    return data
+
+
+def rdd(**over):
+    """A schema-valid receipt whose candidate and evidence are real (not placeholders)."""
+    data = template("rdd")
+    data.update({
+        "rdd_id": "RDD-0001",
+        "project_id": "PRJ-TEST-001",
+        "verdict": "PASS",
+        "candidate": {"kind": "commit", "ref": "abc1234", "hash": REAL_HASH},
+        "evidence": [{"id": "EVD-0001", "claim": "Tests pass", "result": "PASS"}],
+        "linked_change": "",
+    })
+    data.update(over)
+    return data
+
+
 def acceptance(**over):
     data = {
         "schema_version": "1",

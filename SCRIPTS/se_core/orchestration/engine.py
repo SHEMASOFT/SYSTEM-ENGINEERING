@@ -22,6 +22,7 @@ from ..paths import repo_root, now_utc, load_json
 from ..schemas import load_schemas, validate
 from ..gates import evaluate_gate, load_gate_model
 from ..artifacts import read_manifest
+from ..ceremony import check_project_ceremony
 from ..memory.engine import MemoryEngine
 from ..agents.runner import AgentRunner
 from .schemas import load_workflow_schema, load_execution_schema
@@ -149,6 +150,28 @@ class OrchestrationEngine:
         # Load project
         project_dir = self._find_project_dir(workflow["project_id"])
         project_data = read_manifest(project_dir)
+
+        # The ceremony floor is a precondition of execution, evaluated before the
+        # checkpoint store is touched and before any node runs (dry-run included).
+        # `check_project_ceremony` is the single resolver; a project that declares
+        # no `profiles.work` resolves to "nothing required" and is unaffected.
+        ceremony_result = check_project_ceremony(project_dir)
+        if ceremony_result["failures"]:
+            return {
+                "execution_id": execution_id,
+                "workflow_id": workflow_id,
+                "status": "FAILED",
+                "error": "ceremony not satisfied: "
+                + "; ".join(ceremony_result["failures"]),
+                "ceremony": {
+                    "requirements": ceremony_result["requirements"],
+                    "failures": list(ceremony_result["failures"]),
+                },
+                "execution_order": [],
+                "nodes": [],
+                "node_results": {},
+                "gate_results": {},
+            }
 
         # Initialize checkpoint manager (persistence lives next to the project)
         checkpoint_manager = CheckpointManager(project_dir)
@@ -870,7 +893,7 @@ class OrchestrationEngine:
             f"When workflow completes (or fails), return a structured summary:",
             f"```json",
             f"{{",
-            f"  \"status\": \"COMPLETED|FAILED\",",
+            f"  \"status\": \"COMPLETED|FAILED|SIMULATED\",",
             f"  \"execution_id\": \"{execution_id_final}\",",
             f"  \"workflow_id\": \"{workflow_id}\",",
             f"  \"node_results\": {{",

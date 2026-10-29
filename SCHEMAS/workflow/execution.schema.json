@@ -11,7 +11,7 @@
     "execution_id": { "type": "string", "pattern": "^WEX-\\d{4}$" },
     "workflow_id": { "type": "string", "pattern": "^WF-\\d{4}$" },
     "project_id": { "type": "string", "pattern": "^PRJ-[A-Z0-9][A-Z0-9-]{1,31}$" },
-    "status": { "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED", "PAUSED"] },
+    "status": { "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED", "SIMULATED", "CANCELLED", "PAUSED"] },
     "started_at": { "type": "string", "format": "date-time" },
     "completed_at": { "type": ["string", "null"], "format": "date-time" },
     "current_node": { "type": ["string", "null"] },
@@ -22,7 +22,7 @@
         "additionalProperties": false,
         "required": ["status", "started_at", "completed_at", "outputs"],
         "properties": {
-          "status": { "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED", "SKIPPED"] },
+          "status": { "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED", "SIMULATED", "SKIPPED"] },
           "started_at": { "type": ["string", "null"], "format": "date-time" },
           "completed_at": { "type": ["string", "null"], "format": "date-time" },
           "outputs": { "type": "object" },

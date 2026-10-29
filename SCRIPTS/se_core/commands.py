@@ -21,7 +21,7 @@ from .artifacts import (
 )
 from .doctor import run_doctor
 from .capabilities import check_policies, resolve_plan, validate_registry, capability_plan_view
-from .ceremony import check_project_ceremony
+from .ceremony import INTERNAL_REF_PATTERN, check_project_ceremony
 from .gates import (
     allowed_targets,
     evaluate_gate,
@@ -1690,6 +1690,22 @@ def cmd_execute(args) -> int:
             args, "execute", f"no PROJECT.json in {project}",
             scope="identity", source_root=str(project),
         )
+
+    # The ceremony floor is a precondition of execution, evaluated before any
+    # task is read for execution, mutated or turned into evidence: a project whose
+    # declared profile has not produced its documents must not execute (dry-run
+    # included). `check_project_ceremony` is the single resolver; a project without
+    # `profiles.work` resolves to "nothing required" and is unaffected.
+    try:
+        ceremony_result = check_project_ceremony(project)
+    except FileNotFoundError as exc:  # pragma: no cover - guarded by the check above
+        return _emit_failure(args, "execute", str(exc), scope="project", source_root=str(project))
+    if ceremony_result["failures"]:
+        return _emit_failure(
+            args, "execute",
+            "ceremony not satisfied: " + "; ".join(ceremony_result["failures"]),
+            scope="project", source_root=str(project),
+        )
     
     tasks, _ = collection(project, "task")
     task_data = [d for _, d in tasks]
@@ -1706,8 +1722,10 @@ def cmd_execute(args) -> int:
     g3_report = evaluate_gate(project, "G3")
     g3_ok = g3_report["status"] in {"PASS", "MANUAL"}
     
-    # For dry-run, enforce G3 gate strictly (original behavior)
-    if getattr(args, "dry_run", False) and not g3_ok:
+    # Enforce G3 gate strictly for both dry-run and normal execution.
+    # FAIL/WARN block execution before any task mutation.
+    # MANUAL is allowed (attestation concern resolved at lifecycle boundary).
+    if not g3_ok:
         return _emit_failure(
             args, "execute", f"G3 gate not passed: {g3_report['status']}",
             scope="identity", source_root=str(project)
@@ -1786,8 +1804,6 @@ def cmd_execute(args) -> int:
     
     overall_status = "PASS"
     if failed:
-        overall_status = "FAIL"
-    if not g3_ok:
         overall_status = "FAIL"
     
     envelope = {
@@ -1954,12 +1970,20 @@ REFERENCE_FIELDS = [
     "related_decisions",
     "related_artifacts",
     "related_evidence",
+    "related_sdds",
     "dependencies",
     "evidence",
     "produced_by",
     "acceptances",
     "criteria_refs",
+    "requirements_coverage",
 ]
+
+# Reference fields that hold a single id rather than a list. `linked_change` is a
+# free string (the reviewed change may be a commit, a branch or a patch), so only a
+# value shaped like an SE record id is treated as a reference. The shape lives in
+# `ceremony` (imported above) so validation and review cannot drift apart.
+SCALAR_REFERENCE_FIELDS = ["linked_change"]
 
 
 def _project_schema_map(schemas):
@@ -1969,12 +1993,12 @@ def _project_schema_map(schemas):
 def _collect_refs(data):
     """Reference ids declared by a record.
 
-    Only string entries are references. Some reference *fields* hold objects
-    rather than ids -- an RDD's `evidence` entries are `{id, claim, result, path}`
-    records -- and such an entry can never be an id, so it is skipped instead of
-    being compared against the id index (which raised `unhashable type: 'dict'`
-    and made `se review` unusable on any project whose profile requires a
-    receipt). A non-list value is not a reference list either.
+    List fields contribute their string entries. Object entries are references too
+    when they carry an `id` (an RDD's `evidence` entries are `{id, claim, result,
+    path}` records), so the id is extracted instead of the dict being compared
+    against the id index (which raised `unhashable type: 'dict'`). A non-list value
+    is not a reference list; scalar reference fields are handled separately and only
+    when they are shaped like a record id.
     """
     refs = []
     for field in REFERENCE_FIELDS:
@@ -1984,6 +2008,14 @@ def _collect_refs(data):
         for item in value:
             if isinstance(item, str) and item:
                 refs.append(item)
+            elif isinstance(item, dict):
+                identifier = item.get("id")
+                if isinstance(identifier, str) and identifier:
+                    refs.append(identifier)
+    for field in SCALAR_REFERENCE_FIELDS:
+        value = data.get(field)
+        if isinstance(value, str) and INTERNAL_REF_PATTERN.match(value):
+            refs.append(value)
     return refs
 
 
@@ -2304,6 +2336,16 @@ def cmd_transition(args) -> int:
     return 0
 
 
+ATTESTED_CREATION_STATUSES = {
+    # Statuses that only a human attestation may set. `se new` has no actor and
+    # therefore cannot attest, so these states are born only through
+    # `se update ... --by <human>`, which records the actor in the mutation log.
+    # ODD is intentionally absent: its status contract was never classified as a
+    # decisional state, so it is not governed by analogy.
+    "sdd": {"APPROVED", "IMPLEMENTED"},
+    "rdd": {"APPROVED"},
+}
+
 NEW_TEMPLATES = {
     "objective": "objective.template.json",
     "requirement": "requirement.template.json",
@@ -2595,9 +2637,17 @@ def cmd_new(args) -> int:
             },
         })
     elif kind == "sdd":
+        status = args.status or "DRAFT"
+        if status in ATTESTED_CREATION_STATUSES["sdd"]:
+            print(
+                f"FAIL: an SDD cannot be created as {status}: creation cannot attest. "
+                "Create it as DRAFT and attest the decision with "
+                f"`se update sdd <id> --set status={status} --by <human>`"
+            )
+            return 1
         overrides.update({
             "title": args.title or "(untitled SDD)",
-            "status": args.status or "DRAFT",
+            "status": status,
             "summary": args.description or "To be defined.",
         })
     elif kind == "odd":
@@ -2608,9 +2658,17 @@ def cmd_new(args) -> int:
             "problem": args.problem or args.description or "To be defined.",
         })
     elif kind == "rdd":
+        status = args.status or "DRAFT"
+        if status in ATTESTED_CREATION_STATUSES["rdd"]:
+            print(
+                f"FAIL: an RDD cannot be created as {status}: creation cannot attest. "
+                "Create it as DRAFT and attest the review with "
+                f"`se update rdd <id> --set status={status} --by <human>`"
+            )
+            return 1
         overrides.update({
             "title": args.title or "(untitled RDD)",
-            "status": args.status or "DRAFT",
+            "status": status,
             "scope": args.scope or "",
         })
     else:  # pragma: no cover - argparse restricts choices
@@ -2656,6 +2714,12 @@ CONTROLLED_FIELDS = {
     ("release", "status"),
     ("release", "approval"),
     ("run", "state"),
+    # SDD/RDD status is decisional: the ceremony floor reads it (APPROVED /
+    # IMPLEMENTED satisfy `spec_required`), so it may only change with an explicit
+    # human actor. An RDD's verdict is the receipt itself, same rule.
+    ("sdd", "status"),
+    ("rdd", "status"),
+    ("rdd", "verdict"),
 }
 
 NULLABLE_SCALARS = {
@@ -2695,6 +2759,8 @@ REFERENCE_TARGETS = {
     ("decision", "superseded_by"): {"decision"},
     ("run", "evidence"): {"evidence"},
     ("run", "artifacts"): {"artifact"},
+    ("sdd", "requirements_coverage"): {"requirement"},
+    ("odd", "related_sdds"): {"sdd"},
 }
 
 
@@ -4567,6 +4633,7 @@ def cmd_orchestrate(args) -> int:
                 execution_id=args.execution_id,
                 dry_run=dry_run,
                 start_node=start_node,
+                resume_from_checkpoint=args.resume_from,
             )
         except Exception as exc:
             print(f"FAIL: workflow execution failed: {exc}")
