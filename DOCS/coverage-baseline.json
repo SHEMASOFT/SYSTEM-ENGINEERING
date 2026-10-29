@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-10-23T22:45:20Z",
+  "created_at": "2026-10-28T05:52:24Z",
   "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
   "minimums": {
     "reference": 30
@@ -9,11 +9,11 @@
     "reference": [
       {
         "path": "DOCS/README.md",
-        "hash": "916812845efc2b9e"
+        "hash": "254b031bbbe8119c"
       },
       {
         "path": "DOCS/reference/adapters.md",
-        "hash": "894f0abd7c02b2f0"
+        "hash": "725bbce30271c986"
       },
       {
         "path": "DOCS/reference/architecture.md",
@@ -25,11 +25,11 @@
       },
       {
         "path": "DOCS/reference/clean-machine-smoke.md",
-        "hash": "20fb974d56f60f74"
+        "hash": "69ff3913333b1c6f"
       },
       {
         "path": "DOCS/reference/commands.md",
-        "hash": "7f1291b1ba3231e8"
+        "hash": "066cd77b1194925a"
       },
       {
         "path": "DOCS/reference/conventions/CONVENTION_ARCH_IMPACT.md",
@@ -105,7 +105,7 @@
       },
       {
         "path": "DOCS/reference/installation.md",
-        "hash": "1e6d180cb38c7075"
+        "hash": "6b7af72640b5291e"
       },
       {
         "path": "DOCS/reference/lifecycle.md",
@@ -113,7 +113,7 @@
       },
       {
         "path": "DOCS/reference/memory.md",
-        "hash": "7e20250f0e89aafe"
+        "hash": "d0897353a9113d99"
       },
       {
         "path": "DOCS/reference/opencode-adapter.md",

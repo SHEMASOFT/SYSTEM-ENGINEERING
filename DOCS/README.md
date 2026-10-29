@@ -34,6 +34,7 @@ Start here to understand, install and operate SYSTEM ENGINEERING.
 | [`reference/checkpoint-recovery.md`](reference/checkpoint-recovery.md) | Workflow checkpoints and resuming an interrupted run (`--resume-from`) |
 | [`reference/work-modes.md`](reference/work-modes.md) | organic / spec / receipt: when the agent must apply each one |
 | [`reference/adapters.md`](reference/adapters.md) | Runtime adapters: OpenCode, Claude Code, Codex |
+| [`../INTEGRATIONS/ci/README.md`](../INTEGRATIONS/ci/README.md) | CI governance adapter: provider-neutral scripts + GitHub Actions reference workflow |
 | [`reference/opencode-adapter.md`](reference/opencode-adapter.md) | How the OpenCode agent layer is generated |
 | [`reference/development-workflow.md`](reference/development-workflow.md) | Day-to-day development flow inside SE |
 | [`reference/execution-integrity.md`](reference/execution-integrity.md) | Execution, integrity and evidence rules |

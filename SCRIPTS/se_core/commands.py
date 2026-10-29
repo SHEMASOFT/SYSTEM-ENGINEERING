@@ -5755,40 +5755,71 @@ def run_conformance_checks(project: Path, root: Path, args) -> int:
     except Exception as exc:
         add_finding("CONF-05", "FAIL", f"Error verifying skill discovery paths: {exc}", obj="adapter")
 
-    # CONF-06: Capability plan coherence with installed skills
+    # CONF-06: skill catalog and the skills the adapter declares must agree
     try:
         manifest_path = root / ".opencode" / "adapter-manifest.json"
+        catalog_path = root / "CATALOG" / "skills.json"
         if not manifest_path.exists():
             add_finding("CONF-06", "FAIL", "adapter-manifest.json not found", obj="adapter")
+        elif not catalog_path.exists():
+            add_finding("CONF-06", "FAIL", "CATALOG/skills.json not found", obj="catalog")
         else:
             manifest = load_json(manifest_path)
-            capability_plan = manifest.get("capability_plan", {})
-            plan_skills = set(capability_plan.get("skills", []))
-            
-            catalog_path = root / "CATALOG" / "skills.json"
-            if not catalog_path.exists():
-                add_finding("CONF-06", "FAIL", "CATALOG/skills.json not found", obj="catalog")
-            else:
-                catalog = load_json(catalog_path)
-                catalog_skills = {s.get("name") for s in catalog.get("skills", []) if s.get("name")}
-                installed_skills = {s for s in catalog_skills 
-                                  if catalog.get("skills", [{}])[list(catalog_skills).index(s)].get("installation_state") == "installed"}
-                
-                plan_not_installed = plan_skills - catalog_skills
-                installed_not_in_plan = catalog_skills - plan_skills
-                
-                warnings = []
-                if plan_not_installed:
-                    warnings.append(f"In plan but not in catalog: {plan_not_installed}")
-                if installed_not_in_plan:
-                    warnings.append(f"In catalog but not in plan: {installed_not_in_plan}")
+            catalog = load_json(catalog_path)
 
-                if warnings:
-                    add_finding("CONF-06", "FAIL", f"Capability plan/catalog mismatch: {warnings}", obj="adapter")
-                else:
-                    add_finding("CONF-06", "PASS", f"Capability plan coherent with catalog ({len(catalog_skills)} skills)", obj="adapter")
+            # What the catalog says is INSTALLED. A skill present in the catalog
+            # but not installed is not the adapter's problem.
+            installed = {
+                s.get("name")
+                for s in catalog.get("skills", [])
+                if s.get("name") and s.get("installation_state") == "installed"
+            }
+
+            # What the adapter declares it generates: output.artifacts entries of
+            # type "skill" (".opencode/skills/<name>/SKILL.md"), their generated_files
+            # peers and the counts they must agree with.
+            output = manifest.get("output", {})
+            declared = {
+                Path(a["path"]).parent.name
+                for a in output.get("artifacts", [])
+                if a.get("type") == "skill" and a.get("path")
+            }
+            generated = {
+                Path(p).parent.name
+                for p in output.get("generated_files", [])
+                if p.startswith("skills/")
+            }
+            counted = manifest.get("metadata", {}).get("counts", {}).get("skills")
+
+            problems = []
+            if declared - installed:
+                problems.append(
+                    f"declared by the adapter but not installed in the catalog: {sorted(declared - installed)}"
+                )
+            if installed - declared:
+                problems.append(
+                    f"installed in the catalog but not declared by the adapter: {sorted(installed - declared)}"
+                )
+            if generated != declared:
+                problems.append(
+                    f"adapter declares {sorted(declared)} as artifacts but {sorted(generated)} as generated files"
+                )
+            if counted != len(declared):
+                problems.append(
+                    f"adapter counts {counted} skills but declares {len(declared)}"
+                )
+
+            if problems:
+                add_finding("CONF-06", "FAIL", "Skill catalog/adapter mismatch: " + "; ".join(problems), obj="adapter")
+            else:
+                add_finding(
+                    "CONF-06",
+                    "PASS",
+                    f"Skill catalog and adapter agree ({len(installed)} installed skills)",
+                    obj="adapter",
+                )
     except Exception as exc:
-        add_finding("CONF-06", "FAIL", f"Error checking capability plan coherence: {exc}", obj="adapter")
+        add_finding("CONF-06", "FAIL", f"Error checking skill catalog/adapter coherence: {exc}", obj="adapter")
 
     # Build summary
     total_checks = checks_passed + checks_failed + checks_skipped

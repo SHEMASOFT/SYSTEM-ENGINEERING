@@ -1,0 +1,1 @@
+"""SE Installer Web - FastAPI + WebSocket backend."""

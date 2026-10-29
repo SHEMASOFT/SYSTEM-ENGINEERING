@@ -741,14 +741,26 @@ def check_capabilities(root: Path):
 def check_project_alignment(root: Path):
     """MANAGED projects must be governed by the current MASTER version.
 
-    Detection-only (WARN): reconciliation is a maintenance action performed by
-    `se init <project>`, never an implicit mutation of a validation command.
+    Severity follows what the stale manifest says about *this repository*, not
+    about the operator's machine. `PROJECTS/` is excluded from version control,
+    so a project living there is a local workspace this system does not ship: a
+    stale floor in one is maintenance debt of that workspace, surfaced as an
+    informational PASS detail with its exact count and names so it stays visible
+    without reading as a defect of the published system. A stale *published*
+    project -- one git does not report as ignored-and-untracked, i.e. a tracked
+    copy -- is a real defect of what this repository ships, so it is WARN.
+
+    Detection-only in both cases: reconciliation is a maintenance action
+    performed by `se init <project>`, never an implicit mutation of a validation
+    command. The split is delegated to `_git_ignored_untracked`, whose fail-safe
+    (no git, not a repository, unexpected exit code) classifies nothing as local,
+    which preserves the WARN behaviour on a machine the check cannot interrogate.
     """
     try:
         master = str(load_json(root / "SYSTEM.json").get("master_system_version") or "")
     except Exception as exc:
         return "FAIL", f"SYSTEM.json unreadable: {exc}"
-    stale = []
+    stale = {}
     projects_dir = root / "PROJECTS"
     if projects_dir.is_dir():
         for entry in sorted(projects_dir.iterdir()):
@@ -762,11 +774,30 @@ def check_project_alignment(root: Path):
                 continue
             floor = str(manifest.get("master_system_version") or "")
             if floor != master:
-                stale.append(f"{entry.name} ({floor} -> {master})")
-    if stale:
+                stale[entry.name] = f"{entry.name} ({floor} -> {master})"
+    # Git spells paths with forward slashes, so the classification is asked in
+    # git's own spelling rather than this platform's.
+    local_only = _git_ignored_untracked(
+        root, [f"PROJECTS/{name}" for name in stale]
+    )
+    published_stale = [
+        label for name, label in stale.items() if f"PROJECTS/{name}" not in local_only
+    ]
+    local_stale = [
+        label for name, label in stale.items() if f"PROJECTS/{name}" in local_only
+    ]
+    if published_stale:
         return "WARN", (
             "MANAGED project(s) out of date; run `se init <project>` to reconcile: "
-            + "; ".join(stale)
+            + "; ".join(published_stale)
+        )
+    if local_stale:
+        return "PASS", (
+            "no published project is out of alignment; "
+            f"{len(local_stale)} local MANAGED workspace(s) behind master {master} "
+            "(informational, PROJECTS/ is excluded from version control): "
+            + ", ".join(label.split(" (", 1)[0] for label in local_stale)
+            + "; run `se init <project>` when you work on them"
         )
     return "PASS", f"all MANAGED projects aligned to master {master}"
 
