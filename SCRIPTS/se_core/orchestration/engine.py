@@ -22,6 +22,7 @@ from ..paths import repo_root, now_utc, load_json
 from ..schemas import load_schemas, validate
 from ..gates import evaluate_gate, load_gate_model
 from ..artifacts import read_manifest
+from ..ceremony import check_project_ceremony
 from ..memory.engine import MemoryEngine
 from ..agents.runner import AgentRunner
 from .schemas import load_workflow_schema, load_execution_schema
@@ -48,7 +49,7 @@ class NodeState:
 
 
 def _checkpoint_node_snapshot(node_states: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-    """Return only the nodes that actually ran (COMPLETED/FAILED).
+    """Return only the nodes that actually ran (COMPLETED/FAILED/SIMULATED).
 
     PENDING and RUNNING nodes are intentionally excluded: a checkpoint records
     work that provably finished, so a resume never re-does or skips a node whose
@@ -57,7 +58,7 @@ def _checkpoint_node_snapshot(node_states: Dict[str, Dict[str, Any]]) -> Dict[st
     return {
         node_id: dict(state)
         for node_id, state in node_states.items()
-        if state.get("status") in ("COMPLETED", "FAILED")
+        if state.get("status") in ("COMPLETED", "FAILED", "SIMULATED")
     }
 
 
@@ -149,6 +150,28 @@ class OrchestrationEngine:
         # Load project
         project_dir = self._find_project_dir(workflow["project_id"])
         project_data = read_manifest(project_dir)
+
+        # The ceremony floor is a precondition of execution, evaluated before the
+        # checkpoint store is touched and before any node runs (dry-run included).
+        # `check_project_ceremony` is the single resolver; a project that declares
+        # no `profiles.work` resolves to "nothing required" and is unaffected.
+        ceremony_result = check_project_ceremony(project_dir)
+        if ceremony_result["failures"]:
+            return {
+                "execution_id": execution_id,
+                "workflow_id": workflow_id,
+                "status": "FAILED",
+                "error": "ceremony not satisfied: "
+                + "; ".join(ceremony_result["failures"]),
+                "ceremony": {
+                    "requirements": ceremony_result["requirements"],
+                    "failures": list(ceremony_result["failures"]),
+                },
+                "execution_order": [],
+                "nodes": [],
+                "node_results": {},
+                "gate_results": {},
+            }
 
         # Initialize checkpoint manager (persistence lives next to the project)
         checkpoint_manager = CheckpointManager(project_dir)
@@ -316,7 +339,48 @@ class OrchestrationEngine:
                     f"Node {node_id} failed: {result.get('error', 'unknown error')}"
                 )
 
-            # Update context with node outputs
+            if result["status"] == "SIMULATED":
+                # A simulated node is a terminal state that is NOT a real completion.
+                # Do not propagate outputs to context, do not add to completed_nodes,
+                # do not save decision memory. Return a SIMULATED execution result.
+                node_states[node_id]["status"] = "SIMULATED"
+                node_states[node_id]["completed_at"] = now_utc()
+                node_states[node_id]["outputs"] = result.get("outputs", {})
+                
+                checkpoint_manager.save(
+                    workflow_id=workflow_id,
+                    execution_id=execution_id_final,
+                    completed_nodes=completed_nodes,
+                    node_results=_checkpoint_node_snapshot(node_states),
+                    gate_results=gate_results,
+                    context=context,
+                    status="SIMULATED",
+                )
+                self._auto_save_memory(
+                    project_id=workflow["project_id"],
+                    memory_type="constraint",
+                    content={
+                        "summary": f"Node {node_id} simulated (no real execution)",
+                        "node_id": node_id,
+                        "agent": node.get("agent"),
+                        "action": node.get("action"),
+                        "outputs": result.get("outputs", {}),
+                    },
+                    tags=["simulated", "node", node_id],
+                    topic_key=f"simulated:{workflow_id}:{node_id}",
+                )
+                return {
+                    "execution_id": execution_id_final,
+                    "workflow_id": workflow["workflow_id"],
+                    "project_id": workflow["project_id"],
+                    "status": "SIMULATED",
+                    "completed_at": now_utc(),
+                    "node_states": node_states,
+                    "gate_results": gate_results,
+                    "context": context,
+                }
+
+            # Update context with node outputs (only for real COMPLETED)
             node_outputs = result.get("outputs", {})
             context.update(node_outputs)
             completed_nodes.append(node_id)
@@ -351,7 +415,13 @@ class OrchestrationEngine:
                 status="IN_PROGRESS",
             )
 
-        # Final checkpoint with COMPLETED status
+        # Determine final execution status
+        has_simulated = any(
+            state.get("status") == "SIMULATED" for state in node_states.values()
+        )
+        final_status = "SIMULATED" if has_simulated else "COMPLETED"
+
+        # Final checkpoint
         checkpoint_manager.save(
             workflow_id=workflow_id,
             execution_id=execution_id_final,
@@ -359,19 +429,19 @@ class OrchestrationEngine:
             node_results=_checkpoint_node_snapshot(node_states),
             gate_results=gate_results,
             context=context,
-            status="COMPLETED",
+            status=final_status,
         )
         self._auto_save_memory(
             project_id=workflow["project_id"],
             memory_type="checkpoint",
             content={
-                "summary": f"Workflow {workflow_id} completed",
+                "summary": f"Workflow {workflow_id} {final_status.lower()}",
                 "workflow_id": workflow_id,
                 "execution_id": execution_id_final,
                 "completed_nodes": list(completed_nodes),
                 "node_count": len(completed_nodes),
             },
-            tags=["workflow", "completed", workflow_id],
+            tags=["workflow", final_status.lower(), workflow_id],
             topic_key=f"workflow:{workflow_id}",
         )
 
@@ -379,7 +449,7 @@ class OrchestrationEngine:
             "execution_id": execution_id_final,
             "workflow_id": workflow["workflow_id"],
             "project_id": workflow["project_id"],
-            "status": "COMPLETED",
+            "status": final_status,
             "completed_at": now_utc(),
             "node_states": node_states,
             "gate_results": gate_results,
@@ -823,7 +893,7 @@ class OrchestrationEngine:
             f"When workflow completes (or fails), return a structured summary:",
             f"```json",
             f"{{",
-            f"  \"status\": \"COMPLETED|FAILED\",",
+            f"  \"status\": \"COMPLETED|FAILED|SIMULATED\",",
             f"  \"execution_id\": \"{execution_id_final}\",",
             f"  \"workflow_id\": \"{workflow_id}\",",
             f"  \"node_results\": {{",

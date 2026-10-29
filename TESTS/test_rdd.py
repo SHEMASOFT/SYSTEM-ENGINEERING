@@ -54,7 +54,7 @@ class RecordCreationTests(unittest.TestCase):
         # entry: a verdict with no candidate is not a receipt.
         self.assertIn("hash", record["candidate"])
         self.assertTrue(record["evidence"])
-        self.assertIn(record["verdict"], ("PASS", "PARTIAL", "BLOCKED", "FAIL"))
+        self.assertIn(record["verdict"], ("DRAFT", "PASS", "PARTIAL", "BLOCKED", "FAIL"))
 
     def test_rdd_accepts_an_explicit_candidate_and_verdict(self):
         candidate = {"kind": "commit", "ref": "abc1234", "hash": "a" * 40}

@@ -494,7 +494,10 @@ class SkillServer:
     def _rdd_create(self, args: Dict) -> Dict:
         project_dir = self._get_project_dir(args["project"])
         overrides = {"title": args["title"]}
-        for key in ("candidate", "verdict", "evidence", "linked_change", "scope"):
+        # R1 fix: Do not allow setting decisional fields (verdict, status) during creation.
+        # They must be set later via attested update (se update --by).
+        # Only allow non-decisional fields: candidate, evidence, linked_change, scope.
+        for key in ("candidate", "evidence", "linked_change", "scope"):
             if key in args and args[key] is not None:
                 overrides[key] = args[key]
         path, identifier, errors = create_record(

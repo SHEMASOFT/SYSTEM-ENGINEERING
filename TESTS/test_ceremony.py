@@ -15,6 +15,16 @@ from se_core import ceremony  # noqa: E402
 from se_core.artifacts import WORKSPACE_DIRS  # noqa: E402
 from se_core.commands import _master_version  # noqa: E402
 
+EVD_ID = "EVD-0001"
+
+
+def valid_sdd(status="APPROVED", **over):
+    return support.sdd(status=status, **over)
+
+
+def valid_rdd(verdict="PASS", **over):
+    return support.rdd(verdict=verdict, **over)
+
 
 class RequirementsTests(unittest.TestCase):
     def test_unprofiled_project_requires_nothing(self):
@@ -74,11 +84,12 @@ class CheckTests(unittest.TestCase):
         manifest = support.manifest(profiles={"work": profile}) if profile else support.manifest()
         support.write_json(self.project / "PROJECT.json", manifest)
 
-    def add_sdd(self, status="APPROVED"):
-        support.write_json(self.project / "sdds" / "SDD-0001.json", {"sdd_id": "SDD-0001", "status": status})
+    def add_sdd(self, status="APPROVED", **over):
+        support.write_json(self.project / "sdds" / "SDD-0001.json", valid_sdd(status=status, **over))
 
-    def add_rdd(self, verdict="PASS"):
-        support.write_json(self.project / "rdds" / "RDD-0001.json", {"rdd_id": "RDD-0001", "verdict": verdict})
+    def add_rdd(self, verdict="PASS", **over):
+        support.write_json(self.project / "evidence" / f"{EVD_ID}.json", support.evidence())
+        support.write_json(self.project / "rdds" / "RDD-0001.json", valid_rdd(verdict=verdict, **over))
 
     def test_unprofiled_project_never_fails(self):
         self.write_manifest()
@@ -139,16 +150,27 @@ class ValidationIntegrationTests(unittest.TestCase):
         self.assertIn("ceremony:", out)
 
     def test_validate_passes_once_the_documents_exist(self):
+        # An SDD is born DRAFT: APPROVED is attested by a human through `se update`.
         self.assertEqual(
             support.run_cli("new", "sdd", "--project", str(self.project), "--title", "Design")[0], 0
         )
-        sdd_path = self.project / "sdds" / "SDD-0001.json"
-        sdd = json.loads(sdd_path.read_text(encoding="utf-8"))
-        sdd["status"] = "APPROVED"
-        sdd_path.write_text(json.dumps(sdd), encoding="utf-8")
+        for field in ("requirements_coverage", "related_decisions", "related_tasks"):
+            self.assertEqual(
+                support.run_cli(
+                    "update", "sdd", "SDD-0001", "--project", str(self.project),
+                    "--set", f"{field}=",
+                )[0], 0
+            )
         self.assertEqual(
-            support.run_cli("new", "rdd", "--project", str(self.project), "--title", "Receipt")[0], 0
+            support.run_cli(
+                "update", "sdd", "SDD-0001", "--project", str(self.project),
+                "--set", "status=APPROVED", "--by", "owner",
+            )[0], 0
         )
+        # A receipt with the template's placeholder hash / dangling EVD is not a
+        # receipt; here it is a complete one.
+        support.write_json(self.project / "evidence" / f"{EVD_ID}.json", support.evidence())
+        support.write_json(self.project / "rdds" / "RDD-0001.json", valid_rdd())
         code, out = support.run_cli("validate", "--project", str(self.project))
         self.assertEqual(code, 0, out)
 
@@ -173,8 +195,9 @@ class CeremonyCliTests(unittest.TestCase):
         self.assertTrue(data["conflicts"])
 
     def test_cli_is_pass_when_met(self):
-        support.write_json(self.project / "sdds" / "SDD-0001.json", {"sdd_id": "SDD-0001", "status": "APPROVED"})
-        support.write_json(self.project / "rdds" / "RDD-0001.json", {"rdd_id": "RDD-0001", "verdict": "PASS"})
+        support.write_json(self.project / "sdds" / "SDD-0001.json", valid_sdd())
+        support.write_json(self.project / "evidence" / f"{EVD_ID}.json", support.evidence())
+        support.write_json(self.project / "rdds" / "RDD-0001.json", valid_rdd())
         code, out = support.run_cli("ceremony", "--project", str(self.project))
         self.assertEqual(code, 0, out)
         self.assertIn("CEREMONY: PASS", out)
@@ -231,8 +254,9 @@ class PolicySchemaAlignmentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
             support.write_json(project / "PROJECT.json", support.manifest(profiles={"work": {"scale": "large"}}))
-            support.write_json(project / "sdds" / "SDD-0001.json", {"sdd_id": "SDD-0001", "status": "DRAFT"})
-            support.write_json(project / "rdds" / "RDD-0001.json", {"rdd_id": "RDD-0001", "verdict": "PASS"})
+            support.write_json(project / "sdds" / "SDD-0001.json", valid_sdd(status="DRAFT"))
+            support.write_json(project / "evidence" / f"{EVD_ID}.json", support.evidence())
+            support.write_json(project / "rdds" / "RDD-0001.json", valid_rdd())
 
             result = ceremony.check_project_ceremony(project)
 

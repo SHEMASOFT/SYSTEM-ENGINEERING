@@ -11,7 +11,7 @@
     "hash": "0000000000000000000000000000000000000000",
     "captured_at": "1970-01-01T00:00:00Z"
   },
-  "verdict": "PASS",
+  "verdict": "DRAFT",
   "evidence": [
     {
       "id": "EVD-0001",
