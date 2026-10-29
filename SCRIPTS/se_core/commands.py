@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shlex
+import subprocess
+import sys
 from pathlib import Path
 
+from . import authority
 from .artifacts import (
     COLLECTIONS,
     ID_FIELD,
@@ -255,18 +260,68 @@ def cmd_resume(args) -> int:
         adapter = resume.get("adapter") or "opencode"
         model = resume.get("model") or ""
 
+        # If no command stored, build fallback from resume payload
+        if not command:
+            workflow_id = resume.get("workflow_id")
+            checkpoint_id = resume.get("checkpoint_id")
+            if workflow_id and checkpoint_id:
+                command = (
+                    f"se orchestrate execute --project {project} "
+                    f"--workflow {workflow_id} --resume-from {checkpoint_id}"
+                )
+            else:
+                print(f"FAIL: HAR {args.har_id} has no resume command and insufficient data to build fallback")
+                return 1
+
         print(f"Resuming {args.har_id}")
         print(f"  cwd:     {cwd}")
-        print(f"  command: {command or '(none recorded)'}")
+        print(f"  command: {command}")
         print(f"  adapter: {adapter}")
         print(f"  model:   {model or '(none recorded)'}")
         print(f"  answer:  {har.get('answer')}")
 
+        # Prepare environment with SE_CONSOLE_TOKEN if available
+        env = dict(os.environ)
+        # Pass through any SE_CONSOLE_TOKEN from the environment
+        if "SE_CONSOLE_TOKEN" in os.environ:
+            env["SE_CONSOLE_TOKEN"] = os.environ["SE_CONSOLE_TOKEN"]
+
+        # Execute the resume command
+        # SE_ENTRY is the path to the se.py entry point
+        se_entry = repo_root() / "SCRIPTS" / "se.py"
+        cmd_parts = [sys.executable, str(se_entry)] + shlex.split(command)
+        try:
+            result = subprocess.run(
+                cmd_parts,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                env=env,
+            )
+        except subprocess.TimeoutExpired:
+            print(f"FAIL: resume command timed out after 300 seconds")
+            return 1
+        except Exception as exc:
+            print(f"FAIL: failed to start resume command: {exc}")
+            return 1
+
+        # Print stdout/stderr
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+
+        if result.returncode != 0:
+            print(f"FAIL: resume command exited with {result.returncode}")
+            return 1
+
+        # Update HAR with recovery info and set state to RESUMED
         recovery = dict(har.get("recovery") or {})
         recovery["last_resumed_at"] = now_utc()
         recovery["last_resumed_by"] = getattr(args, "by", None) or "unknown"
-        store.update_har(args.har_id, {"recovery": recovery})
-    print(f"PASS: HAR {args.har_id} marked as resumed (dry-run; no process started)")
+        store.update_har(args.har_id, {"recovery": recovery, "state": "RESUMED"})
+    print(f"PASS: HAR {args.har_id} resumed successfully")
     return 0
 
 
@@ -2287,6 +2342,23 @@ def cmd_transition(args) -> int:
         print('Pass --attest "<reason>" to confirm as the responsible human.')
         return 1
 
+    # A written reason is necessary but NOT sufficient: authority is possession
+    # of the SE-CONSOLE operator token, not the string typed into --attest or
+    # the name typed into --by. `--by` remains audit metadata only.
+    operator_proof: dict = {}
+    if manual_conditions:
+        presented, presented_via = authority.resolve_presented_token(args)
+        if presented is None:
+            print("REJECTED: MANUAL attestation requires the SE-CONSOLE operator token.")
+            print("Present it via the SE_CONSOLE_TOKEN environment variable, "
+                  "--console-token-file PATH, or --console-token.")
+            print("REJECTED: lifecycle state unchanged; --attest alone is not authority.")
+            return 1
+        ok, operator_proof = authority.verify(presented, source=presented_via or "unknown")
+        if not ok:
+            print("REJECTED: operator token verification failed (fail closed).")
+            return 1
+
     # Explicit validation: a named condition must really be a MANUAL condition of
     # THIS transition. Naming none attests the whole set, which is what a bare
     # --attest has always meant -- but the set is still recorded, never implied.
@@ -2317,6 +2389,10 @@ def cmd_transition(args) -> int:
         "conditions_attested": attested,
         "revision": revision,
         "context": {"manual_conditions": manual_conditions},
+        # WHY this was allowed at all: the operator token proof (method, time,
+        # fingerprint -- never the token) and whether --by came from the caller.
+        "operator_proof": operator_proof,
+        "actor_source": "flag" if args.by else "manifest-owner",
     })
     write_manifest(project, manifest)
 
@@ -4842,7 +4918,10 @@ def cmd_subagent(args) -> int:
         )
         if not llm_config:
             cause = f"agent '{agent}' has no LLM configuration (llm_config)"
-            remedy = f"Configure AGENTS/{agent}/agent.json or pass --simulate."
+            remedy = (
+                f"Configure AGENTS/{agent}/agent.json llm_config or export "
+                "SE_LLM_PROVIDER/SE_LLM_MODEL (or pass --simulate)."
+            )
         elif declared_provider == "dummy":
             cause = (
                 f"agent '{agent}' is configured with the simulated DummyProvider "
@@ -4851,7 +4930,10 @@ def cmd_subagent(args) -> int:
             remedy = "Configure a real provider or pass --simulate to run it explicitly."
         else:
             cause = f"agent '{agent}' resolved to the simulated DummyProvider"
-            remedy = "Check its llm_config/provider resolution or pass --simulate."
+            remedy = (
+                "Check its llm_config/provider resolution or export "
+                "SE_LLM_PROVIDER/SE_LLM_MODEL (or pass --simulate)."
+            )
         print(f"FAIL: {cause}; refusing to run a simulated execution. {remedy}")
         return 1
 
@@ -7544,4 +7626,251 @@ def cmd_orchestrate_checkpoint(args) -> int:
     return 1
 
 
-import hashlib
+# --------------------------------------------------------------------------- #
+# SHEMA-AI UNIFIED INTERFACE
+# --------------------------------------------------------------------------- #
+
+from types import SimpleNamespace
+
+
+def cmd_shema_main(args) -> int:
+    """`se shema-ai` without subcommand -> Main menu TUI."""
+    from .model_tui.app import ModelPickerApp
+
+    # Add SE-INSTALLER to path for InstallerApp import
+    import sys
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parents[2]
+    installer_path = str(repo_root / "SE-INSTALLER")
+    if installer_path not in sys.path:
+        sys.path.insert(0, installer_path)
+
+    # Simple text-based menu (since we can't easily nest Textual apps)
+    print("╔═════════════════════════════════════════════════════════╗")
+    print("║                    SE SHEMA-AI                            ║")
+    print("║         System Engineering Master System                  ║")
+    print("╠══════════════════════════════════════════════════════════╣")
+    print("║  [1] Model Configuration    — Modelos por agente (TUI)    ║")
+    print("║  [2] Install / Update       — Componentes, MCPs, Runtimes ║")
+    print("║  [3] Sync                   — Declared vs Registered      ║")
+    print("║  [4] Uninstall              — Remove SE-managed MCPs      ║")
+    print("║  [5] Doctor                 — Health & Diagnostics        ║")
+    print("╠══════════════════════════════════════════════════════════╣")
+    print("║  [q] Quit                                                 ║")
+    print("╚══════════════════════════════════════════════════════════╝")
+
+    try:
+        choice = input("Select [1-5, q]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return 0
+
+    if choice == "1":
+        return cmd_shema_model(SimpleNamespace(tui=True, list=False, set=None, unset=None, providers=False, global_model=None, json=False))
+    elif choice == "2":
+        return cmd_shema_install(SimpleNamespace(tui=True, components=None, runtimes=None, dry_run=False))
+    elif choice == "3":
+        return cmd_sync(SimpleNamespace(project=".", dry_run=False, json=False))
+    elif choice == "4":
+        return cmd_uninstall(SimpleNamespace(project=".", apply=False, dry_run=True, json=False))
+    elif choice == "5":
+        return cmd_doctor(SimpleNamespace(project=".", json=False))
+    elif choice == "q":
+        return 0
+    else:
+        print("Invalid choice")
+        return 1
+
+
+def cmd_shema_model(args) -> int:
+    """`se shema-ai model` — Model configuration."""
+    # TUI mode (default)
+    if getattr(args, "tui", True) and not any([getattr(args, "list", False), getattr(args, "set", None), getattr(args, "unset", None), getattr(args, "providers", False), getattr(args, "global_model", None)]):
+        from .model_tui.app import run_model_tui
+        return run_model_tui()
+
+    # CLI mode
+    project_path = Path(getattr(args, "project", None) or ".").resolve()
+
+    # Load current config
+    from .model_tui.config import load_model_config, save_model_config
+    config = load_model_config(project_path)
+
+    # --global-model
+    if getattr(args, "global_model", None):
+        config.global_model = args.global_model
+        save_model_config(project_path, config.global_model, config.agent_overrides)
+        print(f"Global model set to: {config.global_model}")
+        return 0
+
+    # --set AGENT MODEL
+    if getattr(args, "set", None):
+        agent, model_spec = args.set
+        # Parse provider/model[variant]
+        if "/" not in model_spec:
+            print(f"FAIL: model spec must be provider/model[variant]")
+            return 1
+        provider, rest = model_spec.split("/", 1)
+        if "[" in rest and rest.endswith("]"):
+            model, variant = rest.split("[", 1)
+            variant = variant[:-1]
+        else:
+            model, variant = rest, None
+
+        from .model_tui.config import AgentModelOverride, save_model_config
+        config.agent_overrides[agent] = AgentModelOverride(provider=provider, model=model, variant=variant)
+        save_model_config(project_path, config.global_model, config.agent_overrides)
+        print(f"Override set for {agent}: {provider}/{model}" + (f" [{variant}]" if variant else ""))
+        return 0
+
+    # --unset AGENT
+    if getattr(args, "unset", None):
+        if args.unset in config.agent_overrides:
+            del config.agent_overrides[args.unset]
+            from .model_tui.config import save_model_config
+            save_model_config(project_path, config.global_model, config.agent_overrides)
+            print(f"Override removed for {args.unset}")
+        else:
+            print(f"No override found for {args.unset}")
+        return 0
+
+    # --providers
+    if getattr(args, "providers", False):
+        print("Fetching providers from OpenCode...")
+        import asyncio
+        from .model_tui.providers import discover_providers, get_default_providers
+        try:
+            providers = asyncio.run(discover_providers(project_path))
+        except Exception:
+            from .model_tui.providers import get_default_providers
+            providers = get_default_providers()
+        for p in providers:
+            status = "✓ Connected" if p.connected else "✗ Not configured"
+            print(f"\n{p.name} ({p.id}) — {status}")
+            for m in p.models:
+                caps = []
+                if m.tool_call: caps.append("tool_call")
+                if m.reasoning: caps.append("reasoning")
+                if m.vision: caps.append("vision")
+                cap_str = f" ({', '.join(caps)})" if caps else ""
+                print(f"  {m.name} ({m.id}){cap_str}")
+        return 0
+
+    # --list (default)
+    config = load_model_config(project_path)
+    print(f"Global Model: {config.global_model}")
+    print("\nAgent Overrides:")
+    if not config.agent_overrides:
+        print("  (none — all inherit global)")
+    else:
+        for agent, override in sorted(config.agent_overrides.items()):
+            if override.provider and override.model:
+                model_display = f"{override.provider}/{override.model}"
+                if override.variant:
+                    model_display += f" [{override.variant}]"
+                print(f"  {agent}: {model_display}")
+            else:
+                print(f"  {agent}: (invalid override)")
+    return 0
+
+
+def cmd_shema_install(args) -> int:
+    """`se shema-ai install` — Launch SE-INSTALLER TUI."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[2]
+    installer_tui = repo_root / "SE-INSTALLER" / ".venv" / "bin" / "se-installer"
+
+    # On Windows, the executable might be .exe
+    if sys.platform == "win32":
+        installer_tui = repo_root / "SE-INSTALLER" / ".venv" / "Scripts" / "se-installer.exe"
+        if not installer_tui.exists():
+            installer_tui = repo_root / "SE-INSTALLER" / ".venv" / "Scripts" / "se-installer"
+
+    cmd = [str(installer_tui), "tui"]
+    if args.components:
+        cmd.extend(["--components", args.components])
+    if args.runtimes:
+        cmd.extend(["--runtimes", args.runtimes])
+    if args.dry_run:
+        cmd.append("--dry-run")
+
+    if not installer_tui.exists():
+        print(f"FAIL: se-installer not found at {installer_tui}")
+        print("Run `bash SE-INSTALLER/install.sh` first to bootstrap.")
+        return 1
+
+    return subprocess.run(cmd, cwd=str(repo_root)).returncode
+
+
+def cmd_doctor(args) -> int:
+    """`se shema-ai doctor` — Health check."""
+    project = Path(getattr(args, "project", None) or ".").resolve()
+    if not (project / "PROJECT.json").exists():
+        print(f"FAIL: no PROJECT.json in {project}")
+        return 1
+
+    print(f"SE SHEMA-AI Doctor — {project}")
+    print("=" * 50)
+
+    # Check opencode.jsonc
+    config_path = project / "opencode.jsonc"
+    if not config_path.exists():
+        config_path = project / ".opencode" / "opencode.jsonc"
+    if config_path.exists():
+        print("✓ opencode.jsonc found")
+    else:
+        print("✗ opencode.jsonc NOT found")
+
+    # Check MCP servers
+    from .mcpconfig import config_path as mcp_config_path, read_config as mcp_read_config
+    mcp_cfg_path = mcp_config_path(project)
+    if mcp_cfg_path.exists():
+        try:
+            mcp_cfg = mcp_read_config(mcp_cfg_path)
+            servers = list(mcp_cfg.get("mcp", {}).get("servers", {}).keys())
+            print(f"✓ MCP config: {len(servers)} server(s) registered")
+            for s in servers:
+                print(f"  - {s}")
+        except Exception as e:
+            print(f"✗ MCP config parse error: {e}")
+    else:
+        print("✗ No MCP config found")
+
+    # Check lifecycle state
+    from . import lifecycle_state as lc
+    state = lc.load_state(project)
+    if state:
+        print(f"✓ Lifecycle state: {state.get('se_version', 'unknown')}")
+        servers = state.get("servers", {})
+        print(f"  Managed servers: {len(servers)}")
+    else:
+        print("✗ No lifecycle state")
+
+    # Check ceremony
+    from .ceremony import check_project_ceremony
+    try:
+        ceremony = check_project_ceremony(project)
+        if ceremony["failures"]:
+            print(f"✗ Ceremony: {len(ceremony['failures'])} failure(s)")
+            for f in ceremony["failures"]:
+                print(f"  - {f}")
+        else:
+            print("✓ Ceremony: PASS")
+    except Exception as e:
+        print(f"✗ Ceremony check failed: {e}")
+
+    # Check OpenCode CLI
+    import subprocess
+    try:
+        result = subprocess.run(["opencode", "--version"], capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            print(f"✓ OpenCode CLI: {result.stdout.strip()}")
+        else:
+            print("✗ OpenCode CLI not working")
+    except Exception:
+        print("✗ OpenCode CLI not found")
+
+    print("\nDoctor complete.")
+    return 0
