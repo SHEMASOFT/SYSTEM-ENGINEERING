@@ -24,6 +24,7 @@ from ..gates import evaluate_gate, load_gate_model
 from ..artifacts import read_manifest
 from ..memory.engine import MemoryEngine
 from ..agents.runner import AgentRunner
+from ..ceremony import check_project_ceremony
 from .schemas import load_workflow_schema, load_execution_schema
 from .checkpoint import CheckpointManager
 
@@ -165,6 +166,17 @@ class OrchestrationEngine:
         # Load project
         project_dir = self._find_project_dir(workflow["project_id"])
         project_data = read_manifest(project_dir)
+
+        # Ceremony check: fail-closed before any execution (dry-run included)
+        # A project with a declared work profile must have its ceremony floor met.
+        ceremony_result = check_project_ceremony(project_dir)
+        if ceremony_result["failures"]:
+            return {
+                "status": "FAILED",
+                "error": "ceremony not satisfied: " + "; ".join(ceremony_result["failures"]),
+                "ceremony": ceremony_result,
+                "execution_order": [],
+            }
 
         # Initialize checkpoint manager (persistence lives next to the project)
         checkpoint_manager = CheckpointManager(project_dir)
