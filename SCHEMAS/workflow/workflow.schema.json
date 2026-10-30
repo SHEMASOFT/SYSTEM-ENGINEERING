@@ -53,6 +53,11 @@
             "type": "integer",
             "minimum": 256,
             "description": "Optional per-node token budget for context. Overrides agent llm_config.max_tokens. 70% budget rule applies."
+          },
+          "auto_resolve_refs": {
+            "type": "boolean",
+            "default": true,
+            "description": "If true (default), automatically resolve memory references in inputs/context via Dispatcher. If false, references are passed as-is to the agent."
           }
         }
       }

@@ -634,7 +634,7 @@ class OrchestrationEngine:
         inputs = node.get("inputs", {})
         outputs = node.get("outputs", {})
 
-        # Resolve inputs from context
+        # Resolve inputs from context (explicit context:/memory:/literal: prefixes)
         resolved_inputs = {}
         for param, source in inputs.items():
             if source.startswith("memory:"):
@@ -660,6 +660,12 @@ class OrchestrationEngine:
                 context_keys.add(source[8:])  # Remove "context:" prefix
 
         filtered_context = {k: v for k, v in context.items() if k in context_keys} if context_keys else {}
+
+        # P3-A: Auto-resolve memory references in inputs/context via Dispatcher
+        from .dispatcher import create_dispatcher
+        dispatcher = create_dispatcher(self.memory_engine, workflow.get("project_id"), node)
+        resolved_inputs = dispatcher.resolve_inputs(resolved_inputs)
+        filtered_context = dispatcher.resolve_context(filtered_context)
 
         # Resolve max_tokens for this node: node.max_context_tokens > agent default > global default
         max_tokens = node.get("max_context_tokens")

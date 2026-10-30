@@ -1066,5 +1066,302 @@ class AgentRunnerInternalRouteIntegrationTests(unittest.TestCase):
         # Reference was passed but not resolved (consumer didn't need it)
 
 
+class ReferenceDispatcherTests(unittest.TestCase):
+    """Tests for P3-A ReferenceDispatcher auto-resolution."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.project = support.make_project(self.root / "proj")
+        self.project_id = "PRJ-TEST-001"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _make_engine_with_mocked_project(self):
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = OrchestrationEngine(root=self.root)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        engine.memory_engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        return engine
+
+    def test_dispatcher_resolves_memory_id_ref_in_inputs(self):
+        """Dispatcher resolves {"memory_id": "..."} in inputs to actual content."""
+        from se_core.orchestration.dispatcher import ReferenceDispatcher
+
+        engine = self._make_engine_with_mocked_project()
+
+        # Pre-create a memory
+        mem_result = engine.memory_engine.add(
+            project_id=self.project_id,
+            type="decision",
+            content={"key": "resolved_value"},
+            author="test",
+            scope="project",
+        )
+        mem_id = mem_result["memory_id"]
+
+        # Create dispatcher and resolve
+        dispatcher = ReferenceDispatcher(engine.memory_engine, self.project_id)
+        inputs = {"data": {"memory_id": mem_id, "param": "result"}}
+        resolved = dispatcher.resolve_inputs(inputs)
+
+        self.assertEqual(resolved["data"], {"key": "resolved_value"})
+
+    def test_dispatcher_resolves_memory_id_ref_in_context(self):
+        """Dispatcher resolves {"memory_id": "..."} in context to actual content."""
+        from se_core.orchestration.dispatcher import ReferenceDispatcher
+
+        engine = self._make_engine_with_mocked_project()
+
+        mem_result = engine.memory_engine.add(
+            project_id=self.project_id,
+            type="decision",
+            content={"ctx_key": "ctx_value"},
+            author="test",
+            scope="project",
+        )
+        mem_id = mem_result["memory_id"]
+
+        dispatcher = ReferenceDispatcher(engine.memory_engine, self.project_id)
+        context = {"shared": {"memory_id": mem_id}}
+        resolved = dispatcher.resolve_context(context)
+
+        self.assertEqual(resolved["shared"], {"ctx_key": "ctx_value"})
+
+    def test_dispatcher_preserves_non_reference_dicts(self):
+        """Dispatcher doesn't modify dicts that aren't memory references."""
+        from se_core.orchestration.dispatcher import ReferenceDispatcher
+
+        engine = self._make_engine_with_mocked_project()
+        dispatcher = ReferenceDispatcher(engine.memory_engine, self.project_id)
+
+        # Regular content dict (has multiple content-like keys)
+        inputs = {"data": {"output": "value", "status": "ok"}}
+        resolved = dispatcher.resolve_inputs(inputs)
+
+        self.assertEqual(resolved["data"], {"output": "value", "status": "ok"})
+
+    def test_dispatcher_handles_missing_memory_gracefully(self):
+        """Dispatcher returns unresolved marker for missing memory."""
+        from se_core.orchestration.dispatcher import ReferenceDispatcher
+
+        engine = self._make_engine_with_mocked_project()
+        dispatcher = ReferenceDispatcher(engine.memory_engine, self.project_id)
+
+        inputs = {"data": {"memory_id": "NONEXISTENT"}}
+        resolved = dispatcher.resolve_inputs(inputs)
+
+        self.assertIn("_unresolved", resolved["data"])
+        self.assertEqual(resolved["data"]["error"], "not_found")
+
+    def test_dispatcher_respects_auto_resolve_false(self):
+        """Dispatcher with auto_resolve=False returns refs as-is."""
+        from se_core.orchestration.dispatcher import ReferenceDispatcher
+
+        engine = self._make_engine_with_mocked_project()
+
+        mem_result = engine.memory_engine.add(
+            project_id=self.project_id,
+            type="decision",
+            content={"key": "value"},
+            author="test",
+            scope="project",
+        )
+        mem_id = mem_result["memory_id"]
+
+        dispatcher = ReferenceDispatcher(engine.memory_engine, self.project_id, auto_resolve=False)
+        inputs = {"data": {"memory_id": mem_id}}
+        resolved = dispatcher.resolve_inputs(inputs)
+
+        # Should return ref as-is
+        self.assertEqual(resolved["data"], {"memory_id": mem_id})
+
+    def test_dispatcher_handles_nested_references(self):
+        """Dispatcher resolves references nested in lists/dicts."""
+        from se_core.orchestration.dispatcher import ReferenceDispatcher
+
+        engine = self._make_engine_with_mocked_project()
+
+        mem_result = engine.memory_engine.add(
+            project_id=self.project_id,
+            type="decision",
+            content={"nested": "data"},
+            author="test",
+            scope="project",
+        )
+        mem_id = mem_result["memory_id"]
+
+        dispatcher = ReferenceDispatcher(engine.memory_engine, self.project_id)
+        inputs = {
+            "list_refs": [{"memory_id": mem_id}, {"memory_id": mem_id}],
+            "dict_refs": {"a": {"memory_id": mem_id}, "b": "literal"}
+        }
+        resolved = dispatcher.resolve_inputs(inputs)
+
+        self.assertEqual(resolved["list_refs"][0], {"nested": "data"})
+        self.assertEqual(resolved["list_refs"][1], {"nested": "data"})
+        self.assertEqual(resolved["dict_refs"]["a"], {"nested": "data"})
+        self.assertEqual(resolved["dict_refs"]["b"], "literal")
+
+
+class DispatcherIntegrationTests(unittest.TestCase):
+    """End-to-end tests for dispatcher auto-resolution in workflow execution."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.project = support.make_project(self.root / "proj")
+        self.project_id = "PRJ-TEST-001"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write_workflow(self, workflow_id, nodes, edges=None, gates=None):
+        data = {
+            "schema_version": "1",
+            "workflow_id": workflow_id,
+            "project_id": self.project_id,
+            "name": "Test workflow",
+            "version": "1.0.0",
+            "status": "DRAFT",
+            "nodes": nodes,
+            "edges": edges or [],
+            "gates": gates or [],
+        }
+        support.write_json(self.project / "workflows" / f"{workflow_id}.json", data)
+
+    def _make_mock_result(self, status="COMPLETED", output=None, outputs=None, error=None):
+        result = {
+            "status": status,
+            "output": output or {},
+            "outputs": outputs or {},
+        }
+        if error:
+            result["error"] = error
+        return result
+
+    def _make_engine_with_mocked_project(self):
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = OrchestrationEngine(root=self.root)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        engine.memory_engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        return engine
+
+    def test_dispatcher_auto_resolves_in_workflow(self):
+        """Dispatcher auto-resolves memory refs when node has auto_resolve_refs=true (default)."""
+        from se_core.agents.runner import AgentRunner
+        engine = self._make_engine_with_mocked_project()
+
+        # Producer creates memory reference
+        # Consumer receives it via context - should be auto-resolved by dispatcher
+        self._write_workflow("WF-0100", nodes=[
+            {
+                "node_id": "producer",
+                "agent": "analyst",
+                "action": "produce",
+                "inputs": {},
+                "outputs": {"result": "memory:new:shared_data"},
+            },
+            {
+                "node_id": "consumer",
+                "agent": "planner",
+                "action": "consume",
+                "inputs": {"data": "context:result"},
+                "outputs": {},
+            },
+        ], edges=[{"from": "producer", "to": "consumer"}])
+
+        workflow = engine.load_workflow("WF-0100", self.project_id)
+
+        producer_result = self._make_mock_result(
+            output={"result": "shared_content_value"},
+            outputs={"result": "memory:new:shared_data"},
+        )
+        consumer_inputs_captured = {}
+
+        def mock_run(agent_self, action, inputs, context, max_tokens=None):
+            if action == "produce":
+                return producer_result
+            elif action == "consume":
+                consumer_inputs_captured["inputs"] = inputs
+                return {"status": "COMPLETED", "output": {}, "outputs": {}}
+
+        # Mock memory engine to return the created memory
+        created_mem_id = "MEM-DISP-123"
+        created_content = {"result": "shared_content_value"}
+
+        with mock.patch.object(AgentRunner, "run", mock_run):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                with mock.patch.object(engine.memory_engine, "add", return_value={"memory_id": created_mem_id, "status": "created"}):
+                    # The dispatcher will call memory_engine.get again to resolve the reference
+                    def mock_get(mem_id, proj_id):
+                        if mem_id == created_mem_id:
+                            return {"content": created_content, "memory_id": mem_id}
+                        return None
+                    engine.memory_engine.get = mock_get
+                    result = engine.execute("WF-0100", self.project_id)
+
+        self.assertEqual(result["status"], "COMPLETED")
+        # Consumer should receive RESOLVED content, not reference
+        self.assertIn("data", consumer_inputs_captured.get("inputs", {}))
+        data = consumer_inputs_captured["inputs"]["data"]
+        self.assertEqual(data, {"result": "shared_content_value"})
+        self.assertNotIn("memory_id", data)
+
+    def test_dispatcher_can_be_disabled_per_node(self):
+        """Node with auto_resolve_refs=false receives reference, not resolved content."""
+        from se_core.agents.runner import AgentRunner
+        engine = self._make_engine_with_mocked_project()
+
+        self._write_workflow("WF-0101", nodes=[
+            {
+                "node_id": "producer",
+                "agent": "analyst",
+                "action": "produce",
+                "inputs": {},
+                "outputs": {"result": "memory:new:shared_data"},
+            },
+            {
+                "node_id": "consumer",
+                "agent": "planner",
+                "action": "consume",
+                "inputs": {"data": "context:result"},
+                "outputs": {},
+                "auto_resolve_refs": False,  # Disable auto-resolution
+            },
+        ], edges=[{"from": "producer", "to": "consumer"}])
+
+        workflow = engine.load_workflow("WF-0101", self.project_id)
+
+        producer_result = self._make_mock_result(
+            output={"result": "shared_content_value"},
+            outputs={"result": "memory:new:shared_data"},
+        )
+        consumer_inputs_captured = {}
+
+        def mock_run(agent_self, action, inputs, context, max_tokens=None):
+            if action == "produce":
+                return producer_result
+            elif action == "consume":
+                consumer_inputs_captured["inputs"] = inputs
+                return {"status": "COMPLETED", "output": {}, "outputs": {}}
+
+        created_mem_id = "MEM-DISP-456"
+
+        with mock.patch.object(AgentRunner, "run", mock_run):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                with mock.patch.object(engine.memory_engine, "add", return_value={"memory_id": created_mem_id, "status": "created"}):
+                    result = engine.execute("WF-0101", self.project_id)
+
+        self.assertEqual(result["status"], "COMPLETED")
+        # Consumer should receive REFERENCE (not resolved) because auto_resolve_refs=false
+        self.assertIn("data", consumer_inputs_captured.get("inputs", {}))
+        data = consumer_inputs_captured["inputs"]["data"]
+        self.assertIsInstance(data, dict)
+        self.assertIn("memory_id", data)
+        self.assertNotIn("result", data)  # Content not resolved
+
+
 if __name__ == "__main__":
     unittest.main()
