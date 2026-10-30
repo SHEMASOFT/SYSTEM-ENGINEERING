@@ -1363,5 +1363,90 @@ class DispatcherIntegrationTests(unittest.TestCase):
         self.assertNotIn("result", data)  # Content not resolved
 
 
+class NativeExecutionModeTests(unittest.TestCase):
+    """Tests for P3-C native execution mode (OpenCode subagent tool)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.project = support.make_project(self.root / "proj")
+        self.project_id = "PRJ-TEST-001"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write_workflow(self, workflow_id, nodes, edges=None, gates=None, execution_mode="internal"):
+        data = {
+            "schema_version": "1",
+            "workflow_id": workflow_id,
+            "project_id": self.project_id,
+            "name": "Test workflow",
+            "version": "1.0.0",
+            "status": "DRAFT",
+            "nodes": nodes,
+            "edges": edges or [],
+            "gates": gates or [],
+            "execution_mode": execution_mode,
+        }
+        support.write_json(self.project / "workflows" / f"{workflow_id}.json", data)
+
+    def _make_engine_with_mocked_project(self):
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = OrchestrationEngine(root=self.root)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        engine.memory_engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        return engine
+
+    def test_native_execution_mode_returns_prompt(self):
+        """Workflow with execution_mode=native returns NATIVE status and prompt."""
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = self._make_engine_with_mocked_project()
+
+        self._write_workflow("WF-0200", nodes=[
+            {"node_id": "n1", "agent": "analyst", "action": "analyze", "inputs": {}, "outputs": {}},
+        ], execution_mode="native")
+
+        result = engine.execute("WF-0200", self.project_id)
+
+        self.assertEqual(result["status"], "NATIVE")
+        self.assertIn("native_prompt", result)
+        self.assertIn("WF-0200", result["native_prompt"])
+        self.assertIn("subagent", result["native_prompt"])
+
+    def test_internal_execution_mode_still_works(self):
+        """Workflow with execution_mode=internal (default) runs normally."""
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = self._make_engine_with_mocked_project()
+
+        self._write_workflow("WF-0201", nodes=[
+            {"node_id": "n1", "agent": "analyst", "action": "analyze", "inputs": {}, "outputs": {}},
+        ], execution_mode="internal")
+
+        # Mock the runner to avoid actual LLM calls
+        def mock_run(agent_self, action, inputs, context, max_tokens=None):
+            return {"status": "COMPLETED", "output": {}, "outputs": {}}
+
+        with mock.patch("se_core.agents.runner.AgentRunner.run", mock_run):
+            result = engine.execute("WF-0201", self.project_id)
+
+        self.assertEqual(result["status"], "COMPLETED")
+
+    def test_native_execution_via_cli_flag(self):
+        """CLI --native flag generates prompt regardless of workflow config."""
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = self._make_engine_with_mocked_project()
+
+        # Workflow with default internal mode
+        self._write_workflow("WF-0202", nodes=[
+            {"node_id": "n1", "agent": "analyst", "action": "analyze", "inputs": {}, "outputs": {}},
+        ])  # No execution_mode specified -> defaults to internal
+
+        # The CLI --native flag is handled in commands.py, not engine
+        # But we can test that generate_native_execution_prompt works for any workflow
+        prompt = engine.generate_native_execution_prompt("WF-0202", self.project_id)
+        self.assertIn("subagent", prompt)
+        self.assertIn("WF-0202", prompt)
+
+
 if __name__ == "__main__":
     unittest.main()

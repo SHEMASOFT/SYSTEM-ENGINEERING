@@ -90,6 +90,7 @@
     "created_at": { "type": "string", "format": "date-time" },
     "updated_at": { "type": "string", "format": "date-time" },
     "author": { "type": "string" },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "execution_mode": { "type": "string", "enum": ["internal", "native"], "default": "internal", "description": "Execution mode: internal (AgentRunner) or native (OpenCode subagent tool)" }
   }
 }

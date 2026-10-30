@@ -142,6 +142,22 @@ class OrchestrationEngine:
         # Load workflow
         workflow = self.load_workflow(workflow_id, project_id)
 
+        # Check for native execution mode (P3-C)
+        if workflow.get("execution_mode") == "native":
+            return {
+                "status": "NATIVE",
+                "execution_id": execution_id or f"WEX-{random.randint(1000, 9999):04d}",
+                "workflow_id": workflow_id,
+                "project_id": project_id,
+                "message": "Workflow configured for native execution. Use --native flag or run via OpenCode coordinator.",
+                "native_prompt": self.generate_native_execution_prompt(
+                    workflow_id=workflow_id,
+                    project_id=project_id,
+                    execution_id=execution_id,
+                    start_node=start_node,
+                ),
+            }
+
         # Generate execution ID
         if not execution_id:
             execution_id = f"WEX-{random.randint(1000, 9999):04d}"
