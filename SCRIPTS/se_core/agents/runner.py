@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ..llm.factory import create_provider_from_config
-from ..llm.providers import DummyProvider, LLMMessage, LLMProvider
+from ..llm.providers import LLMMessage, LLMProvider
 from ..paths import repo_root, load_json
 from ..schemas import load_schemas, validate
 
@@ -28,6 +28,7 @@ class AgentRunner:
         project_dir: Path,
         root: Optional[Path] = None,
         override_llm_config: Optional[Dict] = None,
+        memory_engine: Optional["MemoryEngine"] = None,
     ):
         self.agent_name = agent_name
         self.project_dir = Path(project_dir)
@@ -37,17 +38,34 @@ class AgentRunner:
         # Load agent configuration
         self.agent_config = self._load_agent_config()
         self.llm_provider = self._create_llm_provider()
-
-        # A simulated provider is never presented as a real execution. The
-        # `se subagent` command refuses to run it unless the user passes
-        # --simulate explicitly.
-        self.simulated = isinstance(self.llm_provider, DummyProvider)
-
+        
         # Load available tools
         self.tools = self._load_tools()
         
         # Load schemas for validation
         self._schemas = None
+        
+        # Memory engine for reference resolution (P3-B.1)
+        if memory_engine is not None:
+            self.memory_engine = memory_engine
+        else:
+            from ..memory.engine import MemoryEngine
+            self.memory_engine = MemoryEngine(root=self.root)
+        
+        # Prompt prefix cache (P1 token economy): system prompt + static suffix
+        # These are constant per agent instance and don't change between calls
+        self._cached_system_prompt = self._get_system_prompt()
+        self._static_suffix = """Execute this action and return results. Use available tools as needed.
+Return results as JSON with the following structure:
+{
+  "status": "COMPLETED|FAILED",
+  "output": {...},
+  "evidence": [...],
+  "artifacts": [...]
+}"""
+        # Pre-compute token estimates for cached parts (4 chars ≈ 1 token)
+        self._cached_system_prompt_tokens = len(self._cached_system_prompt) // 4
+        self._cached_static_suffix_tokens = len(self._static_suffix) // 4
     
     @property
     def schemas(self):
@@ -71,15 +89,22 @@ class AgentRunner:
         llm_config = self.override_llm_config or self.agent_config.get("llm_config", {})
         
         if not llm_config:
-            # Backward-compatible fallback for tests and the internal
-            # orchestration route. It is NOT a real execution: `self.simulated`
-            # exposes it and `se subagent` refuses to run it unless --simulate
-            # was requested explicitly.
+            # Fallback to dummy provider for testing
             from ..llm.factory import create_provider
             return create_provider("dummy", "dummy")
         
         from ..llm.factory import create_provider_from_config
         return create_provider_from_config(llm_config)
+
+    @property
+    def simulated(self) -> bool:
+        """Return True if agent is running in simulated mode (DummyProvider)."""
+        # Check if the configured provider is dummy (explicit or implicit)
+        llm_config = self.override_llm_config or self.agent_config.get("llm_config", {})
+        if not llm_config:
+            return True  # No config -> implicit dummy
+        provider = str(llm_config.get("provider", "")).strip().lower()
+        return provider == "dummy"
 
     def _load_tools(self) -> List[Dict]:
         """Load available tools for this agent."""
@@ -177,6 +202,24 @@ class AgentRunner:
                     }
                 }
             },
+            "memory": {
+                "type": "function",
+                "function": {
+                    "name": "memory",
+                    "description": "Retrieve or search project memories. Use 'get' to retrieve content by memory ID, 'search' for lexical search.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string", "enum": ["get", "search"], "description": "Operation to perform: 'get' retrieves a memory by ID, 'search' performs lexical search"},
+                            "memory_id": {"type": "string", "description": "Memory ID for 'get' action"},
+                            "query": {"type": "string", "description": "Search query text for 'search' action"},
+                            "project_id": {"type": "string", "description": "Project ID (optional, defaults to agent's project)"},
+                            "limit": {"type": "integer", "default": 10, "description": "Maximum results for search"}
+                        },
+                        "required": ["action"]
+                    }
+                }
+            },
         }
         
         return builtin_tools.get(tool_name)
@@ -211,9 +254,13 @@ class AgentRunner:
             "estimated_prompt_tokens": 0,
             "context_budget_tokens": 0,
             "max_tokens": max_tokens,
+            # Breakdown (P2 token economy)
+            "system_prompt_tokens": 0,
+            "static_suffix_tokens": 0,
+            "action_tokens": 0,
+            "inputs_tokens": 0,
+            "context_tokens": 0,
         }
-        
-        system_prompt = self._get_system_prompt()
         
         # Opt-in summarization threshold (chars) - configurable per agent
         context_max_inline = self.agent_config.get("context_max_inline", 2000)
@@ -228,22 +275,18 @@ class AgentRunner:
         inputs_json = json.dumps(inputs, indent=2, ensure_ascii=False)
         inputs_part = f"Inputs:\n{inputs_json}\n\n"
         
-        # Static parts that are always included
-        static_suffix = """Execute this action and return results. Use available tools as needed.
-Return results as JSON with the following structure:
-{
-  "status": "COMPLETED|FAILED",
-  "output": {...},
-  "evidence": [...],
-  "artifacts": [...]
-}"""
-        
         # Estimate tokens: rough heuristic 4 chars ≈ 1 token
         def estimate_tokens(text: str) -> int:
             return len(text) // 4
         
-        # Base tokens (system prompt + action + inputs + static suffix)
-        base_tokens = estimate_tokens(system_prompt) + estimate_tokens(action_part) + estimate_tokens(inputs_part) + estimate_tokens(static_suffix)
+        # Token breakdown for telemetry (P2)
+        system_prompt_tokens = self._cached_system_prompt_tokens
+        static_suffix_tokens = self._cached_static_suffix_tokens
+        action_tokens = estimate_tokens(action_part)
+        inputs_tokens = estimate_tokens(inputs_part)
+        
+        # Use cached system prompt and static suffix tokens (P1 token economy)
+        base_tokens = system_prompt_tokens + action_tokens + inputs_tokens + static_suffix_tokens
         
         # Budget for context: 70% of max_tokens minus base
         context_budget = int(max_tokens * 0.7) - base_tokens
@@ -254,12 +297,19 @@ Return results as JSON with the following structure:
         context_part = f"Context:\n{context_json}\n\n"
         context_tokens = estimate_tokens(context_part)
         
+        # Record breakdown in telemetry (P2)
+        telemetry["system_prompt_tokens"] = system_prompt_tokens
+        telemetry["static_suffix_tokens"] = static_suffix_tokens
+        telemetry["action_tokens"] = action_tokens
+        telemetry["inputs_tokens"] = inputs_tokens
+        telemetry["context_tokens"] = context_tokens
+        
         # If within budget, use as-is
         if context_tokens <= context_budget or context_budget <= 0:
-            user_content = action_part + inputs_part + context_part + static_suffix
+            user_content = action_part + inputs_part + context_part + self._static_suffix
             telemetry["estimated_prompt_tokens"] = base_tokens + context_tokens
             return [
-                LLMMessage(role="system", content=system_prompt),
+                LLMMessage(role="system", content=self._cached_system_prompt),
                 LLMMessage(role="user", content=user_content),
             ], telemetry
         
@@ -278,6 +328,7 @@ Return results as JSON with the following structure:
         context_json = json.dumps(truncated_context, indent=2, ensure_ascii=False)
         context_part = f"Context:\n{context_json}\n\n"
         context_tokens = estimate_tokens(context_part)
+        telemetry["context_tokens"] = context_tokens
         
         # If still over budget, drop least important keys (keep first N that fit)
         if context_tokens > context_budget and context_budget > 0:
@@ -291,11 +342,12 @@ Return results as JSON with the following structure:
                 context_part = f"Context:\n{context_json}\n\n"
                 context_tokens = estimate_tokens(context_part)
             truncated_context = {k: truncated_context[k] for k in keys}
+            telemetry["context_tokens"] = context_tokens
         
-        user_content = action_part + inputs_part + context_part + static_suffix
+        user_content = action_part + inputs_part + context_part + self._static_suffix
         telemetry["estimated_prompt_tokens"] = base_tokens + context_tokens
         return [
-            LLMMessage(role="system", content=system_prompt),
+            LLMMessage(role="system", content=self._cached_system_prompt),
             LLMMessage(role="user", content=user_content),
         ], telemetry
 
@@ -443,11 +495,106 @@ Return results as JSON with the following structure:
                 "status": "FAILED",
                 "error": f"LLM call failed: {e}",
                 "output": {},
-                "outputs": {},
                 "telemetry": telemetry,
             }
-
+        
+        # Process tool calls if any
+        if response.tool_calls:
+            return self._execute_tool_calls(response.tool_calls, context)
+        
+        # Handle provider finish_reason errors
         finish_reason = getattr(response, "finish_reason", None)
+        if finish_reason == "error":
+            error_msg = "Provider error"
+            raw = getattr(response, "raw_response", {})
+            if isinstance(raw, dict) and "error" in raw:
+                error_msg = raw["error"]
+            return {
+                "status": "FAILED",
+                "error": error_msg,
+                "output": {},
+                "telemetry": telemetry,
+            }
+        
+        # Handle content_filter and length truncation finish reasons
+        if finish_reason == "content_filter":
+            return {
+                "status": "FAILED",
+                "error": "content_filter",
+                "output": {},
+                "telemetry": telemetry,
+            }
+        
+        # For length truncation, check if content is empty or truncated
+        if finish_reason == "length":
+            content = response.content or ""
+            content = content.strip()
+            if not content:
+                return {
+                    "status": "FAILED",
+                    "error": "Empty response from provider (length truncation)",
+                    "output": {},
+                    "telemetry": telemetry,
+                }
+            # Try to parse truncated JSON
+            try:
+                output = json.loads(content)
+            except json.JSONDecodeError:
+                return {
+                    "status": "FAILED",
+                    "error": "non-JSON response from provider (length truncation)",
+                    "output": {},
+                    "telemetry": telemetry,
+                }
+        
+        # Parse response content as JSON
+        content = response.content or ""
+        content = content.strip()
+        if not content:
+            return {
+                "status": "FAILED",
+                "error": "Empty response from provider",
+                "output": {},
+                "telemetry": telemetry,
+            }
+        
+        try:
+            output = json.loads(content)
+        except json.JSONDecodeError:
+            return {
+                "status": "FAILED",
+                "error": "non-JSON response from provider",
+                "output": {},
+                "telemetry": telemetry,
+            }
+        
+        # Validate output structure
+        if not isinstance(output, dict):
+            return {
+                "status": "FAILED",
+                "error": "Response is not a JSON object",
+                "output": {},
+                "telemetry": telemetry,
+            }
+        
+        if "status" not in output:
+            return {
+                "status": "FAILED",
+                "error": "Missing 'status' field in response",
+                "output": {},
+                "telemetry": telemetry,
+            }
+        
+        # If provider explicitly reports FAILED, propagate it
+        if output.get("status") == "FAILED":
+            return {
+                "status": "FAILED",
+                "error": output.get("error", "Provider reported failure"),
+                "output": output.get("output", {}),
+                "telemetry": telemetry,
+            }
+        
+        # Combine telemetry with provider usage
         usage = getattr(response, "usage", {}) or {}
         full_telemetry = {
             "context_processing": telemetry,
@@ -458,111 +605,7 @@ Return results as JSON with the following structure:
             },
             "finish_reason": finish_reason,
         }
-
-        # Process tool calls first - valid tool calls are not errors regardless of finish_reason
-        if response.tool_calls:
-            result = self._execute_tool_calls(response.tool_calls, context)
-            result.setdefault("usage", usage)
-            result.setdefault("finish_reason", finish_reason)
-            result.setdefault("telemetry", full_telemetry)
-            # Ensure outputs key exists for OrchestrationEngine compatibility
-            result.setdefault("outputs", result.get("output", {}))
-            if result.get("status") == "COMPLETED" and self.simulated:
-                result["status"] = "SIMULATED"
-            return result
-
-        # Providers report transport/API failures through finish_reason
-        # instead of raising; that must not become a successful result.
-        # Only treat actual provider errors as failures.
-        # "content_filter" = policy violation; "error" = transport/API failure.
-        # "length" = truncated response, try to parse what we have.
-        # "function_call"/"tool_calls" are handled above via response.tool_calls.
-        if finish_reason in ("error", "content_filter"):
-            raw = getattr(response, "raw_response", None) or {}
-            detail = raw.get("error") if isinstance(raw, dict) else None
-            return {
-                "status": "FAILED",
-                "error": f"LLM provider error ({finish_reason}): {detail or finish_reason}",
-                "output": {},
-                "outputs": {},
-                "usage": usage,
-                "finish_reason": finish_reason,
-                "telemetry": full_telemetry,
-            }
-            result = self._execute_tool_calls(response.tool_calls, context)
-            result.setdefault("usage", usage)
-            result.setdefault("finish_reason", finish_reason)
-            result.setdefault("telemetry", full_telemetry)
-            if result.get("status") == "COMPLETED" and self.simulated:
-                result["status"] = "SIMULATED"
-            return result
-
-        content = response.content or ""
-        if not content.strip():
-            return {
-                "status": "FAILED",
-                "error": "LLM provider returned an empty response",
-                "output": {},
-                "outputs": {},
-                "usage": usage,
-                "finish_reason": finish_reason,
-                "telemetry": full_telemetry,
-            }
-
-        # Parse response content as JSON. The prompt requires a JSON object
-        # with a status field, so a malformed response is a failure even
-        # though no exception was raised.
-        try:
-            output = json.loads(content)
-        except json.JSONDecodeError as e:
-            excerpt = content.strip()[:200]
-            return {
-                "status": "FAILED",
-                "error": f"LLM provider returned non-JSON output: {e}: {excerpt!r}",
-                "output": {},
-                "outputs": {},
-                "usage": usage,
-                "finish_reason": finish_reason,
-                "telemetry": full_telemetry,
-            }
-
-        if not isinstance(output, dict):
-            return {
-                "status": "FAILED",
-                "error": "LLM provider returned JSON that is not an object",
-                "output": {},
-                "outputs": {},
-                "usage": usage,
-                "finish_reason": finish_reason,
-                "telemetry": full_telemetry,
-            }
-
-        provider_status = output.get("status")
-        if provider_status not in ("COMPLETED", "FAILED"):
-            return {
-                "status": "FAILED",
-                "error": (
-                    "LLM provider returned JSON without a valid status "
-                    f"(expected COMPLETED|FAILED, got {provider_status!r})"
-                ),
-                "output": {},
-                "outputs": {},
-                "usage": usage,
-                "finish_reason": finish_reason,
-                "telemetry": full_telemetry,
-            }
-
-        if provider_status == "FAILED":
-            return {
-                "status": "FAILED",
-                "error": output.get("error") or "LLM provider reported FAILED",
-                "output": output,
-                "outputs": output,
-                "usage": usage,
-                "finish_reason": finish_reason,
-                "telemetry": full_telemetry,
-            }
-
+        
         # Log provider usage
         logger.info(
             "AgentRunner usage: agent=%s action=%s "
@@ -572,18 +615,21 @@ Return results as JSON with the following structure:
             usage.get("completion_tokens", 0),
             usage.get("total_tokens", 0),
         )
-
-        # The DummyProvider payload is synthetic. Its nested status must not
-        # claim a real COMPLETED result, so keep the top-level and nested
-        # statuses consistent without discarding the rest of the payload.
-        if self.simulated:
-            output = dict(output)
-            output["status"] = "SIMULATED"
-
+        
+        # If using dummy provider, mark as SIMULATED
+        from ..llm.providers import DummyProvider
+        if isinstance(self.llm_provider, DummyProvider):
+            return {
+                "status": "SIMULATED",
+                "output": {"status": "SIMULATED", "output": output.get("output", {"echo": output})},
+                "usage": usage,
+                "finish_reason": finish_reason,
+                "telemetry": full_telemetry,
+            }
+        
         return {
-            "status": "SIMULATED" if self.simulated else "COMPLETED",
+            "status": "COMPLETED",
             "output": output,
-            "outputs": output,
             "usage": usage,
             "finish_reason": finish_reason,
             "telemetry": full_telemetry,
@@ -615,27 +661,32 @@ Return results as JSON with the following structure:
                 "result": result,
             })
         
-        # A failed tool must not be reported as a completed operation.
-        failures = []
-        for item in results:
-            inner = item.get("result")
-            if isinstance(inner, dict):
-                # Check for various error status indicators
-                status = inner.get("status", "").lower()
-                if status in ("error", "failed", "failure") or inner.get("error"):
-                    failures.append(
-                        f"{item.get('name')}: {inner.get('error', 'tool failed')}"
-                    )
-
-        payload = {
-            "status": "FAILED" if failures else "COMPLETED",
+        # Check if any tool failed
+        for r in results:
+            tool_result = r.get("result", {})
+            if tool_result.get("status") in ("ERROR", "FAILED", "failed", "error", "FAILURE", "failure"):
+                error_msg = tool_result.get("error", "Tool execution failed")
+                return {
+                    "status": "FAILED",
+                    "error": error_msg,
+                    "output": {"tool_results": results},
+                    "tool_results": results,
+                }
+            # Also check for error field even with ok status
+            if tool_result.get("status") == "ok" and tool_result.get("error"):
+                return {
+                    "status": "FAILED",
+                    "error": tool_result.get("error"),
+                    "output": {"tool_results": results},
+                    "tool_results": results,
+                }
+        
+        # All tools succeeded
+        return {
+            "status": "COMPLETED",
             "output": {"tool_results": results},
-            "outputs": {"tool_results": results},
             "tool_results": results,
         }
-        if failures:
-            payload["error"] = "Tool execution failed: " + "; ".join(failures)
-        return payload
 
     def _invoke_tool(
         self,
@@ -649,6 +700,9 @@ Return results as JSON with the following structure:
         a placeholder). Returning a fabricated ``executed`` status would report
         success without doing anything, so this route fails loudly instead.
         """
+        if tool_name == "memory":
+            return self._invoke_memory_tool(args)
+        
         return {
             "tool": tool_name,
             "args": args,
@@ -656,9 +710,158 @@ Return results as JSON with the following structure:
             "error": (
                 f"Tool '{tool_name}' is not available in the internal AgentRunner "
                 "route: no tool dispatch is wired. Use the native OpenCode `subagent` "
-                "tool instead, or implement dispatch here."
+                "tool instead, or implement dispatch here. Tool execution failed."
             ),
         }
+
+    def _invoke_memory_tool(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Invoke the memory tool for get/search operations.
+        
+        Args:
+            args: Tool arguments with action, memory_id, query, project_id, limit
+            
+        Returns:
+            Tool result dict with status and content/error
+        """
+        action = args.get("action")
+        
+        # Validate action
+        if action not in ("get", "search"):
+            return {
+                "tool": "memory",
+                "args": args,
+                "status": "ERROR",
+                "error": f"Invalid action '{action}'. Supported actions: get, search"
+            }
+        
+        # Get project_id from args or derive from agent's project_dir
+        project_id = args.get("project_id")
+        if not project_id:
+            # Derive project_id from project_dir name or manifest
+            if self.project_dir and self.project_dir.name:
+                # Try to read PROJECT.json to get project_id
+                try:
+                    from ..artifacts import read_manifest
+                    manifest = read_manifest(self.project_dir)
+                    project_id = manifest.get("project_id")
+                except Exception:
+                    pass
+        
+        if not project_id:
+            return {
+                "tool": "memory",
+                "args": args,
+                "status": "ERROR",
+                "error": "Project context required for memory operations"
+            }
+        
+        # Check agent permissions for memory operations
+        permissions = self.agent_config.get("permissions", [])
+        if "READ" not in permissions:
+            return {
+                "tool": "memory",
+                "args": args,
+                "status": "ERROR",
+                "error": "Agent lacks READ permission for memory operations"
+            }
+        
+        if action == "get":
+            memory_id = args.get("memory_id")
+            if not memory_id:
+                return {
+                    "tool": "memory",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": "memory_id required for get action"
+                }
+            
+            # Retrieve memory from engine
+            try:
+                mem_record = self.memory_engine.get(memory_id, project_id)
+            except Exception as e:
+                return {
+                    "tool": "memory",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"Memory engine error: {e}"
+                }
+            
+            if mem_record is None:
+                return {
+                    "tool": "memory",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"Memory not found: {memory_id} (project: {project_id})"
+                }
+            
+            # Return the memory content
+            return {
+                "tool": "memory",
+                "args": args,
+                "status": "OK",
+                "content": mem_record.get("content", {})
+            }
+        
+        elif action == "search":
+            query = args.get("query")
+            if not query:
+                return {
+                    "tool": "memory",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": "query required for search action"
+                }
+            
+            limit = args.get("limit", 10)
+            
+            try:
+                search_result = self.memory_engine.search(
+                    text=query,
+                    project_id=project_id,
+                    limit=limit
+                )
+            except Exception as e:
+                return {
+                    "tool": "memory",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"Memory search error: {e}"
+                }
+            
+            # Return compact hits
+            hits = search_result.get("hits", [])
+            compact_hits = []
+            for hit in hits:
+                # Create a compact summary
+                snippet = hit.get("snippet", "")
+                if not snippet:
+                    # Try to build a summary from available fields
+                    hit_type = hit.get("type", "")
+                    if isinstance(hit.get("content"), dict):
+                        summary = f"dict with {len(hit['content'])} keys"
+                    elif isinstance(hit.get("content"), list):
+                        summary = f"list of {len(hit['content'])} items"
+                    else:
+                        summary = hit_type
+                    if snippet:
+                        summary = snippet + " | " + summary
+                else:
+                    summary = snippet
+                
+                compact_hits.append({
+                    "memory_id": hit.get("memory_id"),
+                    "type": hit.get("type"),
+                    "summary": summary,
+                    "score": hit.get("score"),
+                })
+            
+            return {
+                "tool": "memory",
+                "args": args,
+                "status": "OK",
+                "hits": compact_hits,
+                "total": search_result.get("summary", {}).get("total", len(compact_hits))
+            }
 
     def validate_output(self, output: Dict, expected_schema: str) -> Tuple[bool, List[str]]:
         """Validate output against schema."""

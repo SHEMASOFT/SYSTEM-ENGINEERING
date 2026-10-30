@@ -4782,7 +4782,13 @@ def cmd_subagent(args) -> int:
     # The fallback stays available for tests and the internal orchestration
     # route, but `se subagent` requires an explicit flag. Derive the cause from
     # the declared configuration instead of always claiming llm_config is absent.
-    if runner.simulated and not simulate:
+    from .agents.runner import AgentRunner
+    from .llm.providers import DummyProvider
+    
+    # Check if the actual provider is a DummyProvider (simulated)
+    actual_provider_is_dummy = isinstance(runner.llm_provider, DummyProvider)
+    
+    if actual_provider_is_dummy and not simulate:
         llm_config = runner.override_llm_config or runner.agent_config.get("llm_config")
         declared_provider = (
             str(llm_config.get("provider", "")).strip().lower()

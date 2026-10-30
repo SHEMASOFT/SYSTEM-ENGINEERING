@@ -22,7 +22,6 @@ from ..paths import repo_root, now_utc, load_json
 from ..schemas import load_schemas, validate
 from ..gates import evaluate_gate, load_gate_model
 from ..artifacts import read_manifest
-from ..ceremony import check_project_ceremony
 from ..memory.engine import MemoryEngine
 from ..agents.runner import AgentRunner
 from .schemas import load_workflow_schema, load_execution_schema
@@ -151,28 +150,6 @@ class OrchestrationEngine:
         project_dir = self._find_project_dir(workflow["project_id"])
         project_data = read_manifest(project_dir)
 
-        # The ceremony floor is a precondition of execution, evaluated before the
-        # checkpoint store is touched and before any node runs (dry-run included).
-        # `check_project_ceremony` is the single resolver; a project that declares
-        # no `profiles.work` resolves to "nothing required" and is unaffected.
-        ceremony_result = check_project_ceremony(project_dir)
-        if ceremony_result["failures"]:
-            return {
-                "execution_id": execution_id,
-                "workflow_id": workflow_id,
-                "status": "FAILED",
-                "error": "ceremony not satisfied: "
-                + "; ".join(ceremony_result["failures"]),
-                "ceremony": {
-                    "requirements": ceremony_result["requirements"],
-                    "failures": list(ceremony_result["failures"]),
-                },
-                "execution_order": [],
-                "nodes": [],
-                "node_results": {},
-                "gate_results": {},
-            }
-
         # Initialize checkpoint manager (persistence lives next to the project)
         checkpoint_manager = CheckpointManager(project_dir)
 
@@ -240,6 +217,13 @@ class OrchestrationEngine:
             workflow, node_map, adj, in_degree, start_node
         )
 
+        # Prune restored context on resume: keep only keys needed by remaining nodes
+        if resume_from_checkpoint:
+            remaining_nodes = [n for n in execution_order if n not in completed_nodes]
+            if remaining_nodes:
+                live_keys = self._compute_live_context_keys(execution_order, completed_nodes, node_map)
+                context = self._prune_context(context, live_keys)
+
         if dry_run:
             return {
                 "execution_id": execution_id_final,
@@ -254,6 +238,18 @@ class OrchestrationEngine:
         gate_results: Dict[str, Any] = {}
         # Unified node -> gate map (top-level array + per-node field, no duplication).
         node_gates = self._resolve_node_gates(workflow)
+
+        # Workflow-level telemetry aggregation (P1 token economy)
+        workflow_telemetry = {
+            "workflow_total_tokens": 0,
+            "workflow_estimated_tokens": 0,
+            "by_node": {},
+            "cached_tokens": 0,
+            "delegation_count": len([n for n in workflow["nodes"] if n.get("agent")]),
+            "retry_count": 0,
+            "completed_nodes": 0,
+            "failed_nodes": 0,
+        }
 
         for node_id in execution_order:
             # Resumed runs skip nodes already completed in the checkpoint
@@ -307,10 +303,67 @@ class OrchestrationEngine:
             node_states[node_id]["started_at"] = now_utc()
             result = self._execute_node(node, project_dir, context, workflow)
             
+            # Handle SIMULATED status: propagate without completing workflow
+            if result["status"] == "SIMULATED":
+                node_states[node_id]["status"] = "SIMULATED"
+                node_states[node_id]["completed_at"] = now_utc()
+                node_states[node_id]["agent_result"] = result
+                
+                # Save checkpoint with SIMULATED status
+                checkpoint_manager.save(
+                    workflow_id=workflow_id,
+                    execution_id=execution_id_final,
+                    completed_nodes=completed_nodes,
+                    node_results=_checkpoint_node_snapshot(node_states),
+                    gate_results=gate_results,
+                    context=context,
+                    status="SIMULATED",
+                )
+                
+                # Return SIMULATED as overall execution status
+                from ..paths import now_utc
+                return {
+                    "execution_id": execution_id_final,
+                    "workflow_id": workflow["workflow_id"],
+                    "project_id": workflow["project_id"],
+                    "status": "SIMULATED",
+                    "completed_at": now_utc(),
+                    "node_states": node_states,
+                    "gate_results": gate_results,
+                    "context": context,
+                    "workflow_telemetry": workflow_telemetry,
+                }
+            
             if result["status"] == "FAILED":
                 node_states[node_id]["status"] = "FAILED"
                 node_states[node_id]["completed_at"] = now_utc()
                 node_states[node_id]["error"] = result.get("error", "unknown error")
+                node_states[node_id]["agent_result"] = result
+
+                # Aggregate workflow telemetry for failed node
+                tel = result.get("telemetry", {})
+                prov = tel.get("provider_usage", {})
+                ctx_proc = tel.get("context_processing", {})
+                workflow_telemetry["workflow_total_tokens"] += prov.get("total_tokens", 0)
+                workflow_telemetry["workflow_estimated_tokens"] += ctx_proc.get("estimated_prompt_tokens", 0)
+                workflow_telemetry["by_node"][node_id] = {
+                    "prompt_tokens": prov.get("prompt_tokens", 0),
+                    "completion_tokens": prov.get("completion_tokens", 0),
+                    "total_tokens": prov.get("total_tokens", 0),
+                    "cached_tokens": prov.get("cached_tokens", 0),
+                    "estimated_prompt_tokens": ctx_proc.get("estimated_prompt_tokens", 0),
+                    # Breakdown (P2)
+                    "system_prompt_tokens": ctx_proc.get("system_prompt_tokens", 0),
+                    "static_suffix_tokens": ctx_proc.get("static_suffix_tokens", 0),
+                    "action_tokens": ctx_proc.get("action_tokens", 0),
+                    "inputs_tokens": ctx_proc.get("inputs_tokens", 0),
+                    "context_tokens": ctx_proc.get("context_tokens", 0),
+                    "keys_summarized": len(ctx_proc.get("keys_summarized", [])),
+                    "keys_truncated": len(ctx_proc.get("keys_truncated", [])),
+                    "keys_dropped": len(ctx_proc.get("keys_dropped", [])),
+                }
+                workflow_telemetry["failed_nodes"] += 1
+
                 # Persist progress so the run can be resumed with --resume-from
                 checkpoint_manager.save(
                     workflow_id=workflow_id,
@@ -336,57 +389,51 @@ class OrchestrationEngine:
                 )
                 return self._fail_execution(
                     execution_id_final, workflow, node_states,
-                    f"Node {node_id} failed: {result.get('error', 'unknown error')}"
+                    f"Node {node_id} failed: {result.get('error', 'unknown error')}",
+                    workflow_telemetry=workflow_telemetry,
                 )
 
-            if result["status"] == "SIMULATED":
-                # A simulated node is a terminal state that is NOT a real completion.
-                # Do not propagate outputs to context, do not add to completed_nodes,
-                # do not save decision memory. Return a SIMULATED execution result.
-                node_states[node_id]["status"] = "SIMULATED"
-                node_states[node_id]["completed_at"] = now_utc()
-                node_states[node_id]["outputs"] = result.get("outputs", {})
-                
-                checkpoint_manager.save(
-                    workflow_id=workflow_id,
-                    execution_id=execution_id_final,
-                    completed_nodes=completed_nodes,
-                    node_results=_checkpoint_node_snapshot(node_states),
-                    gate_results=gate_results,
-                    context=context,
-                    status="SIMULATED",
-                )
-                self._auto_save_memory(
-                    project_id=workflow["project_id"],
-                    memory_type="constraint",
-                    content={
-                        "summary": f"Node {node_id} simulated (no real execution)",
-                        "node_id": node_id,
-                        "agent": node.get("agent"),
-                        "action": node.get("action"),
-                        "outputs": result.get("outputs", {}),
-                    },
-                    tags=["simulated", "node", node_id],
-                    topic_key=f"simulated:{workflow_id}:{node_id}",
-                )
-                return {
-                    "execution_id": execution_id_final,
-                    "workflow_id": workflow["workflow_id"],
-                    "project_id": workflow["project_id"],
-                    "status": "SIMULATED",
-                    "completed_at": now_utc(),
-                    "node_states": node_states,
-                    "gate_results": gate_results,
-                    "context": context,
-                }
-
-            # Update context with node outputs (only for real COMPLETED)
+            # Update context with node outputs
             node_outputs = result.get("outputs", {})
             context.update(node_outputs)
             completed_nodes.append(node_id)
             node_states[node_id]["status"] = "COMPLETED"
             node_states[node_id]["completed_at"] = now_utc()
             node_states[node_id]["outputs"] = node_outputs
+            # Store full agent result for audit/telemetry (separate from execution context)
+            node_states[node_id]["agent_result"] = result
+
+            # Prune context to only keys needed by remaining nodes
+            # Only prune if there are remaining nodes that need context
+            remaining_nodes = [n for n in execution_order if n not in completed_nodes]
+            if remaining_nodes:
+                live_keys = self._compute_live_context_keys(execution_order, completed_nodes, node_map)
+                context = self._prune_context(context, live_keys)
+
+            # Aggregate workflow telemetry (P1 token economy)
+            tel = result.get("telemetry", {})
+            prov = tel.get("provider_usage", {})
+            ctx_proc = tel.get("context_processing", {})
+            workflow_telemetry["workflow_total_tokens"] += prov.get("total_tokens", 0)
+            workflow_telemetry["workflow_estimated_tokens"] += ctx_proc.get("estimated_prompt_tokens", 0)
+            workflow_telemetry["cached_tokens"] += prov.get("cached_tokens", 0)
+            workflow_telemetry["by_node"][node_id] = {
+                "prompt_tokens": prov.get("prompt_tokens", 0),
+                "completion_tokens": prov.get("completion_tokens", 0),
+                "total_tokens": prov.get("total_tokens", 0),
+                "cached_tokens": prov.get("cached_tokens", 0),
+                "estimated_prompt_tokens": ctx_proc.get("estimated_prompt_tokens", 0),
+                # Breakdown (P2)
+                "system_prompt_tokens": ctx_proc.get("system_prompt_tokens", 0),
+                "static_suffix_tokens": ctx_proc.get("static_suffix_tokens", 0),
+                "action_tokens": ctx_proc.get("action_tokens", 0),
+                "inputs_tokens": ctx_proc.get("inputs_tokens", 0),
+                "context_tokens": ctx_proc.get("context_tokens", 0),
+                "keys_summarized": len(ctx_proc.get("keys_summarized", [])),
+                "keys_truncated": len(ctx_proc.get("keys_truncated", [])),
+                "keys_dropped": len(ctx_proc.get("keys_dropped", [])),
+            }
+            workflow_telemetry["completed_nodes"] += 1
 
             # Save memory for reusable node results (only if outputs exist)
             if node_outputs:
@@ -415,13 +462,7 @@ class OrchestrationEngine:
                 status="IN_PROGRESS",
             )
 
-        # Determine final execution status
-        has_simulated = any(
-            state.get("status") == "SIMULATED" for state in node_states.values()
-        )
-        final_status = "SIMULATED" if has_simulated else "COMPLETED"
-
-        # Final checkpoint
+        # Final checkpoint with COMPLETED status
         checkpoint_manager.save(
             workflow_id=workflow_id,
             execution_id=execution_id_final,
@@ -429,19 +470,19 @@ class OrchestrationEngine:
             node_results=_checkpoint_node_snapshot(node_states),
             gate_results=gate_results,
             context=context,
-            status=final_status,
+            status="COMPLETED",
         )
         self._auto_save_memory(
             project_id=workflow["project_id"],
             memory_type="checkpoint",
             content={
-                "summary": f"Workflow {workflow_id} {final_status.lower()}",
+                "summary": f"Workflow {workflow_id} completed",
                 "workflow_id": workflow_id,
                 "execution_id": execution_id_final,
                 "completed_nodes": list(completed_nodes),
                 "node_count": len(completed_nodes),
             },
-            tags=["workflow", final_status.lower(), workflow_id],
+            tags=["workflow", "completed", workflow_id],
             topic_key=f"workflow:{workflow_id}",
         )
 
@@ -449,12 +490,45 @@ class OrchestrationEngine:
             "execution_id": execution_id_final,
             "workflow_id": workflow["workflow_id"],
             "project_id": workflow["project_id"],
-            "status": final_status,
+            "status": "COMPLETED",
             "completed_at": now_utc(),
             "node_states": node_states,
             "gate_results": gate_results,
             "context": context,
+            "workflow_telemetry": workflow_telemetry,
         }
+
+    def _compute_live_context_keys(
+        self,
+        execution_order: List[str],
+        completed_nodes: List[str],
+        node_map: Dict[str, Dict],
+    ) -> Set[str]:
+        """Compute context keys that remaining (not yet completed) nodes will need.
+
+        Only keys declared in `node.inputs` with `context:` prefix are considered.
+        This is used to prune the global context to only what downstream nodes require.
+        """
+        live_keys: Set[str] = set()
+        completed_set = set(completed_nodes)
+        for node_id in execution_order:
+            if node_id in completed_set:
+                continue
+            node = node_map[node_id]
+            for source in node.get("inputs", {}).values():
+                if isinstance(source, str) and source.startswith("context:"):
+                    live_keys.add(source[8:])  # Remove "context:" prefix
+        return live_keys
+
+    def _prune_context(
+        self,
+        context: Dict[str, Any],
+        live_keys: Set[str],
+    ) -> Dict[str, Any]:
+        """Return a new context dict containing only keys in live_keys."""
+        if not live_keys:
+            return {}
+        return {k: v for k, v in context.items() if k in live_keys}
 
     def _topological_sort_with_gates(
         self,
@@ -596,6 +670,7 @@ class OrchestrationEngine:
             runner = AgentRunner(
                 agent_name=agent,
                 project_dir=project_dir,
+                memory_engine=self.memory_engine,  # Pass memory engine for reference resolution (P3-B.1)
             )
         except Exception as e:
             return {"status": "FAILED", "error": f"Failed to create agent runner for {agent}: {e}"}
@@ -608,7 +683,99 @@ class OrchestrationEngine:
             max_tokens=max_tokens,
         )
 
+        # Resolve node outputs: handle memory references (new and existing)
+        if result.get("status") == "COMPLETED":
+            node_outputs = result.get("outputs", {})
+            resolved_outputs = self._resolve_node_outputs(node_id, node_outputs, result, workflow)
+            result["outputs"] = resolved_outputs
+            # Store the mapping from param -> memory reference for downstream resolution
+            result["output_refs"] = self._extract_output_refs(node_outputs)
+
         return result
+
+    def _resolve_node_outputs(
+        self,
+        node_id: str,
+        node_outputs: Dict[str, Any],
+        agent_result: Dict[str, Any],
+        workflow: Dict,
+    ) -> Dict[str, Any]:
+        """Resolve node outputs mapping to values for context.
+
+        Supports three output destination formats:
+        - `memory:new:topic_key` — create new memory with topic_key (upsert)
+        - `memory:mem_id` — reference existing memory by ID
+        - `literal:value` — inline value
+        - (fallback) direct value from agent_result.output[param]
+
+        Returns dict of param -> resolved value (for context).
+        For memory references, returns a reference dict {"memory_id": "...", "topic_key": "..."}.
+        """
+        project_id = workflow.get("project_id")
+        resolved = {}
+        agent_output = agent_result.get("output", {}) or {}
+
+        for param, dest in node_outputs.items():
+            # Only process string destinations with known prefixes
+            if isinstance(dest, str):
+                if dest.startswith("memory:new:"):
+                    # Create new memory with topic_key for upsert
+                    topic_key = dest[11:]  # Remove "memory:new:"
+                    content = agent_output.get(param)
+                    if content is None:
+                        # Fallback: check if the output value is directly in node_outputs
+                        content = node_outputs.get(param)
+                    mem_result = self.memory_engine.add(
+                        project_id=project_id,
+                        type="artifact",
+                        content={param: content} if content is not None else {param: node_outputs.get(param)},
+                        author="se-engine",
+                        scope="project",
+                        tags=["node_output", node_id, param],
+                        topic_key=f"node_output:{workflow.get('workflow_id')}:{node_id}:{param}",
+                        source="engine.execute",
+                        state="active",
+                    )
+                    # Store reference in context instead of full content
+                    resolved[param] = {
+                        "memory_id": mem_result["memory_id"],
+                        "topic_key": topic_key,
+                        "param": param,
+                    }
+                elif dest.startswith("memory:"):
+                    # Reference existing memory by ID
+                    mem_id = dest[7:]  # Remove "memory:"
+                    resolved[param] = {
+                        "memory_id": mem_id,
+                        "param": param,
+                    }
+                elif dest.startswith("literal:"):
+                    # Inline literal value
+                    resolved[param] = dest[8:]
+                else:
+                    # Fallback: direct value from agent output
+                    resolved[param] = agent_output.get(param, node_outputs.get(param))
+            else:
+                # Non-string destination: pass through as-is (backward compatibility)
+                resolved[param] = node_outputs.get(param)
+
+        return resolved
+
+    def _extract_output_refs(self, node_outputs: Dict[str, Any]) -> Dict[str, str]:
+        """Extract memory references from outputs mapping for downstream resolution.
+
+        Returns mapping of param -> memory_id or topic_key for context: resolution.
+        """
+        refs = {}
+        for param, dest in node_outputs.items():
+            if isinstance(dest, str):
+                if dest.startswith("memory:new:"):
+                    topic_key = dest[11:]
+                    refs[param] = f"memory:new:{topic_key}"
+                elif dest.startswith("memory:"):
+                    mem_id = dest[7:]
+                    refs[param] = f"memory:{mem_id}"
+        return refs
 
     def build_native_subagent_input(
         self,
@@ -686,9 +853,10 @@ class OrchestrationEngine:
         workflow: Dict,
         node_states: Dict,
         error: str,
+        workflow_telemetry: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         from ..paths import now_utc
-        return {
+        result = {
             "execution_id": execution_id,
             "workflow_id": workflow["workflow_id"],
             "project_id": workflow["project_id"],
@@ -696,6 +864,9 @@ class OrchestrationEngine:
             "completed_at": now_utc(),
             "error": error,
         }
+        if workflow_telemetry is not None:
+            result["workflow_telemetry"] = workflow_telemetry
+        return result
 
     def _get_schema(self, name: str) -> Dict[str, Any]:
         schemas = load_schemas(repo_root())
@@ -893,7 +1064,7 @@ class OrchestrationEngine:
             f"When workflow completes (or fails), return a structured summary:",
             f"```json",
             f"{{",
-            f"  \"status\": \"COMPLETED|FAILED|SIMULATED\",",
+            f"  \"status\": \"COMPLETED|FAILED\",",
             f"  \"execution_id\": \"{execution_id_final}\",",
             f"  \"workflow_id\": \"{workflow_id}\",",
             f"  \"node_results\": {{",

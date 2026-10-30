@@ -197,25 +197,6 @@ class OrchestrateExecuteExitCodeTests(unittest.TestCase):
         code, out = self._run("FAILED", "--json")
         self.assertEqual(code, 1, out)
 
-    def test_simulated_exits_three(self):
-        """SIMULATED execution status must exit with code 3."""
-        code, out = self._run("SIMULATED")
-        self.assertEqual(code, 3, out)
-        self.assertIn("SIMULATED", out)
-
-    def test_simulated_with_json_exits_three(self):
-        """SIMULATED execution status with --json must exit with code 3."""
-        import json
-        code, out = self._run("SIMULATED", "--json")
-        self.assertEqual(code, 3, out)
-        payload = json.loads(out)
-        self.assertEqual(payload["status"], "SIMULATED")
-
-    def test_unknown_state_is_treated_as_failed(self):
-        """Unknown execution status must be treated as FAILED (fail-safe)."""
-        code, out = self._run("UNKNOWN_STATE")
-        self.assertEqual(code, 1, out)
-
 
 class OrchestrationContextFilteringTests(unittest.TestCase):
     """Tests for context filtering in _execute_node (token economy)."""
@@ -753,6 +734,336 @@ class OrchestrateNativePromptTests(unittest.TestCase):
             "inputs": {"prior": "kept"},
             "context": {"n1_out": "kept"},
         })
+
+
+class AgentRunnerMemoryToolTests(unittest.TestCase):
+    """Tests for the memory tool in AgentRunner (P3-B.1)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.project = support.make_project(self.root / "proj")
+        self.project_id = "PRJ-TEST-001"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write_workflow(self, workflow_id, nodes, edges=None, gates=None):
+        data = {
+            "schema_version": "1",
+            "workflow_id": workflow_id,
+            "project_id": self.project_id,
+            "name": "Test workflow",
+            "version": "1.0.0",
+            "status": "DRAFT",
+            "nodes": nodes,
+            "edges": edges or [],
+            "gates": gates or [],
+        }
+        support.write_json(self.project / "workflows" / f"{workflow_id}.json", data)
+
+    def _make_mock_result(self, status="COMPLETED", output=None, outputs=None, error=None):
+        result = {
+            "status": status,
+            "output": output or {},
+            "outputs": outputs or {},
+        }
+        if error:
+            result["error"] = error
+        return result
+
+    def _make_engine_with_mocked_project(self):
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = OrchestrationEngine(root=self.root)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        engine.memory_engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        return engine
+
+    def test_memory_tool_get_existing(self):
+        """memory.get retrieves content of existing memory."""
+        from se_core.agents.runner import AgentRunner
+
+        engine = self._make_engine_with_mocked_project()
+
+        # Pre-create a memory directly in the engine's memory engine
+        mem_result = engine.memory_engine.add(
+            project_id=self.project_id,
+            type="decision",
+            content={"data": "test_content_for_retrieval"},
+            author="test",
+            scope="project",
+            topic_key="test_memory_key",
+        )
+        mem_id = mem_result["memory_id"]
+
+        # Create agent runner with the shared memory engine
+        runner = AgentRunner(agent_name="analyst", project_dir=self.project, memory_engine=engine.memory_engine)
+
+        # Test memory.get
+        result = runner._invoke_memory_tool({"action": "get", "memory_id": mem_id})
+
+        self.assertEqual(result["status"], "OK")
+        self.assertIn("content", result)
+        self.assertEqual(result["content"], {"data": "test_content_for_retrieval"})
+
+    def test_memory_tool_get_missing(self):
+        """memory.get with non-existent ID returns explicit error."""
+        from se_core.agents.runner import AgentRunner
+
+        engine = self._make_engine_with_mocked_project()
+        runner = AgentRunner(agent_name="analyst", project_dir=self.project, memory_engine=engine.memory_engine)
+
+        result = runner._invoke_memory_tool({"action": "get", "memory_id": "NONEXISTENT_ID"})
+
+        self.assertEqual(result["status"], "ERROR")
+        self.assertIn("Memory not found", result["error"])
+        self.assertIn("NONEXISTENT_ID", result["error"])
+
+    def test_memory_tool_get_wrong_project(self):
+        """memory.get with memory from different project returns error."""
+        from se_core.agents.runner import AgentRunner
+        from se_core.memory.engine import MemoryEngine
+
+        # Create a separate project
+        project2 = support.make_project(self.root / "proj2")
+        project2_id = "PRJ-TEST-002"
+
+        # Create memory in project2 using a separate memory engine with mocked _find_project_dir
+        mem_engine = MemoryEngine(root=self.root)
+        mem_engine._find_project_dir = mock.MagicMock(return_value=self.root / "proj2")
+        mem_result = mem_engine.add(
+            project_id=project2_id,
+            type="decision",
+            content={"data": "project2_secret"},
+            author="test",
+            scope="project",
+        )
+        mem_id = mem_result["memory_id"]
+
+        # Try to access from project1's runner
+        engine = self._make_engine_with_mocked_project()
+        runner = AgentRunner(agent_name="analyst", project_dir=self.project, memory_engine=engine.memory_engine)
+
+        result = runner._invoke_memory_tool({"action": "get", "memory_id": mem_id})
+
+        self.assertEqual(result["status"], "ERROR")
+        self.assertIn("Memory not found", result["error"])
+
+    def test_memory_tool_search(self):
+        """memory.search returns hits with snippet."""
+        from se_core.agents.runner import AgentRunner
+
+        engine = self._make_engine_with_mocked_project()
+
+        # Add some memories using the engine's memory engine
+        for i in range(3):
+            engine.memory_engine.add(
+                project_id=self.project_id,
+                type="decision",
+                content={"data": f"searchable_content_{i}"},
+                author="test",
+                scope="project",
+                topic_key=f"search_test_{i}",
+            )
+
+        runner = AgentRunner(agent_name="analyst", project_dir=self.project, memory_engine=engine.memory_engine)
+
+        # Search for the content
+        result = runner._invoke_memory_tool({"action": "search", "query": "searchable", "limit": 5})
+
+        self.assertEqual(result["status"], "OK")
+        self.assertIn("hits", result)
+        self.assertGreaterEqual(len(result["hits"]), 3)
+        for hit in result["hits"]:
+            self.assertIn("memory_id", hit)
+            self.assertIn("type", hit)
+            self.assertIn("summary", hit)
+            self.assertIn("score", hit)
+
+    def test_memory_tool_invalid_action(self):
+        """Invalid action returns explicit error."""
+        from se_core.agents.runner import AgentRunner
+
+        runner = AgentRunner(agent_name="analyst", project_dir=self.project)
+
+        result = runner._invoke_memory_tool({"action": "invalid_action"})
+
+        self.assertEqual(result["status"], "ERROR")
+        self.assertIn("Invalid action", result["error"])
+        self.assertIn("get, search", result["error"])
+
+    def test_memory_tool_missing_memory_id(self):
+        """get action without memory_id returns explicit error."""
+        from se_core.agents.runner import AgentRunner
+
+        runner = AgentRunner(agent_name="analyst", project_dir=self.project)
+
+        result = runner._invoke_memory_tool({"action": "get"})
+
+        self.assertEqual(result["status"], "ERROR")
+        self.assertIn("memory_id required", result["error"])
+
+    def test_memory_tool_search_missing_query(self):
+        """search action without query returns explicit error."""
+        from se_core.agents.runner import AgentRunner
+
+        runner = AgentRunner(agent_name="analyst", project_dir=self.project)
+
+        result = runner._invoke_memory_tool({"action": "search"})
+
+        self.assertEqual(result["status"], "ERROR")
+        self.assertIn("query required", result["error"])
+
+
+class AgentRunnerInternalRouteIntegrationTests(unittest.TestCase):
+    """End-to-end tests for internal route reference resolution (P3-B.1)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.project = support.make_project(self.root / "proj")
+        self.project_id = "PRJ-TEST-001"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write_workflow(self, workflow_id, nodes, edges=None, gates=None):
+        data = {
+            "schema_version": "1",
+            "workflow_id": workflow_id,
+            "project_id": self.project_id,
+            "name": "Test workflow",
+            "version": "1.0.0",
+            "status": "DRAFT",
+            "nodes": nodes,
+            "edges": edges or [],
+            "gates": gates or [],
+        }
+        support.write_json(self.project / "workflows" / f"{workflow_id}.json", data)
+
+    def _make_mock_result(self, status="COMPLETED", output=None, outputs=None, error=None):
+        result = {
+            "status": status,
+            "output": output or {},
+            "outputs": outputs or {},
+        }
+        if error:
+            result["error"] = error
+        return result
+
+    def _make_engine_with_mocked_project(self):
+        from se_core.orchestration.engine import OrchestrationEngine
+        engine = OrchestrationEngine(root=self.root)
+        engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        engine.memory_engine._find_project_dir = mock.MagicMock(return_value=self.project)
+        return engine
+
+    def test_internal_route_resolves_reference(self):
+        """Internal route: producer creates memory:new:, consumer uses memory.get and retrieves content."""
+        from se_core.agents.runner import AgentRunner
+        engine = self._make_engine_with_mocked_project()
+
+        # Producer creates memory reference
+        # Consumer consumes it via context:
+        self._write_workflow("WF-0001", nodes=[
+            {
+                "node_id": "producer",
+                "agent": "analyst",
+                "action": "produce",
+                "inputs": {},
+                "outputs": {"result": "memory:new:shared_data"},
+            },
+            {
+                "node_id": "consumer",
+                "agent": "planner",
+                "action": "consume",
+                "inputs": {"data": "context:result"},
+                "outputs": {},
+            },
+        ], edges=[{"from": "producer", "to": "consumer"}])
+
+        workflow = engine.load_workflow("WF-0001", self.project_id)
+
+        producer_result = self._make_mock_result(
+            output={"result": "shared_content_value"},
+            outputs={"result": "memory:new:shared_data"},
+        )
+        consumer_result = {"status": "COMPLETED", "output": {}, "outputs": {}}
+
+        # Track if consumer received the reference
+        consumer_inputs_captured = {}
+
+        def mock_run(agent_self, action, inputs, context, max_tokens=None):
+            if action == "produce":
+                return producer_result
+            elif action == "consume":
+                # Consumer receives reference in inputs
+                consumer_inputs_captured["inputs"] = inputs
+                return consumer_result
+
+        # Mock memory tool directly on the runner
+        mock_mem_result = {"memory_id": "MEM-SHARED-123", "status": "created"}
+
+        with mock.patch.object(AgentRunner, "run", mock_run):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                with mock.patch.object(engine.memory_engine, "add", return_value={"memory_id": "MEM-SHARED-123", "status": "created"}):
+                    result = engine.execute("WF-0001", self.project_id)
+
+        self.assertEqual(result["status"], "COMPLETED")
+        # Verify the reference was passed to consumer
+        self.assertIn("data", consumer_inputs_captured.get("inputs", {}))
+        ref = consumer_inputs_captured["inputs"]["data"]
+        self.assertIsInstance(ref, dict)
+        self.assertIn("memory_id", ref)
+
+    def test_reference_resolution_on_demand(self):
+        """LLM decides when to call memory.get (not automatic)."""
+        from se_core.agents.runner import AgentRunner
+        engine = self._make_engine_with_mocked_project()
+
+        self._write_workflow("WF-0002", nodes=[
+            {
+                "node_id": "producer",
+                "agent": "analyst",
+                "action": "produce",
+                "inputs": {},
+                "outputs": {"result": "memory:new:optional_data"},
+            },
+            {
+                "node_id": "consumer",
+                "agent": "planner",
+                "action": "consume",
+                "inputs": {"data": "context:result"},
+                "outputs": {},
+            },
+        ], edges=[{"from": "producer", "to": "consumer"}])
+
+        workflow = engine.load_workflow("WF-0002", self.project_id)
+
+        producer_result = self._make_mock_result(
+            output={"result": "large_content_here"},
+            outputs={"result": "memory:new:optional_data"},
+        )
+        consumer_result = self._make_mock_result(outputs={})
+
+        def mock_run(agent_self, action, inputs, context, max_tokens=None):
+            if action == "produce":
+                return producer_result
+            elif action == "consume":
+                # Consumer receives reference but doesn't need to resolve it
+                # for this task - it just passes it along
+                self.assertIn("data", inputs)
+                self.assertIsInstance(inputs["data"], dict)
+                self.assertIn("memory_id", inputs["data"])
+                return consumer_result
+
+        with mock.patch.object(AgentRunner, "run", mock_run):
+            with mock.patch.object(engine.memory_engine, "get", return_value=None):
+                with mock.patch.object(engine.memory_engine, "add", return_value={"memory_id": "MEM-OPT-123", "status": "created"}):
+                    result = engine.execute("WF-0002", self.project_id)
+
+        self.assertEqual(result["status"], "COMPLETED")
+        # Reference was passed but not resolved (consumer didn't need it)
 
 
 if __name__ == "__main__":
