@@ -4509,6 +4509,51 @@ def cmd_memory(args) -> int:
         )
         return 0
 
+    elif args.memory_command == "gc":
+        project_id = None
+        if args.project:
+            project_path = Path(args.project)
+            if not (project_path / "PROJECT.json").exists():
+                print(f"FAIL: no PROJECT.json in {project_path}")
+                return 1
+            from .artifacts import read_manifest
+            project_manifest = read_manifest(project_path)
+            project_id = project_manifest.get("project_id", project_path.name)
+
+        tag_filter = args.tags.split(",") if args.tags else None
+        state_filter = args.state.split(",") if args.state else None
+
+        try:
+            result = engine.gc(
+                project_id=project_id,
+                older_than_days=args.older_than_days,
+                tag_filter=tag_filter,
+                state_filter=state_filter,
+                dry_run=args.dry_run,
+            )
+        except Exception as e:
+            print(f"FAIL: memory gc failed: {e}")
+            return 1
+
+        if wants_json(args):
+            from .reporting import render_json
+            print(render_json(result))
+            return 0
+
+        if args.dry_run:
+            print(f"DRY-RUN: would delete {result['deleted_count']} memories")
+        else:
+            print(f"PASS: deleted {result['deleted_count']} memories")
+
+        print(f"  Scanned: {result['scanned_count']}")
+        print(f"  Skipped (protected): {result['skipped_protected']}")
+        if result['deleted_ids']:
+            print("  Deleted IDs:")
+            for mid in result['deleted_ids']:
+                print(f"    {mid}")
+
+        return 0
+
     else:
         print(f"FAIL: unknown memory command: {args.memory_command}")
         return 1
