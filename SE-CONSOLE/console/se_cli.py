@@ -69,6 +69,8 @@ READ_ONLY_COMMANDS = frozenset(
         # It aggregates doctor/validate/capabilities/review. The console relays
         # its envelope; it does not re-derive health from it.
         "health",
+        # P3-B.1: memory read-only subcommands (get, query, search, gc dry-run)
+        "memory",
     }
 )
 
@@ -134,6 +136,21 @@ ACTION_ALLOWLIST: dict[str, dict[str, Any]] = {
         # `--condition` names ONE condition per occurrence, so it must be
         # repeatable while every other flag stays single-valued.
         "repeatable": frozenset({"--condition"}),
+    },
+    # P3-B.1 TTL/GC: garbage collect expired memories (mutating when not dry-run)
+    "memory.gc": {
+        "prefix": ("memory", "gc"),
+        "required": frozenset({"--project"}),
+        "allowed": frozenset(
+            {
+                "--project",
+                "--older-than-days",
+                "--tags",
+                "--state",
+                "--dry-run",
+                "--json",
+            }
+        ),
     },
 }
 
