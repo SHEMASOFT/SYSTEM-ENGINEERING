@@ -507,5 +507,155 @@ class MemoryIntegrityTests(unittest.TestCase):
             self.assertIn("corrupt", buf.getvalue().lower(), "warning must mention corrupt")
 
 
+class MemoryTTLGCTests(unittest.TestCase):
+    """Tests for P3-B.1 TTL/GC: memory expiration and garbage collection."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        root, project = _master(self._tmp.name)
+        self.root = root
+        self.project = project
+        self.project_id = "PRJ-TEST-001"
+        self.engine = MemoryEngine(root=root)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _add_memory(self, **kwargs):
+        """Helper to add a memory with default values."""
+        return self.engine.add(
+            project_id=self.project_id,
+            type="decision",
+            content=kwargs.get("content", {"data": "test"}),
+            author="test",
+            scope="project",
+            tags=kwargs.get("tags", []),
+            ttl_days=kwargs.get("ttl_days"),
+            gc_protected=kwargs.get("gc_protected", False),
+            state=kwargs.get("state", "archived"),  # Default to archived for GC tests
+        )
+
+    def test_ttl_days_creates_expires_at(self):
+        """Memory with ttl_days gets expires_at computed."""
+        result = self._add_memory(ttl_days=7)
+        mem_id = result["memory_id"]
+
+        record = self.engine.get(mem_id, self.project_id)
+        self.assertIsNotNone(record)
+        self.assertIsNotNone(record.get("expires_at"))
+
+        # expires_at should be ~7 days from created_at
+        from datetime import datetime
+        created = datetime.fromisoformat(record["created_at"].replace('Z', '+00:00'))
+        expires = datetime.fromisoformat(record["expires_at"].replace('Z', '+00:00'))
+        diff = (expires - created).days
+        self.assertEqual(diff, 7)
+
+    def test_gc_protected_prevents_deletion(self):
+        """Memory with gc_protected=true is skipped by GC."""
+        self._add_memory(content={"data": "protected"}, gc_protected=True)
+        self._add_memory(content={"data": "unprotected"}, gc_protected=False)
+
+        # Make both eligible via older_than_days
+        from datetime import datetime, timedelta
+        old_date = (datetime.utcnow() - timedelta(days=10)).isoformat() + 'Z'
+        
+        # Manually update created_at for both to be old
+        for mem_file in (self.project / "memories").glob("*.json"):
+            record = json.loads(mem_file.read_text(encoding="utf-8"))
+            record["created_at"] = old_date
+            mem_file.write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+        # Run GC with older_than_days=5
+        result = self.engine.gc(project_id=self.project_id, older_than_days=5, dry_run=False)
+        
+        # Only unprotected should be deleted
+        self.assertEqual(result["deleted_count"], 1)
+        self.assertEqual(result["skipped_protected"], 1)
+
+    def test_gc_dry_run_reports_only(self):
+        """GC with dry_run=True only reports, doesn't delete."""
+        self._add_memory(content={"data": "to_delete"})
+
+        # Make it old
+        from datetime import datetime, timedelta
+        old_date = (datetime.utcnow() - timedelta(days=10)).isoformat() + 'Z'
+        for mem_file in (self.project / "memories").glob("*.json"):
+            record = json.loads(mem_file.read_text(encoding="utf-8"))
+            record["created_at"] = old_date
+            mem_file.write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+        result = self.engine.gc(project_id=self.project_id, older_than_days=5, dry_run=True)
+        
+        self.assertEqual(result["deleted_count"], 1)
+        self.assertEqual(result["dry_run"], True)
+        # File should still exist
+        self.assertEqual(len(list((self.project / "memories").glob("*.json"))), 1)
+
+    def test_gc_tag_filter(self):
+        """GC only considers memories matching ALL tags in tag_filter."""
+        self._add_memory(content={"data": "match"}, tags=["tag1", "tag2"])
+        self._add_memory(content={"data": "no_match"}, tags=["tag1"])
+
+        # Make both old
+        from datetime import datetime, timedelta
+        old_date = (datetime.utcnow() - timedelta(days=10)).isoformat() + 'Z'
+        for mem_file in (self.project / "memories").glob("*.json"):
+            record = json.loads(mem_file.read_text(encoding="utf-8"))
+            record["created_at"] = old_date
+            mem_file.write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+        # GC with tag_filter=["tag2"] - only first should match
+        result = self.engine.gc(project_id=self.project_id, older_than_days=5, tag_filter=["tag2"], dry_run=False)
+        
+        self.assertEqual(result["deleted_count"], 1)
+
+    def test_gc_state_filter(self):
+        """GC only considers memories in specified states."""
+        self._add_memory(content={"data": "active"}, state="active")
+        self._add_memory(content={"data": "archived"}, tags=["archived"], state="archived")
+
+        # Make both old
+        from datetime import datetime, timedelta
+        old_date = (datetime.utcnow() - timedelta(days=10)).isoformat() + 'Z'
+        for mem_file in (self.project / "memories").glob("*.json"):
+            record = json.loads(mem_file.read_text(encoding="utf-8"))
+            record["created_at"] = old_date
+            # State is already set correctly via _add_memory
+            mem_file.write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+        # Default state_filter is ["archived", "deprecated"]
+        result = self.engine.gc(project_id=self.project_id, older_than_days=5, dry_run=False)
+        
+        # Only archived should be deleted
+        self.assertEqual(result["deleted_count"], 1)
+
+    def test_gc_expires_at(self):
+        """GC deletes memories with expires_at in the past."""
+        self._add_memory(content={"data": "expired"}, ttl_days=1)
+        self._add_memory(content={"data": "valid"}, ttl_days=365)
+
+        # Manually set expires_at to past for first memory
+        from datetime import datetime, timedelta
+        past = (datetime.utcnow() - timedelta(days=1)).isoformat() + 'Z'
+        future = (datetime.utcnow() + timedelta(days=1)).isoformat() + 'Z'
+        
+        for mem_file in (self.project / "memories").glob("*.json"):
+            record = json.loads(mem_file.read_text(encoding="utf-8"))
+            if record["content"]["data"] == "expired":
+                record["expires_at"] = past
+            else:
+                record["expires_at"] = future
+            mem_file.write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+        result = self.engine.gc(project_id=self.project_id, dry_run=False)
+        
+        self.assertEqual(result["deleted_count"], 1)
+        # The expired one should be deleted
+        deleted_ids = result["deleted_ids"]
+        remaining = self.engine.get(deleted_ids[0], self.project_id)
+        self.assertIsNone(remaining)
+
+
 if __name__ == "__main__":
     unittest.main()

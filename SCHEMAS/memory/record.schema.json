@@ -32,6 +32,9 @@
     "duplicate_count": { "type": "integer", "minimum": 0, "default": 0 },
     "last_seen_at": { "type": ["string", "null"], "format": "date-time" },
     "review_after": { "type": ["string", "null"], "format": "date-time" },
-    "state": { "enum": ["active", "archived", "needs_review", "deprecated"], "default": "active" }
+    "state": { "enum": ["active", "archived", "needs_review", "deprecated"], "default": "active" },
+    "ttl_days": { "type": ["integer", "null"], "minimum": 1, "description": "Time-to-live in days. Auto-expires and becomes eligible for GC." },
+    "expires_at": { "type": ["string", "null"], "format": "date-time", "description": "Computed expiration timestamp based on ttl_days" },
+    "gc_protected": { "type": "boolean", "default": false, "description": "If true, memory is protected from automatic garbage collection" }
   }
 }

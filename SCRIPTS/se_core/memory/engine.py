@@ -61,6 +61,9 @@ class MemoryRecord:
     review_after: Optional[str] = None
     state: str = "active"
     schema_version: str = "1"
+    ttl_days: Optional[int] = None
+    expires_at: Optional[str] = None
+    gc_protected: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -86,6 +89,9 @@ class MemoryRecord:
             "last_seen_at": self.last_seen_at,
             "review_after": self.review_after,
             "state": self.state,
+            "ttl_days": self.ttl_days,
+            "expires_at": self.expires_at,
+            "gc_protected": self.gc_protected,
         }
 
     @classmethod
@@ -112,6 +118,9 @@ class MemoryRecord:
             last_seen_at=data.get("last_seen_at"),
             review_after=data.get("review_after"),
             state=data.get("state", "active"),
+            ttl_days=data.get("ttl_days"),
+            expires_at=data.get("expires_at"),
+            gc_protected=data.get("gc_protected", False),
         )
 
 
@@ -188,6 +197,8 @@ class MemoryEngine:
         review_after: Optional[str] = None,
         state: str = "active",
         dedupe: bool = False,
+        ttl_days: Optional[int] = None,
+        gc_protected: bool = False,
     ) -> Dict[str, Any]:
         """Create a new memory record.
 
@@ -283,7 +294,16 @@ class MemoryEngine:
                 last_seen_at=last_seen_at,
                 review_after=review_after,
                 state=state,
+                ttl_days=ttl_days,
+                gc_protected=gc_protected,
             )
+
+            # Compute expires_at if ttl_days provided
+            if ttl_days is not None and ttl_days > 0:
+                from datetime import datetime, timedelta
+                created_dt = datetime.fromisoformat(record.created_at.replace('Z', '+00:00'))
+                expires_dt = created_dt + timedelta(days=ttl_days)
+                record.expires_at = expires_dt.isoformat().replace('+00:00', 'Z')
 
             # Validate and persist atomically (LF, no half-written record).
             self._write_record(project_dir, record)
@@ -1059,6 +1079,129 @@ class MemoryEngine:
             "path": str(index.path),
             "dropped": dropped,
             **report,
+        }
+
+    def gc(
+        self,
+        project_id: Optional[str] = None,
+        older_than_days: Optional[int] = None,
+        tag_filter: Optional[List[str]] = None,
+        state_filter: Optional[List[str]] = None,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """Garbage collect expired/eligible memories.
+
+        A memory is eligible for GC if:
+        - It has `expires_at` in the past (ttl_days expired), OR
+        - It matches `older_than_days` from created_at, OR
+        - It matches `tag_filter` (all tags must match), AND
+        - It is NOT `gc_protected`, AND
+        - It is NOT in a protected state (active by default unless state_filter overrides)
+
+        Args:
+            project_id: Specific project, or None for all projects
+            older_than_days: Consider memories older than this many days from created_at
+            tag_filter: Only consider memories with ALL these tags
+            state_filter: Only consider memories in these states (default: ["archived", "deprecated"])
+            dry_run: If True, only report what would be deleted
+
+        Returns:
+            Dict with deleted_count, deleted_ids, skipped_protected, scanned_count
+        """
+        from datetime import datetime, timezone
+
+        # Determine projects to scan
+        if project_id:
+            projects = [project_id]
+        else:
+            # Scan all projects under repo_root
+            projects = []
+            for p in (self.root / "PROJECTS").iterdir():
+                if p.is_dir() and (p / "PROJECT.json").exists():
+                    projects.append(p.name)
+
+        deleted_count = 0
+        deleted_ids = []
+        skipped_protected = 0
+        scanned_count = 0
+        now = datetime.now(timezone.utc)
+
+        for pid in projects:
+            try:
+                project_dir = self._find_project_dir(pid)
+                if not project_dir:
+                    continue
+            except Exception:
+                continue
+
+            mem_dir = project_dir / "memories"
+            if not mem_dir.exists():
+                continue
+
+            for mem_file in mem_dir.glob("*.json"):
+                scanned_count += 1
+                try:
+                    # Extract memory_id from filename (MEM-XXXX.json -> MEM-XXXX)
+                    memory_id = mem_file.stem
+                    project_dir, record = self._load_record(memory_id, pid)
+                    if not record:
+                        continue
+
+                    # Check gc_protected
+                    if record.gc_protected:
+                        skipped_protected += 1
+                        continue
+
+                    # Check state filter
+                    target_states = state_filter or ["archived", "deprecated"]
+                    if record.state not in target_states:
+                        continue
+
+                    # Check tag filter
+                    if tag_filter:
+                        if not all(tag in record.tags for tag in tag_filter):
+                            continue
+
+                    # Check expiration
+                    should_delete = False
+                    if record.expires_at:
+                        try:
+                            expires_dt = datetime.fromisoformat(record.expires_at.replace('Z', '+00:00'))
+                            if expires_dt < now:
+                                should_delete = True
+                        except Exception:
+                            pass
+
+                    if older_than_days and not should_delete:
+                        try:
+                            created_dt = datetime.fromisoformat(record.created_at.replace('Z', '+00:00'))
+                            if (now - created_dt).days > older_than_days:
+                                should_delete = True
+                        except Exception:
+                            pass
+
+                    if should_delete:
+                        deleted_count += 1
+                        deleted_ids.append(record.memory_id)
+                        if not dry_run:
+                            mem_file.unlink()
+                            # Also remove from index if available
+                            try:
+                                index = MemoryIndex(self.root)
+                                if index.available:
+                                    index.delete(record.memory_id)
+                            except Exception:
+                                pass
+                except Exception:
+                    # Skip corrupt records
+                    continue
+
+        return {
+            "deleted_count": deleted_count,
+            "deleted_ids": deleted_ids,
+            "skipped_protected": skipped_protected,
+            "scanned_count": scanned_count,
+            "dry_run": dry_run,
         }
 
     def _get_schema(self, name: str) -> Dict[str, Any]:

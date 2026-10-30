@@ -44,6 +44,8 @@ CONTENT_TYPES = {
 _SAFE_RELPATH = re.compile(r"^PROJECTS/[A-Za-z0-9._\-/]+$")
 _VALID_TYPES = frozenset(se_reader.RECORD_LAYOUT)
 _ID_RE = re.compile(r"^[A-Za-z0-9._\-]{1,64}$")
+#: Canonical SE root (re-exported from se_cli)
+SE_ROOT = se_cli.SE_ROOT
 
 
 def _error(status: int, message: str, **extra: Any) -> tuple[int, dict[str, Any]]:
@@ -117,6 +119,135 @@ def api_provenance(_m: dict) -> tuple[int, dict[str, Any]]:
     return 200, read_model.build_provenance()
 
 
+# --------------------------------------------------------------------------
+# P3-B.1: Memory endpoints (read-only)
+# --------------------------------------------------------------------------
+
+
+def api_memory_get(m: dict) -> tuple[int, dict[str, Any]]:
+    """Get a single memory by ID: GET /api/memory/get?project=...&memory_id=..."""
+    project_rel = (m.get("project") or "").strip("/")
+    memory_id = (m.get("memory_id") or "").strip()
+
+    if not project_rel or not _SAFE_RELPATH.match(project_rel):
+        return _error(400, "valid --project required (PROJECTS/...)", project=project_rel)
+    if not memory_id:
+        return _error(400, "--memory_id required")
+
+    # Resolve project path
+    project_path = os.path.join(_SE_ROOT, project_rel)
+    if not os.path.isdir(project_path):
+        return _error(404, "project not found", project=project_rel)
+
+    try:
+        result, _ = se_cli.run_se(["memory", "get", "--project", project_path, "--memory-id", memory_id, "--json"])
+    except se_cli.SeError as exc:
+        return _error(500, f"memory get failed: {exc}")
+
+    return 200, result
+
+
+def api_memory_query(m: dict) -> tuple[int, dict[str, Any]]:
+    """Query memories with filters: GET /api/memory/query?project=...&type=...&tags=..."""
+    project_rel = (m.get("project") or "").strip("/")
+    if not project_rel or not _SAFE_RELPATH.match(project_rel):
+        return _error(400, "valid --project required (PROJECTS/...)", project=project_rel)
+
+    project_path = os.path.join(_SE_ROOT, project_rel)
+    if not os.path.isdir(project_path):
+        return _error(404, "project not found", project=project_rel)
+
+    args = ["memory", "query", "--project", project_path, "--json"]
+    for key, flag in [
+        ("type", "--type"),
+        ("tags", "--tags"),
+        ("by", "--by"),
+        ("since", "--since"),
+        ("until", "--until"),
+        ("tags_mode", "--tags-mode"),
+        ("state", "--state"),
+        ("limit", "--limit"),
+        ("offset", "--offset"),
+    ]:
+        val = m.get(key)
+        if val:
+            args.extend([flag, val])
+
+    try:
+        result, _ = se_cli.run_se(args)
+    except se_cli.SeError as exc:
+        return _error(500, f"memory query failed: {exc}")
+
+    return 200, result
+
+
+def api_memory_search(m: dict) -> tuple[int, dict[str, Any]]:
+    """Lexical search: GET /api/memory/search?project=...&query=..."""
+    project_rel = (m.get("project") or "").strip("/")
+    query = (m.get("query") or "").strip()
+
+    if not project_rel or not _SAFE_RELPATH.match(project_rel):
+        return _error(400, "valid --project required (PROJECTS/...)", project=project_rel)
+    if not query:
+        return _error(400, "--query required")
+
+    project_path = os.path.join(_SE_ROOT, project_rel)
+    if not os.path.isdir(project_path):
+        return _error(404, "project not found", project=project_rel)
+
+    args = ["memory", "search", "--project", project_path, "--query", query, "--json"]
+    for key, flag in [
+        ("type", "--type"),
+        ("limit", "--limit"),
+        ("offset", "--offset"),
+    ]:
+        val = m.get(key)
+        if val:
+            args.extend([flag, val])
+
+    try:
+        result, _ = se_cli.run_se(args)
+    except se_cli.SeError as exc:
+        return _error(500, f"memory search failed: {exc}")
+
+    return 200, result
+
+
+def api_memory_gc(m: dict) -> tuple[int, dict[str, Any]]:
+    """Garbage collect (dry-run by default): GET /api/memory/gc?project=...&older_than_days=...&dry_run=true"""
+    project_rel = (m.get("project") or "").strip("/")
+    if not project_rel or not _SAFE_RELPATH.match(project_rel):
+        return _error(400, "valid --project required (PROJECTS/...)", project=project_rel)
+
+    project_path = os.path.join(_SE_ROOT, project_rel)
+    if not os.path.isdir(project_path):
+        return _error(404, "project not found", project=project_rel)
+
+    args = ["memory", "gc", "--project", project_path, "--json"]
+
+    # Optional filters
+    for key, flag in [
+        ("older_than_days", "--older-than-days"),
+        ("tags", "--tags"),
+        ("state", "--state"),
+    ]:
+        val = m.get(key)
+        if val:
+            args.extend([flag, val])
+
+    # Default to dry-run for safety
+    dry_run = (m.get("dry_run") or "true").lower() == "true"
+    if dry_run:
+        args.append("--dry-run")
+
+    try:
+        result, _ = se_cli.run_se(args)
+    except se_cli.SeError as exc:
+        return _error(500, f"memory gc failed: {exc}")
+
+    return 200, result
+
+
 def api_heartbeat(_m: dict) -> tuple[int, dict[str, Any]]:
     """Liveness ping for the console's LIFECYCLE, not a governance read.
 
@@ -148,6 +279,11 @@ ROUTES: dict[str, Callable[[dict], tuple[int, dict]]] = {
     "/api/project": api_project_detail,
     "/api/record": api_record_detail,
     "/api/provenance": api_provenance,
+    # P3-B.1: Memory endpoints
+    "/api/memory/get": api_memory_get,
+    "/api/memory/query": api_memory_query,
+    "/api/memory/search": api_memory_search,
+    "/api/memory/gc": api_memory_gc,
 }
 
 

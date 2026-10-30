@@ -170,6 +170,10 @@ class OpenAIProvider(LLMProvider):
                 "completion_tokens": response.usage.completion_tokens,
                 "total_tokens": response.usage.total_tokens,
             }
+            # Extract cached tokens (OpenAI: prompt_tokens_details.cached_tokens)
+            prompt_tokens_details = getattr(response.usage, "prompt_tokens_details", None)
+            if prompt_tokens_details and hasattr(prompt_tokens_details, "cached_tokens"):
+                usage["cached_tokens"] = prompt_tokens_details.cached_tokens
         return LLMResponse(
             content=choice.message.content or "",
             tool_calls=tool_calls,
@@ -269,6 +273,7 @@ class AnthropicProvider(LLMProvider):
                 "prompt_tokens": response.usage.input_tokens,
                 "completion_tokens": response.usage.output_tokens,
                 "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+                "cached_tokens": getattr(response.usage, "cache_creation_input_tokens", 0) + getattr(response.usage, "cache_read_input_tokens", 0),
             },
             finish_reason=response.stop_reason,
             raw_response=response,
@@ -363,10 +368,23 @@ class LocalProvider(LLMProvider):
             return LLMResponse(content="", finish_reason="error", raw_response={"error": str(exc)})
 
         choice = data["choices"][0]
+        usage = None
+        if "usage" in data:
+            u = data["usage"]
+            usage = {
+                "prompt_tokens": u.get("prompt_tokens", 0),
+                "completion_tokens": u.get("completion_tokens", 0),
+                "total_tokens": u.get("total_tokens", 0),
+            }
+            # Extract cached tokens (OpenAI-compatible: prompt_tokens_details.cached_tokens)
+            prompt_tokens_details = u.get("prompt_tokens_details")
+            if prompt_tokens_details and "cached_tokens" in prompt_tokens_details:
+                usage["cached_tokens"] = prompt_tokens_details["cached_tokens"]
         return LLMResponse(
             content=choice["message"].get("content", ""),
             tool_calls=choice["message"].get("tool_calls"),
             finish_reason=choice.get("finish_reason", "stop"),
+            usage=usage,
             raw_response=data,
         )
 

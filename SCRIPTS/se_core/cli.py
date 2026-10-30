@@ -653,6 +653,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_mem_index.set_defaults(func=commands.cmd_memory)
 
 
+    p_mem_gc = p_memory_sub.add_parser("gc", help="Garbage collect expired/eligible memories")
+
+    p_mem_gc.add_argument("--project", default=None, help="Managed project workspace (optional for global GC)")
+
+    p_mem_gc.add_argument("--older-than-days", type=int, default=None, help="Delete memories older than N days from created_at")
+
+    p_mem_gc.add_argument("--tags", default=None, help="Comma-separated tags: only memories with ALL tags considered")
+
+    p_mem_gc.add_argument("--state", default=None, help="Comma-separated states to consider (default: archived,deprecated)")
+
+    p_mem_gc.add_argument("--dry-run", action="store_true", help="Only report what would be deleted without deleting")
+
+    p_mem_gc.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
+
+    p_mem_gc.set_defaults(func=commands.cmd_memory)
+
 
     # context
 
