@@ -6,7 +6,7 @@ Creates LLM providers from agent configuration.
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Mapping, Optional, Type
 
 from .providers import (
     LLMProvider,
@@ -83,6 +83,101 @@ def create_provider(
     
     provider_cls = _get_provider_classes()[provider]
     return provider_cls(model=model, **kwargs)
+
+
+def llm_config_from_env(
+    env: Optional[Mapping[str, str]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Build an LLM configuration dict from environment variables.
+
+    This is the single, process-level default that lets a real provider be
+    reachable without declaring ``llm_config`` in every ``agent.json``. It
+    returns the same shape ``create_provider_from_config`` consumes:
+
+    {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "temperature": 0.3,           # optional
+        "max_tokens": 4096,           # optional
+        "provider_options": {         # optional
+            "api_key_env": "OPENAI_API_KEY",
+            "base_url": "https://api.openai.com/v1",
+        },
+    }
+
+    ``SE_LLM_PROVIDER`` and ``SE_LLM_MODEL`` are all-or-nothing: setting only
+    one of them raises ``ValueError`` instead of silently degrading to the
+    dummy provider. An entirely unset environment returns ``None`` so the
+    caller can apply its own fallback.
+
+    Args:
+        env: Mapping to read from. Defaults to ``os.environ``. This function
+            never reads the process environment when ``env`` is provided.
+
+    Returns:
+        The configuration dict, or ``None`` when no LLM variable is set.
+
+    Raises:
+        ValueError: If exactly one of provider/model is set, or if an optional
+            numeric variable cannot be parsed.
+    """
+    source: Mapping[str, str] = os.environ if env is None else env
+
+    def _read(name: str) -> str:
+        value = source.get(name)
+        if value is None:
+            return ""
+        return str(value).strip()
+
+    provider = _read("SE_LLM_PROVIDER")
+    model = _read("SE_LLM_MODEL")
+
+    if not provider and not model:
+        return None
+    if not provider:
+        raise ValueError(
+            "SE_LLM_MODEL is set but SE_LLM_PROVIDER is not; "
+            "set both or neither."
+        )
+    if not model:
+        raise ValueError(
+            "SE_LLM_PROVIDER is set but SE_LLM_MODEL is not; "
+            "set both or neither."
+        )
+
+    config: Dict[str, Any] = {"provider": provider.lower(), "model": model}
+
+    temperature_raw = _read("SE_LLM_TEMPERATURE")
+    if temperature_raw:
+        try:
+            config["temperature"] = float(temperature_raw)
+        except ValueError:
+            raise ValueError(
+                "SE_LLM_TEMPERATURE must be a number, "
+                f"got {temperature_raw!r}"
+            ) from None
+
+    max_tokens_raw = _read("SE_LLM_MAX_TOKENS")
+    if max_tokens_raw:
+        try:
+            config["max_tokens"] = int(max_tokens_raw)
+        except ValueError:
+            raise ValueError(
+                "SE_LLM_MAX_TOKENS must be an integer, "
+                f"got {max_tokens_raw!r}"
+            ) from None
+
+    provider_options: Dict[str, str] = {}
+    api_key_env = _read("SE_LLM_API_KEY_ENV")
+    if api_key_env:
+        provider_options["api_key_env"] = api_key_env
+    base_url = _read("SE_LLM_BASE_URL")
+    if base_url:
+        provider_options["base_url"] = base_url
+    if provider_options:
+        config["provider_options"] = provider_options
+
+    return config
 
 
 def create_provider_from_config(config: Dict[str, Any]) -> "LLMProvider":

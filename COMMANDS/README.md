@@ -25,6 +25,7 @@ The conceptual command interface. Machine-readable source: [`commands.json`](com
 | `handoff` | — | coordinator | Create or load a handoff artifact (state, context snapshot, blockers, next actions) |
 | `archive` | — | coordinator | Create a tamper-evident `.tar.gz` with SHA-256 hashes and an embedded manifest |
 | `restore` | — | coordinator | Restore a project from a verified archive and re-validate it |
+| `shema-ai` | — | coordinator | SHEMA-AI Unified Interface: Model config, Install, Sync, Uninstall, Doctor |
 | `execute` | G3 | implementer | Execute actionable tasks, fail-closed, with receipts and evidence |
 | `observe` | — | implementer | Read-only view of execution progress, evidence, artifacts and receipts |
 | `orchestrate` | varies | coordinator | Create/execute/list workflows with topological order and gate enforcement |
