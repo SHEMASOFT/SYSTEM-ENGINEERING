@@ -5,18 +5,38 @@ Executes agent actions using configured LLM providers.
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ..llm.factory import create_provider_from_config
-from ..llm.providers import LLMMessage, LLMProvider
+from ..llm.factory import create_provider_from_config, llm_config_from_env
+from ..llm.providers import DummyProvider, LLMMessage, LLMProvider
 from ..paths import repo_root, load_json
 from ..schemas import load_schemas, validate
 
 logger = logging.getLogger(__name__)
+
+# Tools that `_invoke_tool` knows how to dispatch. `bash` is intentionally
+# included so that a request for it fails with an explicit, actionable error
+# instead of an "unknown tool" message.
+_SUPPORTED_TOOLS = ("read", "list", "search", "write", "bash")
+
+# Directory names never traversed by `search`.
+_SEARCH_SKIP_DIRS = frozenset({".git", "__pycache__", ".pytest_cache", "node_modules"})
+
+# Maximum number of characters returned by a single `read`.
+_READ_MAX_CHARS = 1_000_000
+
+# Maximum number of matches returned by a single `search`.
+_SEARCH_MAX_MATCHES = 200
+
+
+class _ToolPathError(ValueError):
+    """Raised when a tool path is missing or escapes the sandbox."""
 
 
 class AgentRunner:
@@ -85,9 +105,16 @@ Return results as JSON with the following structure:
         return load_json(agent_path)
 
     def _create_llm_provider(self):
-        """Create LLM provider from agent config."""
+        """Create LLM provider from agent config with env fallback."""
+        # Precedence: override > agent config > env > dummy
         llm_config = self.override_llm_config or self.agent_config.get("llm_config", {})
         
+        if not llm_config:
+            # Try to get config from environment
+            from ..llm.factory import llm_config_from_env
+            import os
+            llm_config = llm_config_from_env(os.environ)
+
         if not llm_config:
             # Fallback to dummy provider for testing
             from ..llm.factory import create_provider
@@ -99,24 +126,36 @@ Return results as JSON with the following structure:
     @property
     def simulated(self) -> bool:
         """Return True if agent is running in simulated mode (DummyProvider)."""
-        # Check if the configured provider is dummy (explicit or implicit)
-        llm_config = self.override_llm_config or self.agent_config.get("llm_config", {})
-        if not llm_config:
-            return True  # No config -> implicit dummy
-        provider = str(llm_config.get("provider", "")).strip().lower()
-        return provider == "dummy"
+        # Check the actual provider instance, not just config (config might come from env)
+        from ..llm.providers import DummyProvider
+        return isinstance(self.llm_provider, DummyProvider)
 
     def _load_tools(self) -> List[Dict]:
         """Load available tools for this agent."""
         tools = self.agent_config.get("tools", [])
-        
+
         # Load tool definitions from SKILLS or built-in
         tool_defs = []
         for tool_name in tools:
             tool_def = self._get_tool_definition(tool_name)
             if tool_def:
                 tool_defs.append(tool_def)
-        
+
+        # If agent declares no tools, provide default built-in tools
+        if not tools:
+            # Default tools for all agents
+            default_tools = ["read", "list", "search"]
+
+            # Add write tool only if agent has IMPLEMENT or WRITE_DOCS permission
+            permissions = self.agent_config.get("permissions", [])
+            if "IMPLEMENT" in permissions or "WRITE_DOCS" in permissions:
+                default_tools.append("write")
+
+            for tool_name in default_tools:
+                tool_def = self._get_tool_definition(tool_name)
+                if tool_def:
+                    tool_defs.append(tool_def)
+
         return tool_defs
 
     def _get_tool_definition(self, tool_name: str) -> Optional[Dict]:
@@ -168,6 +207,20 @@ Return results as JSON with the following structure:
                             "content": {"type": "string", "description": "Content to write"}
                         },
                         "required": ["path", "content"]
+                    }
+                }
+            },
+            "list": {
+                "type": "function",
+                "function": {
+                    "name": "list",
+                    "description": "List directory contents",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string", "description": "Directory path to list"}
+                        },
+                        "required": ["path"]
                     }
                 }
             },
@@ -694,25 +747,424 @@ Return results as JSON with the following structure:
         args: Dict[str, Any],
         context: Dict[str, Any],
     ) -> Any:
-        """Invoke a tool by name.
-
-        The internal AgentRunner route has no real tool dispatch wired (tools are
-        a placeholder). Returning a fabricated ``executed`` status would report
-        success without doing anything, so this route fails loudly instead.
-        """
+        """Invoke a tool by name with path sandboxing and permission checks."""
         if tool_name == "memory":
             return self._invoke_memory_tool(args)
-        
+
+        if tool_name == "read":
+            return self._tool_read(args)
+        if tool_name == "list":
+            return self._tool_list(args)
+        if tool_name == "search":
+            return self._tool_search(args)
+        if tool_name == "write":
+            return self._tool_write(args)
+        if tool_name == "bash":
+            return {
+                "tool": tool_name,
+                "args": args,
+                "status": "ERROR",
+                "error": (
+                    f"Tool '{tool_name}' is not available in the internal AgentRunner "
+                    "route: no tool dispatch is wired. Use the native OpenCode `subagent` "
+                    "tool instead, or implement dispatch here. Tool execution failed."
+                ),
+            }
+
         return {
             "tool": tool_name,
             "args": args,
             "status": "ERROR",
-            "error": (
-                f"Tool '{tool_name}' is not available in the internal AgentRunner "
-                "route: no tool dispatch is wired. Use the native OpenCode `subagent` "
-                "tool instead, or implement dispatch here. Tool execution failed."
-            ),
+            "error": f"Unknown tool '{tool_name}'",
         }
+
+    def _can_write(self) -> bool:
+        """Check if agent has permission to write."""
+        permissions = self.agent_config.get("permissions", [])
+        return "IMPLEMENT" in permissions or "WRITE_DOCS" in permissions
+
+    def _tool_read(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Read a file with path sandboxing."""
+        path_str = args.get("path")
+        if not path_str or not isinstance(path_str, str):
+            return {
+                "tool": "read",
+                "args": args,
+                "status": "ERROR",
+                "error": "path is required and must be a string",
+            }
+
+        try:
+            # Resolve path within project_dir or root
+            path = Path(path_str)
+            if path.is_absolute():
+                # Absolute path - must be within project_dir or root
+                if self._is_path_allowed(path):
+                    target = path
+                else:
+                    return {
+                        "tool": "read",
+                        "args": args,
+                        "status": "ERROR",
+                        "error": f"path escapes sandbox: {path}. Tool execution failed.",
+                    }
+            else:
+                # Relative path - resolve from project_dir
+                target = (self.project_dir / path).resolve()
+
+            # Check containment
+            if not self._is_path_allowed(target):
+                return {
+                    "tool": "read",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"path escapes sandbox: {target}. Tool execution failed.",
+                }
+
+            if not target.exists():
+                return {
+                    "tool": "read",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"file not found: {target}",
+                }
+
+            if not target.is_file():
+                return {
+                    "tool": "read",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"not a file: {target}",
+                }
+
+            content = target.read_text(encoding="utf-8")
+            if len(content) > _READ_MAX_CHARS:
+                content = content[:_READ_MAX_CHARS] + f"\n... [truncated {len(content) - _READ_MAX_CHARS} chars]"
+
+            return {
+                "tool": "read",
+                "args": args,
+                "status": "COMPLETED",
+                "output": content,
+                "path": str(target),
+            }
+        except _ToolPathError as e:
+            return {
+                "tool": "read",
+                "args": args,
+                "status": "ERROR",
+                "error": str(e),
+            }
+        except Exception as e:
+            return {
+                "tool": "read",
+                "args": args,
+                "status": "ERROR",
+                "error": f"read failed: {e}",
+            }
+
+    def _tool_list(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """List directory contents with path sandboxing."""
+        path_str = args.get("path")
+        if not path_str or not isinstance(path_str, str):
+            return {
+                "tool": "list",
+                "args": args,
+                "status": "ERROR",
+                "error": "path is required and must be a string",
+            }
+
+        try:
+            path = Path(path_str)
+            if path.is_absolute():
+                if self._is_path_allowed(path):
+                    target = path
+                else:
+                    return {
+                        "tool": "list",
+                        "args": args,
+                        "status": "ERROR",
+                        "error": f"path escapes sandbox: {path}. Tool execution failed.",
+                    }
+            else:
+                target = (self.project_dir / path).resolve()
+
+            if not self._is_path_allowed(target):
+                return {
+                    "tool": "list",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"path escapes sandbox: {target}. Tool execution failed.",
+                }
+
+            if not target.exists():
+                return {
+                    "tool": "list",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"path not found: {target}",
+                }
+
+            if not target.is_dir():
+                return {
+                    "tool": "list",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"not a directory: {target}",
+                }
+
+            entries = []
+            for child in sorted(target.iterdir(), key=lambda p: p.name):
+                entries.append({
+                    "name": child.name,
+                    "type": "dir" if child.is_dir() else "file",
+                })
+
+            return {
+                "tool": "list",
+                "args": args,
+                "status": "COMPLETED",
+                "output": entries,
+            }
+        except _ToolPathError as e:
+            return {
+                "tool": "list",
+                "args": args,
+                "status": "ERROR",
+                "error": str(e),
+            }
+        except Exception as e:
+            return {
+                "tool": "list",
+                "args": args,
+                "status": "ERROR",
+                "error": f"list failed: {e}",
+            }
+
+    def _tool_search(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Search files for pattern with path sandboxing."""
+        pattern = args.get("pattern")
+        if not pattern or not isinstance(pattern, str):
+            return {
+                "tool": "search",
+                "args": args,
+                "status": "ERROR",
+                "error": "pattern is required and must be a string",
+            }
+
+        path_str = args.get("path")
+        include = args.get("include")
+
+        try:
+            # Compile regex
+            try:
+                regex = re.compile(pattern)
+            except re.error as e:
+                return {
+                    "tool": "search",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"Invalid regex: {e}",
+                }
+
+            # Determine search root
+            if path_str:
+                path = Path(path_str)
+                if path.is_absolute():
+                    if self._is_path_allowed(path):
+                        search_root = path
+                    else:
+                        return {
+                            "tool": "search",
+                            "args": args,
+                            "status": "ERROR",
+                            "error": f"path escapes sandbox: {path}. Tool execution failed.",
+                        }
+                else:
+                    search_root = (self.project_dir / path).resolve()
+            else:
+                search_root = self.project_dir
+
+            if not self._is_path_allowed(search_root):
+                return {
+                    "tool": "search",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"path escapes sandbox: {search_root}. Tool execution failed.",
+                }
+
+            if not search_root.exists():
+                return {
+                    "tool": "search",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"path not found: {search_root}",
+                }
+
+            if not search_root.is_dir():
+                return {
+                    "tool": "search",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"not a directory: {search_root}",
+                }
+
+            matches = []
+            for root, dirs, files in os.walk(search_root):
+                # Skip excluded directories
+                dirs[:] = [d for d in dirs if d not in _SEARCH_SKIP_DIRS]
+
+                for fname in files:
+                    if include and not fnmatch.fnmatch(fname, include):
+                        continue
+
+                    fpath = Path(root) / fname
+                    try:
+                        # Check path is allowed
+                        if not self._is_path_allowed(fpath):
+                            continue
+
+                        # Read and search
+                        text = fpath.read_text(encoding="utf-8")
+                        for i, line in enumerate(text.splitlines(), 1):
+                            if regex.search(line):
+                                # Return relative path from project_dir
+                                try:
+                                    rel_path = fpath.relative_to(self.project_dir)
+                                except ValueError:
+                                    rel_path = fpath.relative_to(self.root)
+                                # Normalize to forward slashes for cross-platform consistency
+                                matches.append({
+                                    "path": str(rel_path).replace("\\", "/"),
+                                    "line": i,
+                                    "text": line.rstrip(),
+                                })
+                                if len(matches) >= _SEARCH_MAX_MATCHES:
+                                    break
+                        if len(matches) >= _SEARCH_MAX_MATCHES:
+                            break
+                    except Exception:
+                        # Skip unreadable files
+                        continue
+                if len(matches) >= _SEARCH_MAX_MATCHES:
+                    break
+
+            truncated = len(matches) >= _SEARCH_MAX_MATCHES
+
+            return {
+                "tool": "search",
+                "args": args,
+                "status": "COMPLETED",
+                "output": matches,
+                "truncated": truncated,
+            }
+        except _ToolPathError as e:
+            return {
+                "tool": "search",
+                "args": args,
+                "status": "ERROR",
+                "error": str(e),
+            }
+        except Exception as e:
+            return {
+                "tool": "search",
+                "args": args,
+                "status": "ERROR",
+                "error": f"search failed: {e}",
+            }
+
+    def _tool_write(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Write a file with path sandboxing and permission check."""
+        if not self._can_write():
+            return {
+                "tool": "write",
+                "args": args,
+                "status": "ERROR",
+                "error": "Agent lacks IMPLEMENT or WRITE_DOCS permission for write operations",
+            }
+
+        path_str = args.get("path")
+        content = args.get("content")
+        if not path_str or not isinstance(path_str, str):
+            return {
+                "tool": "write",
+                "args": args,
+                "status": "ERROR",
+                "error": "path is required and must be a string",
+            }
+        if content is None:
+            return {
+                "tool": "write",
+                "args": args,
+                "status": "ERROR",
+                "error": "content is required",
+            }
+
+        try:
+            path = Path(path_str)
+            if path.is_absolute():
+                if self._is_path_allowed(path):
+                    target = path
+                else:
+                    return {
+                        "tool": "write",
+                        "args": args,
+                        "status": "ERROR",
+                        "error": f"path escapes sandbox: {path}. Tool execution failed.",
+                    }
+            else:
+                target = (self.project_dir / path).resolve()
+
+            if not self._is_path_allowed(target):
+                return {
+                    "tool": "write",
+                    "args": args,
+                    "status": "ERROR",
+                    "error": f"path escapes sandbox: {target}. Tool execution failed.",
+                }
+
+            # Write file
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if isinstance(content, str):
+                data = content.encode("utf-8")
+            else:
+                data = json.dumps(content, indent=2, sort_keys=True).encode("utf-8")
+
+            target.write_bytes(data)
+
+            return {
+                "tool": "write",
+                "args": args,
+                "status": "COMPLETED",
+                "path": str(target),
+                "bytes": len(data),
+            }
+        except _ToolPathError as e:
+            return {
+                "tool": "write",
+                "args": args,
+                "status": "ERROR",
+                "error": str(e),
+            }
+        except Exception as e:
+            return {
+                "tool": "write",
+                "args": args,
+                "status": "ERROR",
+                "error": f"write failed: {e}",
+            }
+
+    def _is_path_allowed(self, path: Path) -> bool:
+        """Check if path is within project_dir or root."""
+        try:
+            resolved = path.resolve()
+            project_resolved = self.project_dir.resolve()
+            root_resolved = self.root.resolve()
+            # Allow if within project_dir or within root (repo root)
+            return (resolved == project_resolved or project_resolved in resolved.parents) or \
+                   (resolved == root_resolved or root_resolved in resolved.parents)
+        except Exception:
+            return False
 
     def _invoke_memory_tool(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Invoke the memory tool for get/search operations.

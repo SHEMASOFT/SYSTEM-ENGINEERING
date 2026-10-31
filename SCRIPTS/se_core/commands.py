@@ -261,6 +261,7 @@ def cmd_resume(args) -> int:
         model = resume.get("model") or ""
 
         # If no command stored, build fallback from resume payload
+        has_fallback = False
         if not command:
             workflow_id = resume.get("workflow_id")
             checkpoint_id = resume.get("checkpoint_id")
@@ -269,9 +270,23 @@ def cmd_resume(args) -> int:
                     f"se orchestrate execute --project {project} "
                     f"--workflow {workflow_id} --resume-from {checkpoint_id}"
                 )
+                has_fallback = True
             else:
-                print(f"FAIL: HAR {args.har_id} has no resume command and insufficient data to build fallback")
-                return 1
+                # No command and no fallback data: human-decision HAR, just report
+                # the frozen context and return success (dry-run for decision HARs)
+                print(f"Resuming {args.har_id}")
+                print(f"  cwd:     {cwd}")
+                print(f"  command: (none - human decision HAR)")
+                print(f"  adapter: {adapter}")
+                print(f"  model:   {model or '(none recorded)'}")
+                print(f"  answer:  {har.get('answer')}")
+                # Update HAR with recovery info and set state to RESUMED
+                recovery = dict(har.get("recovery") or {})
+                recovery["last_resumed_at"] = now_utc()
+                recovery["last_resumed_by"] = getattr(args, "by", None) or "unknown"
+                store.update_har(args.har_id, {"recovery": recovery, "state": "RESUMED"})
+                print(f"PASS: HAR {args.har_id} resumed successfully (human decision, no command to execute)")
+                return 0
 
         print(f"Resuming {args.har_id}")
         print(f"  cwd:     {cwd}")
