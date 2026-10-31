@@ -7819,7 +7819,7 @@ def cmd_shema_install(args) -> int:
     return subprocess.run(cmd, cwd=str(repo_root)).returncode
 
 
-def cmd_doctor(args) -> int:
+def cmd_shema_ai_doctor(args) -> int:
     """`se shema-ai doctor` — Health check."""
     project = Path(getattr(args, "project", None) or ".").resolve()
     if not (project / "PROJECT.json").exists():

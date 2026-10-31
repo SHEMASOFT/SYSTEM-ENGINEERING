@@ -910,7 +910,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_doctor = p_shema_sub.add_parser("doctor", help="Health check & diagnostics")
     p_doctor.add_argument("--project", default=".", help="Target project directory")
     p_doctor.add_argument("--json", action="store_true")
-    p_doctor.set_defaults(func=commands.cmd_doctor)
+    p_doctor.set_defaults(func=commands.cmd_shema_ai_doctor)
 
     # If `se shema-ai` without subcommand -> main menu TUI
     p_shema.set_defaults(func=commands.cmd_shema_main)
