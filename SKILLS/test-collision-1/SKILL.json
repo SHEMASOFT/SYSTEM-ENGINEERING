@@ -1,0 +1,15 @@
+{
+  "schema_version": "1",
+  "skill_id": "SK-9999",
+  "name": "test-collision-1",
+  "version": "0.1.0",
+  "description": "first",
+  "license": "MIT",
+  "metadata": {
+    "maintainer": "test",
+    "category": "testing",
+    "supported_runtimes": [
+      "opencode"
+    ]
+  }
+}

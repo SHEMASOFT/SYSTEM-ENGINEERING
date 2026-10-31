@@ -944,7 +944,9 @@ def main():
             if "error" in result:
                 print(json.dumps(_reply(req_id, error=_error(-32603, result["error"]))), flush=True)
             else:
-                print(json.dumps(_reply(req_id, result=result)), flush=True)
+                # MCP requires a CallToolResult: a raw handler dict has no
+                # "content" field, so real hosts (e.g. OpenCode) surface null.
+                print(json.dumps(_reply(req_id, result={"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]})), flush=True)
         elif method == "ping":
             print(json.dumps(_reply(req_id, result={})), flush=True)
         else:
