@@ -15,6 +15,8 @@ from release_master import (  # noqa: E402
     apply_release,
     bump_version,
     check_consistency,
+    check_reference_consistency,
+    check_release_consistency,
     plan_release,
 )
 
@@ -163,8 +165,22 @@ class ReleaseMasterTests(unittest.TestCase):
             (root / "VERSION").read_text(encoding="utf-8").strip(), "0.10.1"
         )
 
-    def test_repository_is_consistent(self):
-        self.assertEqual(check_consistency(support.REPO_ROOT), [])
+    def test_repository_references_are_consistent(self):
+        """Every active reference of this repository declares the same VERSION.
+
+        The release state (the published tags) is a dimension of its own: it is
+        asserted in TESTS/test_release_master_tags.py, against temporary
+        repositories, because the published tags of this repository are
+        history and not something a test may pin.
+        """
+        self.assertEqual(check_reference_consistency(support.REPO_ROOT), [])
+
+    def test_repository_consistency_covers_both_dimensions(self):
+        """The whole check is the union of the references and the release state."""
+        issues = check_consistency(support.REPO_ROOT)
+        release = check_release_consistency(support.REPO_ROOT)
+
+        self.assertEqual(issues, check_reference_consistency(support.REPO_ROOT) + release)
 
 
 if __name__ == "__main__":

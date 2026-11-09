@@ -381,6 +381,19 @@ def run_se(
     else:
         json_flag = []
 
+    # An approved ACTION may need to prove operator authority (`transition.attest`
+    # requires the SE-CONSOLE operator token). Inject it through the child's
+    # ENVIRONMENT -- never argv, never `meta`, never the envelope -- and only for
+    # an approved action. If the token cannot be read, inject nothing and let the
+    # CLI refuse: fail closed here too.
+    child_env = None
+    if action_id is not None:
+        from .auth import load_token
+
+        token = load_token()
+        if token:
+            child_env = {**os.environ, "SE_CONSOLE_TOKEN": token}
+
     started = time.perf_counter()
     meta: dict[str, Any] = {
         "argv": ["se", *args, *json_flag],
@@ -399,6 +412,7 @@ def run_se(
             encoding="utf-8",
             errors="replace",
             creationflags=_NO_WINDOW,
+            env=child_env,
         )
     except subprocess.TimeoutExpired:
         meta["transport"] = "timeout"

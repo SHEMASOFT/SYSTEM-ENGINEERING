@@ -22,6 +22,19 @@ APPROVED_REQUIREMENT_STATES = {"APPROVED", "IMPLEMENTED", "VERIFIED"}
 OUT_OF_SCOPE_REQUIREMENT_STATES = {"DEFERRED", "REJECTED"}
 NON_FACTUAL_EPISTEMIC = {"UNKNOWN", "ASSUMPTION"}
 
+# Human-readable name of each collection, used when a check has to state what
+# it could (or could not) evaluate.
+COLLECTION_LABELS = {
+    "objective": "OBJECTIVE",
+    "requirement": "REQUIREMENT",
+    "task": "TASK",
+    "artifact": "ARTIFACT",
+    "evidence": "EVIDENCE",
+    "acceptance": "ACCEPTANCE",
+    "decision": "DECISION",
+    "release": "RELEASE",
+}
+
 
 def load_gate_model(root=None) -> dict:
     root = Path(root) if root else repo_root()
@@ -57,6 +70,18 @@ def allowed_targets(model, from_state: str):
 
 class ProjectContext:
     """Read-only view of a project workspace used by gate checks."""
+
+    # Where each collection keeps its records and its loading errors.
+    COLLECTIONS = {
+        "requirement": ("requirements", "requirement_errors"),
+        "task": ("tasks", "task_errors"),
+        "decision": ("decisions", "decision_errors"),
+        "evidence": ("evidence", "evidence_errors"),
+        "release": ("releases", "release_errors"),
+        "objective": ("objectives", "objective_errors"),
+        "artifact": ("artifacts", "artifact_errors"),
+        "acceptance": ("acceptances", "acceptance_errors"),
+    }
 
     def __init__(self, project_dir):
         self.dir = Path(project_dir)
@@ -97,6 +122,59 @@ class ProjectContext:
     def acceptance_data(self):
         return [d for _, d in self.acceptances]
 
+    def collection_errors(self, kind: str):
+        """The records of a collection that could not be loaded or validated."""
+        return getattr(self, self.COLLECTIONS[kind][1])
+
+    def invalid_detail(self, kind: str):
+        """A FAIL detail naming the invalid records, or ``None`` when there are none.
+
+        One entry per invalid record, so the count is the number of records
+        and not the number of schema complaints. The message of each record is
+        shortened: the evidence is the count and the name of the file, not the
+        dump of the record that the schema rejected.
+        """
+        errors = self.collection_errors(kind)
+        if not errors:
+            return None
+        label = COLLECTION_LABELS.get(kind, kind.upper())
+        shown = [
+            f"{Path(path).name}: {_short(message)}" for path, message in errors[:3]
+        ]
+        extra = f" (+{len(errors) - 3} more)" if len(errors) > 3 else ""
+        return f"{len(errors)} invalid {label} record(s): {'; '.join(shown)}{extra}"
+
+    def empty_detail(self, kind: str):
+        """The detail of a collection that holds nothing to evaluate."""
+        label = COLLECTION_LABELS.get(kind, kind.upper())
+        return f"no {label} records found (0 valid, 0 invalid)"
+
+
+def _short(message, limit: int = 160) -> str:
+    """The first words of a validation message, on a single line.
+
+    A schema complaint about a whole file can quote the file; the count of the
+    invalid records is the evidence, not the size of the quote.
+    """
+    text = " ".join(str(message).split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3] + "..."
+
+
+def _record_id(data, *fields):
+    """The real identifier of a record, always as a string.
+
+    A record that reaches a check has been validated, so it always carries its
+    id; the fallback exists so a message can never contain ``None`` (joining a
+    ``None`` used to raise and degrade the whole check to a WARN).
+    """
+    for field in fields:
+        value = data.get(field)
+        if isinstance(value, str) and value:
+            return value
+    return "<unknown>"
+
 
 def _pass(detail):
     return "PASS", detail
@@ -108,6 +186,20 @@ def _fail(detail):
 
 def _warn(detail):
     return "WARN", detail
+
+
+def _invalid(ctx, *kinds):
+    """The first invalid-record detail among the given collections, if any.
+
+    A collection that holds records the schema rejects cannot be evaluated:
+    the check must say so instead of quietly evaluating the remaining records
+    (or none at all) and passing.
+    """
+    for kind in kinds:
+        detail = ctx.invalid_detail(kind)
+        if detail:
+            return detail
+    return None
 
 
 def c_manifest_valid(ctx):
@@ -172,25 +264,36 @@ def c_discovery_valid(ctx):
 
 
 def c_objectives_present(ctx):
+    invalid = _invalid(ctx, "objective")
+    if invalid:
+        return _fail(invalid)
     objectives = ctx.objective_data()
     if objectives:
         return _pass(f"{len(objectives)} OBJECTIVE artifact(s)")
-    return _fail("no OBJECTIVE artifacts")
+    return _fail(ctx.empty_detail("objective"))
 
 
 def c_objectives_covered(ctx):
+    invalid = _invalid(ctx, "objective")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.objective_data():
+        return _fail(ctx.empty_detail("objective"))
     uncovered = []
     for objective in ctx.objective_data():
         if objective.get("epistemic_status") in NON_FACTUAL_EPISTEMIC:
             continue
         if not objective.get("related_requirements"):
-            uncovered.append(objective.get("objective_id"))
+            uncovered.append(_record_id(objective, "objective_id"))
     if uncovered:
         return _fail(f"objectives without requirements: {', '.join(uncovered)}")
     return _pass("every factual objective is covered by a requirement")
 
 
 def c_acceptance_record(ctx):
+    invalid = _invalid(ctx, "acceptance")
+    if invalid:
+        return _fail(invalid)
     accepted = [d for d in ctx.acceptance_data() if d.get("result") == "ACCEPTED"]
     if accepted:
         return _pass(f"{len(accepted)} accepted ACCEPTANCE record(s)")
@@ -198,15 +301,23 @@ def c_acceptance_record(ctx):
 
 
 def c_requirements_present(ctx):
+    invalid = _invalid(ctx, "requirement")
+    if invalid:
+        return _fail(invalid)
     reqs = [d for d in ctx.requirement_data() if d.get("type") == "REQUIREMENT"]
     if reqs:
         return _pass(f"{len(reqs)} REQUIREMENT artifact(s)")
-    return _fail("no REQUIREMENT artifacts")
+    return _fail(ctx.empty_detail("requirement"))
 
 
 def c_requirements_acceptance_criteria(ctx):
+    invalid = _invalid(ctx, "requirement")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.requirement_data():
+        return _fail(ctx.empty_detail("requirement"))
     missing = [
-        d.get("id")
+        _record_id(d, "id")
         for d in ctx.requirement_data()
         if d.get("type") == "REQUIREMENT" and not d.get("acceptance_criteria")
     ]
@@ -216,8 +327,13 @@ def c_requirements_acceptance_criteria(ctx):
 
 
 def c_requirements_approved(ctx):
+    invalid = _invalid(ctx, "requirement")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.requirement_data():
+        return _fail(ctx.empty_detail("requirement"))
     bad = [
-        d.get("id")
+        _record_id(d, "id")
         for d in ctx.requirement_data()
         if d.get("type") == "REQUIREMENT"
         and d.get("status") not in APPROVED_REQUIREMENT_STATES
@@ -229,23 +345,36 @@ def c_requirements_approved(ctx):
 
 
 def c_requirements_risks_recorded(ctx):
+    invalid = _invalid(ctx, "requirement")
+    if invalid:
+        return _fail(invalid)
     kinds = {"ASSUMPTION", "CONSTRAINT", "RISK", "UNKNOWN"}
-    found = [d.get("id") for d in ctx.requirement_data() if d.get("type") in kinds]
+    found = [_record_id(d, "id") for d in ctx.requirement_data() if d.get("type") in kinds]
     if found:
         return _pass(f"{len(found)} assumption/constraint/risk/unknown artifact(s)")
     return _warn("no assumption/constraint/risk/unknown artifacts; verify none apply")
 
 
 def c_tasks_present(ctx):
+    invalid = _invalid(ctx, "task")
+    if invalid:
+        return _fail(invalid)
     tasks = ctx.task_data()
     if tasks:
         return _pass(f"{len(tasks)} TASK artifact(s)")
-    return _fail("no TASK artifacts")
+    return _fail(ctx.empty_detail("task"))
 
 
 def c_tasks_cover_requirements(ctx):
+    invalid = _invalid(ctx, "requirement", "task")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.requirement_data():
+        return _fail(ctx.empty_detail("requirement"))
+    if not ctx.task_data():
+        return _fail(ctx.empty_detail("task"))
     approved = [
-        d.get("id")
+        _record_id(d, "id")
         for d in ctx.requirement_data()
         if d.get("type") == "REQUIREMENT" and d.get("status") in APPROVED_REQUIREMENT_STATES
     ]
@@ -259,7 +388,14 @@ def c_tasks_cover_requirements(ctx):
 
 
 def c_tasks_acyclic(ctx):
-    graph = {d.get("id"): list(d.get("dependencies") or []) for d in ctx.task_data()}
+    invalid = _invalid(ctx, "task")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.task_data():
+        return _fail(ctx.empty_detail("task"))
+    graph = {
+        _record_id(d, "id"): list(d.get("dependencies") or []) for d in ctx.task_data()
+    }
     WHITE, GRAY, BLACK = 0, 1, 2
     color = {node: WHITE for node in graph}
 
@@ -286,27 +422,51 @@ def c_tasks_acyclic(ctx):
 
 
 def c_tasks_authorized_actions(ctx):
-    missing = [d.get("id") for d in ctx.task_data() if not d.get("authorized_actions")]
+    invalid = _invalid(ctx, "task")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.task_data():
+        return _fail(ctx.empty_detail("task"))
+    missing = [
+        _record_id(d, "id") for d in ctx.task_data() if not d.get("authorized_actions")
+    ]
     if missing:
         return _fail(f"tasks without authorized_actions: {', '.join(missing)}")
     return _pass("every task declares authorized_actions")
 
 
 def c_tasks_settled(ctx):
-    active = [d.get("id") for d in ctx.task_data() if d.get("status") in ACTIVE_TASK_STATES]
+    invalid = _invalid(ctx, "task")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.task_data():
+        return _fail(ctx.empty_detail("task"))
+    active = [
+        _record_id(d, "id") for d in ctx.task_data() if d.get("status") in ACTIVE_TASK_STATES
+    ]
     if active:
         return _fail(f"tasks not settled: {', '.join(active)}")
     return _pass("no pending/ready/in-progress tasks")
 
 
 def c_tasks_not_blocked(ctx):
-    blocked = [d.get("id") for d in ctx.task_data() if d.get("status") == "BLOCKED"]
+    invalid = _invalid(ctx, "task")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.task_data():
+        return _fail(ctx.empty_detail("task"))
+    blocked = [_record_id(d, "id") for d in ctx.task_data() if d.get("status") == "BLOCKED"]
     if blocked:
         return _fail(f"blocked tasks: {', '.join(blocked)}")
     return _pass("no blocked tasks")
 
 
 def c_tasks_have_evidence(ctx):
+    invalid = _invalid(ctx, "task")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.task_data():
+        return _fail(ctx.empty_detail("task"))
     missing = []
     for task in ctx.task_data():
         if task.get("status") != "DONE":
@@ -314,13 +474,18 @@ def c_tasks_have_evidence(ctx):
         if task.get("type") not in EVIDENCE_REQUIRED_TYPES:
             continue
         if not task.get("evidence"):
-            missing.append(task.get("id"))
+            missing.append(_record_id(task, "id"))
     if missing:
         return _fail(f"DONE tasks without evidence: {', '.join(missing)}")
     return _pass("DONE deliverable tasks have evidence")
 
 
 def c_tasks_have_artifacts(ctx):
+    invalid = _invalid(ctx, "task", "artifact")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.task_data():
+        return _fail(ctx.empty_detail("task"))
     producers = set()
     for artifact in ctx.artifact_data():
         producers.update(artifact.get("produced_by", []) or [])
@@ -330,22 +495,29 @@ def c_tasks_have_artifacts(ctx):
             continue
         if task.get("type") not in ARTIFACT_REQUIRED_TYPES:
             continue
-        if task.get("id") not in producers:
-            missing.append(task.get("id"))
+        if _record_id(task, "id") not in producers:
+            missing.append(_record_id(task, "id"))
     if missing:
         return _fail(f"DONE deliverable tasks without artifacts: {', '.join(missing)}")
     return _pass("DONE deliverable tasks produced artifacts")
 
 
 def c_requirements_have_evidence(ctx):
+    invalid = _invalid(ctx, "requirement", "evidence")
+    if invalid:
+        return _fail(invalid)
     reqs = [
-        d.get("id")
+        _record_id(d, "id")
         for d in ctx.requirement_data()
         if d.get("type") == "REQUIREMENT"
         and d.get("status") not in OUT_OF_SCOPE_REQUIREMENT_STATES
     ]
     if not reqs:
-        return _fail("no in-scope REQUIREMENT artifacts")
+        return _fail(
+            "no in-scope REQUIREMENT records found "
+            f"({len(ctx.requirement_data())} valid, "
+            f"{len(ctx.collection_errors('requirement'))} invalid)"
+        )
     with_evidence = set()
     for evd in ctx.evidence_data():
         with_evidence.update(evd.get("related_requirements", []) or [])
@@ -356,13 +528,21 @@ def c_requirements_have_evidence(ctx):
 
 
 def c_evidence_no_fail(ctx):
-    failed = [d.get("id") for d in ctx.evidence_data() if d.get("result") == "FAIL"]
+    invalid = _invalid(ctx, "evidence")
+    if invalid:
+        return _fail(invalid)
+    if not ctx.evidence_data():
+        return _fail(ctx.empty_detail("evidence"))
+    failed = [_record_id(d, "id") for d in ctx.evidence_data() if d.get("result") == "FAIL"]
     if failed:
         return _fail(f"failing evidence: {', '.join(failed)}")
     return _pass("no failing evidence")
 
 
 def c_acceptance_uat(ctx):
+    invalid = _invalid(ctx, "evidence")
+    if invalid:
+        return _fail(invalid)
     uat = [d for d in ctx.evidence_data() if d.get("type") == "uat" and d.get("result") == "PASS"]
     if uat:
         return _pass(f"{len(uat)} passing UAT evidence record(s)")
@@ -377,42 +557,57 @@ def _latest_release(ctx):
 
 
 def c_release_present(ctx):
+    invalid = _invalid(ctx, "release")
+    if invalid:
+        return _fail(invalid)
     if ctx.release_data():
         return _pass(f"{len(ctx.release_data())} RELEASE artifact(s)")
-    return _fail("no RELEASE artifact")
+    return _fail(ctx.empty_detail("release"))
 
 
 def c_release_approved(ctx):
+    invalid = _invalid(ctx, "release")
+    if invalid:
+        return _fail(invalid)
     release = _latest_release(ctx)
     if release is None:
-        return _fail("no RELEASE artifact")
+        return _fail(ctx.empty_detail("release"))
     if release.get("status") == "APPROVED":
         return _pass("latest release is APPROVED")
     return _fail(f"latest release status={release.get('status')}")
 
 
 def c_release_rollback(ctx):
+    invalid = _invalid(ctx, "release")
+    if invalid:
+        return _fail(invalid)
     release = _latest_release(ctx)
     if release is None:
-        return _fail("no RELEASE artifact")
+        return _fail(ctx.empty_detail("release"))
     if release.get("rollback"):
         return _pass("rollback defined")
     return _fail("rollback not defined")
 
 
 def c_release_deployment_method(ctx):
+    invalid = _invalid(ctx, "release")
+    if invalid:
+        return _fail(invalid)
     release = _latest_release(ctx)
     if release is None:
-        return _fail("no RELEASE artifact")
+        return _fail(ctx.empty_detail("release"))
     if release.get("deployment_method"):
         return _pass("deployment method defined")
     return _fail("deployment_method not defined")
 
 
 def c_release_evidence(ctx):
+    invalid = _invalid(ctx, "release")
+    if invalid:
+        return _fail(invalid)
     release = _latest_release(ctx)
     if release is None:
-        return _fail("no RELEASE artifact")
+        return _fail(ctx.empty_detail("release"))
     if release.get("evidence"):
         return _pass(f"{len(release['evidence'])} evidence reference(s)")
     return _fail("release has no evidence references")
@@ -425,9 +620,12 @@ def c_operations_doc(ctx):
 
 
 def c_release_known_issues(ctx):
+    invalid = _invalid(ctx, "release")
+    if invalid:
+        return _fail(invalid)
     release = _latest_release(ctx)
     if release is None:
-        return _fail("no RELEASE artifact")
+        return _fail(ctx.empty_detail("release"))
     if isinstance(release.get("known_issues"), list):
         return _pass(f"{len(release['known_issues'])} known issue(s) tracked")
     return _fail("known_issues not tracked on release")
@@ -489,7 +687,10 @@ def evaluate_gate(project_dir, gate_id: str, root=None) -> dict:
         try:
             status, detail = check(ctx)
         except Exception as exc:  # pragma: no cover - defensive
-            status, detail = "WARN", f"check error: {exc}"
+            # A check that cannot answer is not a check that passed. The
+            # condition is unknown, so it fails closed instead of degrading
+            # into a warning that would let a lifecycle transition proceed.
+            status, detail = "FAIL", f"check error: {exc}"
         results.append({**condition, "status": status, "detail": detail})
 
     statuses = [r["status"] for r in results]

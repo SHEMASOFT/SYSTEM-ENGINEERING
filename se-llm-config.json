@@ -1,0 +1,10 @@
+{
+  "provider": "universal",
+  "model": "gpt-4o-mini",
+  "temperature": 0.3,
+  "max_tokens": 4096,
+  "provider_options": {
+    "api_key_env": "SE_LLM_API_KEY",
+    "base_url": "https://api.openai.com/v1"
+  }
+}

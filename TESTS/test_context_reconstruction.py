@@ -182,7 +182,12 @@ class ContextReconstructionTests(unittest.TestCase):
             )
             support.write_json(
                 project / "tasks" / "TASK-0002.json",
-                support.task(id="TASK-0002", status="BLOCKED", blocked_reason="Waiting on inputs."),
+                support.task(
+                    id="TASK-0002",
+                    status="BLOCKED",
+                    blocked_reason="Waiting on inputs.",
+                    resolution_path="Ask the owner for the missing inputs.",
+                ),
             )
             code, out = run_context(project, "--scope", "work", "--focus", "TASK-0001")
             self.assertEqual(code, 0, out)

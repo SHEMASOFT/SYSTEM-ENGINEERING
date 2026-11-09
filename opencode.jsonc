@@ -49,5 +49,6 @@
     "timeout": {
       "startup": 60000
     }
-  }
+  },
+  "model": "openai/gpt-4o"
 }

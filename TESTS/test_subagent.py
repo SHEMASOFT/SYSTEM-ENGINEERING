@@ -121,7 +121,7 @@ class AgentRunnerResultTests(_ProjectTestCase):
             )
         )
         self.assertEqual(result["status"], "FAILED")
-        self.assertIn("Tool execution failed", result["error"])
+        self.assertIn("path is required", result["error"])
         self.assertNotIn("COMPLETED", result["status"])
 
     def test_valid_response_completes(self):

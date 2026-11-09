@@ -832,7 +832,7 @@
       "version": "1.0.0",
       "name": "intent",
       "description": "Normalize an explicit structured intent into a READ-ONLY se.intent/1 envelope.",
-      "purpose": "Validate and normalize an explicit structured intent (objetivo, contexto/proyecto, alcance, restricciones, criterio de éxito) from a file or an existing OBJECTIVE artifact, emitting a deterministic se.intent/1 envelope. READ-ONLY; no mutations, no LLM.",
+      "purpose": "Validate and normalize an explicit structured intent (objetivo, contexto/proyecto, alcance, restricciones, criterio de \u00e9xito) from a file or an existing OBJECTIVE artifact, emitting a deterministic se.intent/1 envelope. READ-ONLY; no mutations, no LLM.",
       "agent": "shema-ai-coordinador",
       "execution_intent": "ANALYZE",
       "risk_level": "low",
@@ -1384,6 +1384,38 @@
         "adr": "ADR-0031",
         "promoted_from": "DECLARED_SUPPORT"
       }
+    },
+    {
+      "id": "CMD-0026",
+      "version": "1.0.0",
+      "name": "shema-ai",
+      "description": "SHEMA-AI Unified Interface: Model config, Install, Sync, Uninstall, Doctor.",
+      "purpose": "SHEMA-AI Unified Interface: Model config, Install, Sync, Uninstall, Doctor.",
+      "agent": "shema-ai-coordinador",
+      "execution_intent": "ANALYZE",
+      "risk_level": "low",
+      "inputs": [],
+      "outputs": [
+        "PASS/WARN/FAIL report",
+        "Model configuration",
+        "Installation status"
+      ],
+      "gate": null,
+      "primary_agent": "shema-ai-coordinador",
+      "mutates": false,
+      "implemented": true,
+      "permissions": [
+        "READ",
+        "ANALYZE"
+      ],
+      "arguments": [
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "description": "Emit a machine-readable se.report/1 envelope instead of human-readable output."
+        }
+      ]
     }
   ]
 }
