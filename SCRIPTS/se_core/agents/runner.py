@@ -106,7 +106,7 @@ Return results as JSON with the following structure:
 
     def _create_llm_provider(self):
         """Create LLM provider from agent config with env fallback."""
-        # Precedence: override > agent config > env > dummy
+        # Precedence: override > agent config > env > repo se-llm-config.json > dummy
         llm_config = self.override_llm_config or self.agent_config.get("llm_config", {})
         
         if not llm_config:
@@ -116,12 +116,33 @@ Return results as JSON with the following structure:
             llm_config = llm_config_from_env(os.environ)
 
         if not llm_config:
-            # Fallback to dummy provider for testing
+            # Try repo-level se-llm-config.json (single file to change model for all agents)
+            llm_config = self._load_repo_llm_config()
+
+        if not llm_config:
+            # Fallback to dummy provider for testing (no API calls)
             from ..llm.factory import create_provider
             return create_provider("dummy", "dummy")
         
         from ..llm.factory import create_provider_from_config
         return create_provider_from_config(llm_config)
+
+    def _load_repo_llm_config(self) -> Optional[Dict[str, Any]]:
+        """Load LLM config from se-llm-config.json in the repo root.
+
+        This is a single, easy-to-edit file that sets the default model for all
+        agents when no per-agent llm_config or SE_LLM_* env vars are present.
+        """
+        import json
+        from pathlib import Path
+        config_path = self.root / "se-llm-config.json"
+        if not config_path.exists():
+            return None
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return None
 
     @property
     def simulated(self) -> bool:

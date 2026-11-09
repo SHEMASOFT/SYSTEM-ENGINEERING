@@ -24,6 +24,7 @@ PROVIDER_REGISTRY: Dict[str, Type] = {
     "local": None,
     "ollama": None,
     "vllm": None,
+    "universal": None,
     "dummy": None,
 }
 
@@ -36,6 +37,7 @@ def _get_provider_classes() -> Dict[str, Type]:
             OpenAIProvider,
             AnthropicProvider,
             LocalProvider,
+            UniversalProvider,
             DummyProvider,
         )
         PROVIDER_REGISTRY = {
@@ -44,6 +46,7 @@ def _get_provider_classes() -> Dict[str, Type]:
             "local": LocalProvider,
             "ollama": LocalProvider,  # alias
             "vllm": LocalProvider,
+            "universal": UniversalProvider,
             "dummy": DummyProvider,
         }
     return PROVIDER_REGISTRY
