@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 from ..paths import repo_root, now_utc, write_json_atomic
 from ..schemas import load_schemas, validate
-from ..artifacts import read_manifest
+from ..artifacts import read_manifest, resolve_project_dir
 from .index import (
     INDEX_ERRORS,
     IndexEntry,
@@ -199,6 +199,7 @@ class MemoryEngine:
         dedupe: bool = False,
         ttl_days: Optional[int] = None,
         gc_protected: bool = False,
+        project_dir: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """Create a new memory record.
 
@@ -211,9 +212,12 @@ class MemoryEngine:
           ``content`` in the same project and type is treated as the same memory
           and its ``duplicate_count``/``last_seen_at`` are updated instead of
           creating a copy.
+
+        ``project_dir`` is the explicit project directory when the caller
+        already resolved one (a managed workspace outside ``PROJECTS/``).
         """
         # Validate project exists
-        project_dir = self._find_project_dir(project_id)
+        project_dir = self._find_project_dir(project_id, project_dir)
         if not project_dir:
             raise ValueError(f"Project {project_id} not found")
 
@@ -226,7 +230,7 @@ class MemoryEngine:
                 # Dedupe: topic_key is an upsert key, not an identity
             existing = None
             if topic_key:
-                existing = self._find_by_topic_key(project_id, topic_key)
+                existing = self._find_by_topic_key(project_id, topic_key, project_dir)
                 if existing:
                     # Revision: update in place, bump counters
                     existing.revision_count += 1
@@ -250,7 +254,7 @@ class MemoryEngine:
                 content_hash = hashlib.sha256(
                     json.dumps(content, sort_keys=True).encode()
                 ).hexdigest()
-                for _dir, record in self._iter_records(project_id):
+                for _dir, record in self._iter_records(project_id, project_dir=project_dir):
                     if record.type != type:
                         continue
                     if record.state == "deprecated":
@@ -270,7 +274,7 @@ class MemoryEngine:
                         }
 
             # Generate ID
-            memory_id = self._generate_memory_id(project_id)
+            memory_id = self._generate_memory_id(project_id, project_dir)
 
             record = MemoryRecord(
                 memory_id=memory_id,
@@ -322,6 +326,7 @@ class MemoryEngine:
         state: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
+        project_dir: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """Query memories with filters.
 
@@ -332,7 +337,8 @@ class MemoryEngine:
         # truth (ADR-0003). The derived search index of ADR-0027 is a separate
         # concern and must not add latency or stderr noise to a plain query.
         memories = self._scan_local_memories(
-            project_id, types, tags, author, since, until, tags_mode, state
+            project_id, types, tags, author, since, until, tags_mode, state,
+            project_dir=project_dir,
         )
 
         # Apply pagination
@@ -359,14 +365,19 @@ class MemoryEngine:
             },
         }
 
-    def get(self, memory_id: str, project_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get(
+        self,
+        memory_id: str,
+        project_id: Optional[str] = None,
+        project_dir: Optional[Path] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Get a single memory by ID from the canonical record files.
 
         Requires a project scope: IDs are project-scoped, so without one the
         lookup is ambiguous and returns ``None`` (use :meth:`query` to list across
         projects).
         """
-        _, record = self._load_record(memory_id, project_id)
+        _, record = self._load_record(memory_id, project_id, project_dir)
         if record is None:
             return None
         return record.to_dict()
@@ -381,6 +392,7 @@ class MemoryEngine:
         include_deprecated: bool = False,
         rerank: Optional[bool] = None,
         candidates: int = 50,
+        project_dir: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """Lexical search over memory records (ADR-0027), optionally reranked.
 
@@ -402,7 +414,7 @@ class MemoryEngine:
         reranker, reranker_reason = self._semantic_reranker(rerank)
 
         index = MemoryIndex(self.root)
-        revisions, paths = self._index_scope(project_id)
+        revisions, paths = self._index_scope(project_id, project_dir)
 
         # With a reranker the whole window must be fetched in one page, because
         # the order is only known after reranking; without one the backend keeps
@@ -433,6 +445,7 @@ class MemoryEngine:
                 fetch_offset,
                 include_deprecated,
                 texts,
+                project_dir=project_dir,
             )
             backend = "scan"
 
@@ -554,6 +567,7 @@ class MemoryEngine:
         offset: int,
         include_deprecated: bool = False,
         texts: Optional[Dict[Tuple[str, str], str]] = None,
+        project_dir: Optional[Path] = None,
     ) -> List[Dict[str, Any]]:
         """Pure-Python fallback, used when FTS5 is missing or the index fails.
 
@@ -565,7 +579,7 @@ class MemoryEngine:
         terms = tokenize(text)
         ranked: List[Tuple[float, str, str, Any, str]] = []
 
-        for _project_dir, record in self._iter_records(project_id):
+        for _project_dir, record in self._iter_records(project_id, project_dir=project_dir):
             if types and record.type not in types:
                 continue
             if not include_deprecated and record.state == "deprecated":
@@ -687,6 +701,7 @@ class MemoryEngine:
         related_memory_id: str,
         relation: str = "related",
         project_id: Optional[str] = None,
+        project_dir: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """Record a relation between two existing memories and persist it.
 
@@ -700,8 +715,14 @@ class MemoryEngine:
 
         if relation in self.DIRECTIONAL_RELATIONS:
             if relation == "supersedes":
-                return self.supersede(related_memory_id, memory_id, project_id=project_id)
-            return self.supersede(memory_id, related_memory_id, project_id=project_id)
+                return self.supersede(
+                    related_memory_id, memory_id, project_id=project_id,
+                    project_dir=project_dir,
+                )
+            return self.supersede(
+                memory_id, related_memory_id, project_id=project_id,
+                project_dir=project_dir,
+            )
 
         if relation not in self.SYMMETRIC_RELATIONS:
             raise ValueError(
@@ -709,8 +730,8 @@ class MemoryEngine:
                 f"{self.SYMMETRIC_RELATIONS + self.DIRECTIONAL_RELATIONS}"
             )
 
-        left_dir, left = self._require_record(memory_id, project_id)
-        right_dir, right = self._require_record(related_memory_id, project_id)
+        left_dir, left = self._require_record(memory_id, project_id, project_dir)
+        right_dir, right = self._require_record(related_memory_id, project_id, project_dir)
 
         for directory, record, other in (
             (left_dir, left, right),
@@ -735,6 +756,7 @@ class MemoryEngine:
         memory_id: str,
         project_id: str,
         updates: Dict[str, Any],
+        project_dir: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """Apply a partial update to a memory record and persist it.
 
@@ -746,7 +768,7 @@ class MemoryEngine:
         if rejected:
             raise ValueError(f"cannot update immutable field(s): {', '.join(rejected)}")
 
-        project_dir, record = self._require_record(memory_id, project_id)
+        project_dir, record = self._require_record(memory_id, project_id, project_dir)
         for key, value in updates.items():
             if not hasattr(record, key):
                 raise ValueError(f"unknown memory field: {key}")
@@ -761,6 +783,7 @@ class MemoryEngine:
         old_memory_id: str,
         new_memory_id: str,
         project_id: Optional[str] = None,
+        project_dir: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """Mark ``old_memory_id`` as superseded by ``new_memory_id``.
 
@@ -771,8 +794,8 @@ class MemoryEngine:
         if old_memory_id == new_memory_id:
             raise ValueError("a memory cannot supersede itself")
 
-        old_dir, old = self._require_record(old_memory_id, project_id)
-        new_dir, new = self._require_record(new_memory_id, project_id)
+        old_dir, old = self._require_record(old_memory_id, project_id, project_dir)
+        new_dir, new = self._require_record(new_memory_id, project_id, project_dir)
 
         if new.superseded_by:
             raise ValueError(
@@ -792,8 +815,18 @@ class MemoryEngine:
 
         return {"status": "superseded", "old": old_memory_id, "new": new_memory_id}
 
-    def _find_project_dir(self, project_id: str) -> Optional[Path]:
-        """Find project directory by project_id under this engine's root."""
+    def _find_project_dir(
+        self, project_id: str, project_dir: Optional[Path] = None
+    ) -> Optional[Path]:
+        """Find the directory of a project.
+
+        An explicit ``project_dir`` wins: the canonical memory store lives
+        next to the project (``<project_dir>/memories``), so a managed
+        workspace outside ``PROJECTS/`` is only reachable when the caller
+        says where it is. Without it, the project is looked up by id.
+        """
+        if project_dir is not None:
+            return resolve_project_dir(project_dir, project_id)
         for p in (self.root / "PROJECTS").glob("*"):
             if (p / "PROJECT.json").exists():
                 manifest = read_manifest(p)
@@ -805,13 +838,15 @@ class MemoryEngine:
                 return self.global_store
         return None
 
-    def _find_by_topic_key(self, project_id: str, topic_key: str) -> Optional["MemoryRecord"]:
+    def _find_by_topic_key(
+        self, project_id: str, topic_key: str, project_dir: Optional[Path] = None
+    ) -> Optional["MemoryRecord"]:
         """Find the most recent active record with the given topic_key in a project."""
-        project_dir = self._find_project_dir(project_id)
+        project_dir = self._find_project_dir(project_id, project_dir)
         if not project_dir:
             return None
         matches = []
-        for _dir, record in self._iter_records(project_id):
+        for _dir, record in self._iter_records(project_id, project_dir=project_dir):
             if record.topic_key == topic_key and record.state != "deprecated":
                 matches.append(record)
         if not matches:
@@ -819,9 +854,11 @@ class MemoryEngine:
         matches.sort(key=lambda r: r.updated_at, reverse=True)
         return matches[0]
 
-    def _generate_memory_id(self, project_id: str) -> str:
+    def _generate_memory_id(
+        self, project_id: str, project_dir: Optional[Path] = None
+    ) -> str:
         """Generate MEM-XXXX ID."""
-        project_dir = self._find_project_dir(project_id)
+        project_dir = self._find_project_dir(project_id, project_dir)
         if not project_dir:
             # Cross-project, use global counter
             return f"MEM-{random.randint(1000, 9999):04d}"
@@ -867,7 +904,12 @@ class MemoryEngine:
             record.created_at = now
         record.updated_at = now
 
-    def _load_record(self, memory_id: str, project_id: Optional[str] = None):
+    def _load_record(
+        self,
+        memory_id: str,
+        project_id: Optional[str] = None,
+        project_dir: Optional[Path] = None,
+    ):
         """Return ``(project_dir, record)`` for an existing memory, or ``(None, None)``.
 
         Memory IDs are project-scoped (``MEM-0001`` exists in more than one
@@ -877,7 +919,7 @@ class MemoryEngine:
         """
         if not project_id:
             return None, None
-        project_dir = self._find_project_dir(project_id)
+        project_dir = self._find_project_dir(project_id, project_dir)
         if project_dir is None:
             return None, None
         path = self._record_path(project_dir, memory_id)
@@ -885,21 +927,34 @@ class MemoryEngine:
             return project_dir, self._read_record(path)
         return None, None
 
-    def _require_record(self, memory_id: str, project_id: Optional[str] = None):
+    def _require_record(
+        self,
+        memory_id: str,
+        project_id: Optional[str] = None,
+        project_dir: Optional[Path] = None,
+    ):
         """Resolve a record for writing; an unambiguous project scope is required."""
         if not project_id:
             raise ValueError(f"project scope is required to resolve memory {memory_id}")
-        project_dir, record = self._load_record(memory_id, project_id)
+        project_dir, record = self._load_record(memory_id, project_id, project_dir)
         if record is None:
             raise ValueError(f"memory {memory_id} not found")
         return project_dir, record
 
-    def _project_dirs(self, project_id: Optional[str] = None) -> List[Path]:
+    def _project_dirs(
+        self,
+        project_id: Optional[str] = None,
+        project_dir: Optional[Path] = None,
+    ) -> List[Path]:
         """Project directories in scope for this engine root.
 
         A project ID resolves to at most one directory; without one, every
         discoverable project is in scope (the cross-project listing path).
+        An explicit ``project_dir`` resolves to exactly that directory.
         """
+        if project_dir is not None:
+            found = self._find_project_dir(project_id or "", project_dir)
+            return [found] if found else []
         if project_id:
             found = self._find_project_dir(project_id)
             return [found] if found else []
@@ -922,13 +977,17 @@ class MemoryEngine:
         st = Path(path).stat()
         return f"{st.st_mtime_ns}:{st.st_size}"
 
-    def _iter_records(self, project_id: Optional[str] = None):
+    def _iter_records(
+        self,
+        project_id: Optional[str] = None,
+        project_dir: Optional[Path] = None,
+    ):
         """Yield ``(project_dir, record)`` for every readable record in scope.
 
         A malformed file is skipped rather than fatal: one bad record must not
         hide every other record.
         """
-        for project_dir in self._project_dirs(project_id):
+        for project_dir in self._project_dirs(project_id, project_dir):
             mem_dir = project_dir / "memories"
             if not mem_dir.exists():
                 continue
@@ -956,11 +1015,12 @@ class MemoryEngine:
         until: Optional[str],
         tags_mode: str,
         state: Optional[str] = None,
+        project_dir: Optional[Path] = None,
     ) -> List:
         """Scan local memory files with filters."""
         memories = []
 
-        for _project_dir, record in self._iter_records(project_id):
+        for _project_dir, record in self._iter_records(project_id, project_dir=project_dir):
             if types and record.type not in types:
                 continue
             if state:
@@ -991,7 +1051,9 @@ class MemoryEngine:
     # -- derived search index (ADR-0027) -----------------------------------
 
     def _index_scope(
-        self, project_id: Optional[str] = None
+        self,
+        project_id: Optional[str] = None,
+        project_dir: Optional[Path] = None,
     ) -> Tuple[Dict[Tuple[str, str], str], Dict[Tuple[str, str], Path]]:
         """Inventory of indexable records: ``(revisions, paths)`` by identity.
 
@@ -1001,7 +1063,7 @@ class MemoryEngine:
         revisions: Dict[Tuple[str, str], str] = {}
         paths: Dict[Tuple[str, str], Path] = {}
 
-        for project_dir in self._project_dirs(project_id):
+        for project_dir in self._project_dirs(project_id, project_dir):
             mem_dir = project_dir / "memories"
             if not mem_dir.exists():
                 continue
