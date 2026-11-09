@@ -2206,7 +2206,7 @@ def cmd_review(args) -> int:
 
     for kind, (items, errors) in collections.items():
         for path, message in errors:
-            findings.append(f"{path.name}: unreadable ({message})")
+            findings.append(f"{path.name}: {message}")
         for path, data in items:
             for err in validate(data, schema_for[kind]):
                 findings.append(f"{path.name}: {err}")
@@ -3474,7 +3474,7 @@ def cmd_validate(args) -> int:
                 project_tasks = []
                 for kind, (items, errors) in all_collections(project).items():
                     for path, message in errors:
-                        failures.append(f"{path.name}: unreadable ({message})")
+                        failures.append(f"{path.name}: {message}")
                     for path, data in items:
                         for err in validate(data, schema_for[kind]):
                             failures.append(f"{path.name}: {err}")
@@ -3996,7 +3996,7 @@ def cmd_status(args) -> int:
         collections = all_collections(project)
         for kind, (items, errors) in collections.items():
             for path, message in errors:
-                failures.append(f"{path.name}: unreadable ({message})")
+                failures.append(f"{path.name}: {message}")
             for path, data in items:
                 for err in validate(data, schema_for[kind]):
                     failures.append(f"{path.name}: {err}")
@@ -4288,6 +4288,26 @@ def _resolve_global_memory_store() -> Path:
     return store
 
 
+def _resolve_memory_project(args):
+    """Resolve ``--project`` into ``(project_id, project_dir, error)``.
+
+    ``error`` is True when the path is not a project (the message was already
+    printed). The directory is absolute: the canonical memory store lives next
+    to the project, so the engine must know *where* the project is and not
+    only which id it has.
+    """
+    if not args.project:
+        return None, None, False
+    project_path = Path(args.project)
+    if not (project_path / "PROJECT.json").exists():
+        print(f"FAIL: no PROJECT.json in {project_path}")
+        return None, None, True
+    from .artifacts import read_manifest
+    project_manifest = read_manifest(project_path)
+    project_id = project_manifest.get("project_id", project_path.name)
+    return project_id, project_path.resolve(), False
+
+
 def cmd_memory(args) -> int:
     """Memory operations: add, query, get, search, index, link, update, supersede."""
     from .memory.engine import MemoryEngine
@@ -4313,14 +4333,9 @@ def cmd_memory(args) -> int:
             print(f"FAIL: invalid --content JSON: {e}")
             return 1
 
-        project_path = Path(args.project)
-        if not (project_path / "PROJECT.json").exists():
-            print(f"FAIL: no PROJECT.json in {project_path}")
+        project_id, project_dir, error = _resolve_memory_project(args)
+        if error:
             return 1
-
-        from .artifacts import read_manifest
-        project_manifest = read_manifest(project_path)
-        project_id = project_manifest.get("project_id", project_path.name)
 
         try:
             result = engine.add(
@@ -4338,6 +4353,7 @@ def cmd_memory(args) -> int:
                 review_after=args.review_after,
                 state=args.state or "active",
                 dedupe=bool(args.dedupe),
+                project_dir=project_dir,
             )
             if result["status"] == "revised":
                 print(
@@ -4357,15 +4373,9 @@ def cmd_memory(args) -> int:
             return 1
 
     elif args.memory_command == "query":
-        project_id = None
-        if args.project:
-            project_path = Path(args.project)
-            if not (project_path / "PROJECT.json").exists():
-                print(f"FAIL: no PROJECT.json in {project_path}")
-                return 1
-            from .artifacts import read_manifest
-            project_manifest = read_manifest(project_path)
-            project_id = project_manifest.get("project_id", project_path.name)
+        project_id, project_dir, error = _resolve_memory_project(args)
+        if error:
+            return 1
 
         result = engine.query(
             project_id=project_id,
@@ -4378,6 +4388,7 @@ def cmd_memory(args) -> int:
             state=args.state,
             limit=args.limit,
             offset=args.offset,
+            project_dir=project_dir,
         )
 
         if wants_json(args):
@@ -4405,17 +4416,11 @@ def cmd_memory(args) -> int:
             print("FAIL: --memory-id is required for memory get")
             return 1
 
-        project_id = None
-        if args.project:
-            project_path = Path(args.project)
-            if not (project_path / "PROJECT.json").exists():
-                print(f"FAIL: no PROJECT.json in {project_path}")
-                return 1
-            from .artifacts import read_manifest
-            project_manifest = read_manifest(project_path)
-            project_id = project_manifest.get("project_id", project_path.name)
+        project_id, project_dir, error = _resolve_memory_project(args)
+        if error:
+            return 1
 
-        result = engine.get(args.memory_id, project_id)
+        result = engine.get(args.memory_id, project_id, project_dir=project_dir)
         if not result:
             print(f"FAIL: memory {args.memory_id} not found")
             return 1
@@ -4440,15 +4445,9 @@ def cmd_memory(args) -> int:
             print("FAIL: --memory-id and --related-id are required for memory link")
             return 1
 
-        project_id = None
-        if args.project:
-            project_path = Path(args.project)
-            if not (project_path / "PROJECT.json").exists():
-                print(f"FAIL: no PROJECT.json in {project_path}")
-                return 1
-            from .artifacts import read_manifest
-            project_manifest = read_manifest(project_path)
-            project_id = project_manifest.get("project_id", project_path.name)
+        project_id, project_dir, error = _resolve_memory_project(args)
+        if error:
+            return 1
 
         try:
             result = engine.link(
@@ -4456,6 +4455,7 @@ def cmd_memory(args) -> int:
                 args.related_id,
                 args.relation or "related",
                 project_id=project_id,
+                project_dir=project_dir,
             )
         except ValueError as e:
             print(f"FAIL: {e}")
@@ -4475,18 +4475,12 @@ def cmd_memory(args) -> int:
             print(f"FAIL: invalid --updates JSON: {e}")
             return 1
 
-        project_id = None
-        if args.project:
-            project_path = Path(args.project)
-            if not (project_path / "PROJECT.json").exists():
-                print(f"FAIL: no PROJECT.json in {project_path}")
-                return 1
-            from .artifacts import read_manifest
-            project_manifest = read_manifest(project_path)
-            project_id = project_manifest.get("project_id", project_path.name)
+        project_id, project_dir, error = _resolve_memory_project(args)
+        if error:
+            return 1
 
         try:
-            engine.update(args.memory_id, project_id, updates)
+            engine.update(args.memory_id, project_id, updates, project_dir=project_dir)
         except ValueError as e:
             print(f"FAIL: {e}")
             return 1
@@ -4498,18 +4492,12 @@ def cmd_memory(args) -> int:
             print("FAIL: --memory-id and --new-id are required for supersede")
             return 1
 
-        project_id = None
-        if args.project:
-            project_path = Path(args.project)
-            if not (project_path / "PROJECT.json").exists():
-                print(f"FAIL: no PROJECT.json in {project_path}")
-                return 1
-            from .artifacts import read_manifest
-            project_manifest = read_manifest(project_path)
-            project_id = project_manifest.get("project_id", project_path.name)
+        project_id, project_dir, error = _resolve_memory_project(args)
+        if error:
+            return 1
 
         try:
-            engine.supersede(args.memory_id, args.new_id, project_id)
+            engine.supersede(args.memory_id, args.new_id, project_id, project_dir=project_dir)
         except ValueError as e:
             print(f"FAIL: {e}")
             return 1
@@ -4521,15 +4509,9 @@ def cmd_memory(args) -> int:
             print("FAIL: --query is required for memory search")
             return 1
 
-        project_id = None
-        if args.project:
-            project_path = Path(args.project)
-            if not (project_path / "PROJECT.json").exists():
-                print(f"FAIL: no PROJECT.json in {project_path}")
-                return 1
-            from .artifacts import read_manifest
-            project_manifest = read_manifest(project_path)
-            project_id = project_manifest.get("project_id", project_path.name)
+        project_id, project_dir, error = _resolve_memory_project(args)
+        if error:
+            return 1
 
         try:
             result = engine.search(
@@ -4540,6 +4522,7 @@ def cmd_memory(args) -> int:
                 offset=args.offset,
                 rerank=args.semantic,
                 candidates=args.candidates,
+                project_dir=project_dir,
             )
         except ValueError as e:
             print(f"FAIL: {e}")
@@ -4716,6 +4699,7 @@ def cmd_orchestrate(args) -> int:
                 nodes=nodes,
                 edges=edges if edges else [],
                 gates=gates if gates else None,
+                project_dir=project_path.resolve(),
             )
             # create_workflow returns Path to the project directory
             print(f"PASS: created workflow at {workflow_path}")
@@ -4755,6 +4739,7 @@ def cmd_orchestrate(args) -> int:
                     project_id=project_id,
                     execution_id=args.execution_id,
                     start_node=start_node,
+                    project_dir=project_path.resolve(),
                 )
                 print(prompt)
                 return 0
@@ -4770,6 +4755,7 @@ def cmd_orchestrate(args) -> int:
                 dry_run=dry_run,
                 start_node=start_node,
                 resume_from_checkpoint=args.resume_from,
+                project_dir=project_path.resolve(),
             )
         except Exception as exc:
             print(f"FAIL: workflow execution failed: {exc}")
@@ -5153,7 +5139,7 @@ def cmd_health(args) -> int:
             # Validate all records
             for kind, (items, errors) in all_collections(project).items():
                 for path, message in errors:
-                    failures.append(f"{path.name}: unreadable ({message})")
+                    failures.append(f"{path.name}: {message}")
                 for path, data in items:
                     for err in validate(data, schema_for[kind]):
                         failures.append(f"{path.name}: {err}")
@@ -5162,7 +5148,7 @@ def cmd_health(args) -> int:
             project_tasks = []
             for kind, (items, errors) in all_collections(project).items():
                 for path, message in errors:
-                    failures.append(f"{path.name}: unreadable ({message})")
+                    failures.append(f"{path.name}: {message}")
                 for path, data in items:
                     for err in validate(data, schema_for[kind]):
                         failures.append(f"{path.name}: {err}")

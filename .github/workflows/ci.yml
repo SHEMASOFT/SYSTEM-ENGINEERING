@@ -18,6 +18,10 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The release check compares VERSION with the published tags, so the
+          # whole tag list must be present in the checkout.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -33,7 +37,20 @@ jobs:
         run: python SCRIPTS/se.py validate
 
       - name: Release version consistency
-        run: python SCRIPTS/release_master.py --check
+        shell: bash
+        run: |
+          # A drift of the published release state is operational (exit 3): the
+          # tags are published outside this pull request, so it must not
+          # redden the pipeline. A drift of the active references (exit 1)
+          # still blocks.
+          set +e
+          python SCRIPTS/release_master.py --check --ci
+          status=$?
+          if [ "$status" -eq 3 ]; then
+            echo "::warning::The published release tags and VERSION disagree (operational, exit 3); the pipeline is not blocked."
+            exit 0
+          fi
+          exit "$status"
 
       - name: Tests
         shell: bash
