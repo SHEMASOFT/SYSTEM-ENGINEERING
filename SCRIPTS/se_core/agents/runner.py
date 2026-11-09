@@ -135,7 +135,7 @@ Return results as JSON with the following structure:
         """
         import json
         from pathlib import Path
-        config_path = self.root / "se-llm-config.json"
+        config_path = self.root / "SCRIPTS" / "se_core" / "llm" / "se-llm-config.json"
         if not config_path.exists():
             return None
         try:
