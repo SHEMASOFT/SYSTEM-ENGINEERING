@@ -64,11 +64,14 @@ cd <repo>\SYSTEM-ENGINEERING
 python TESTS\run_tests.py                           # Esperado: "OK", exit 0
 python SCRIPTS\se.py validate                       # Esperado: "VALIDATE: PASS"
 python SCRIPTS\se.py doctor                         # Esperado: "FAIL=0"
-python SCRIPTS\release_master.py --check --offline  # Esperado: PASS
+python SCRIPTS\release_master.py --check            # Esperado: "Release check: PASS"
 ```
+
+> `--check` compara `VERSION` con los tags publicados. Si un tag anuncia otra
+> versión que la del archivo `VERSION`, el comando falla (exit 1); con `--ci`
+> ese desfase se degrada a exit 3 para no bloquear el pipeline.
 
 ## 4. Estado de la rama
 
-La rama `integrate-shema-ai` está publicada y su pull request pasa CI en
-`ubuntu-latest`, `windows-latest` y el smoke del bootstrap en Windows. `main` no
-se toca hasta que el pull request se mergee.
+La rama `integrate-shema-ai` fue mergeada en `main` y CI pasa en `ubuntu-latest`,
+`windows-latest` y el smoke del bootstrap en Windows.
