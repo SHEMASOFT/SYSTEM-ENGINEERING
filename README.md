@@ -422,6 +422,22 @@ is the one-click way in. `python -m console.server` runs the same console direct
 in the foreground and with no timeout. Details:
 [`SE-CONSOLE/docs/README.md`](SE-CONSOLE/docs/README.md).
 
+## Neon Magenta
+
+Identidad visual de SE-CONSOLE: tres temas integrados (`magenta` por defecto, `azul`, `claro`), paletas de 16 tokens cada uno, glows de neón sin animaciones y contraste de color verificado (nivel AA) en todos los temas.
+
+[![Neon Magenta](https://img.shields.io/badge/Neon%20Magenta-SE-CONSOLE-F095C8?style=for-the-badge&labelColor=1A1218)](SE-CONSOLE/docs/README.md)
+
+### Temas
+
+| Tema | Uso | Contraste mínimo |
+|------|-----|------------------|
+| `magenta` (por defecto) | Interfaz principal, paneles y glows de neón | 5.32:1 |
+| `azul` | Variante de acento para sesiones largas | 6.50:1 |
+| `claro` | Modo diurno / alta luminosidad | 4.57:1 |
+
+Colores de marca: magenta `#F095C8` sobre fondo oscuro `#1A1218`. Los detalles de aplicación y los tokens de cada paleta viven en [`SE-CONSOLE/docs/README.md`](SE-CONSOLE/docs/README.md).
+
 ---
 
 ## Troubleshooting
