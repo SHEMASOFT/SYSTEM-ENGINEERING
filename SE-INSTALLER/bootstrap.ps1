@@ -283,10 +283,21 @@ if (-not (Test-Path $VenvPython)) {
 }
 
 Write-Host "bootstrap: installing se-installer into the venv ..."
+# pip writes harmless notices (for example setuptools' editable-install
+# warning) to stderr, and Windows PowerShell turns native stderr into a
+# terminating NativeCommandError while $ErrorActionPreference is "Stop".
+# The preference is relaxed around the two installs and the exit code is
+# checked explicitly, so a cosmetic warning cannot abort the bootstrap.
+$PipPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & $VenvPython -m pip install --quiet --upgrade pip
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& $VenvPython -m pip install --quiet -e $InstallerRoot
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$PipExitCode = $LASTEXITCODE
+if ($PipExitCode -eq 0) {
+    & $VenvPython -m pip install --quiet -e $InstallerRoot
+    $PipExitCode = $LASTEXITCODE
+}
+$ErrorActionPreference = $PipPreference
+if ($PipExitCode -ne 0) { exit $PipExitCode }
 
 $Command = if ($ForwardArgs.Count -gt 0) { $ForwardArgs[0] } else { "" }
 $RunArgs = @($ForwardArgs)
