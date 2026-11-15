@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" data-theme="light">
+<html lang="es" data-theme="magenta">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -33,9 +33,11 @@
       <button type="button" id="btn-refresh" class="btn" aria-label="Recargar datos del sistema">
         <span class="btn-ico" aria-hidden="true">⟳</span> Actualizar
       </button>
-      <button type="button" id="btn-theme" class="btn btn-icon" aria-label="Cambiar tema claro/oscuro" title="Cambiar tema">
-        <span aria-hidden="true">◐</span>
-      </button>
+      <select id="sel-theme" class="sel-theme" aria-label="Tema" title="Tema">
+        <option value="magenta">Neón Magenta</option>
+        <option value="azul">Neón Azul</option>
+        <option value="claro">Claro</option>
+      </select>
       <div class="token-box">
         <input type="password" id="inp-token" class="token-inp" placeholder="token" aria-label="Token SE-CONSOLE">
         <button type="button" id="btn-save-token" class="btn btn-small">Guardar</button>

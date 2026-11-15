@@ -1643,15 +1643,22 @@
   }
 
   // ---------------------------------------------------------------- theme
+  var THEMES = ["magenta", "azul", "claro"];
+  var THEME_ALIASES = { dark: "magenta", light: "claro" };   // legacy saved values
+  function normalizeTheme(saved) {
+    if (saved && THEME_ALIASES[saved]) saved = THEME_ALIASES[saved];
+    return (saved && THEMES.indexOf(saved) !== -1) ? saved : "magenta";
+  }
   function initTheme() {
     var saved = null;
     try { saved = localStorage.getItem("se-console-theme"); } catch (e) {}
-    if (!saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) saved = "dark";
-    document.documentElement.setAttribute("data-theme", saved || "light");
+    var theme = normalizeTheme(saved);
+    document.documentElement.setAttribute("data-theme", theme);
+    var sel = document.getElementById("sel-theme");
+    if (sel) sel.value = theme;
   }
-  function toggleTheme() {
-    var cur = document.documentElement.getAttribute("data-theme");
-    var next = cur === "dark" ? "light" : "dark";
+  function setTheme(next) {
+    if (THEMES.indexOf(next) === -1) return;
     document.documentElement.setAttribute("data-theme", next);
     try { localStorage.setItem("se-console-theme", next); } catch (e) {}
   }
@@ -1678,7 +1685,9 @@
     Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
       t.addEventListener("click", function () { go(t.getAttribute("data-view")); });
     });
-    document.getElementById("btn-theme").addEventListener("click", toggleTheme);
+    document.getElementById("sel-theme").addEventListener("change", function () {
+      setTheme(this.value);
+    });
     var btn = document.getElementById("btn-refresh");
     btn.addEventListener("click", function () {
       btn.classList.add("is-busy");

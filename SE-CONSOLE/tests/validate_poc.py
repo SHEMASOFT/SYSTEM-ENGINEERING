@@ -200,7 +200,7 @@ def browser_evidence() -> dict:
                 else None,
             )
 
-        # ---------------- desktop, both themes, all three views ----------
+        # ---------------- desktop, all three themes, all three views -------
         ctx = browser.new_context(viewport=DESKTOP, device_scale_factor=1)
         page = ctx.new_page()
         attach(page)
@@ -208,7 +208,7 @@ def browser_evidence() -> dict:
         page.goto(BASE + "/", wait_until="domcontentloaded", timeout=60_000)
         page.wait_for_selector(".panel", timeout=90_000)
 
-        for theme in ("light", "dark"):
+        for theme in ("magenta", "azul", "claro"):
             page.evaluate(
                 "(t) => { document.documentElement.setAttribute('data-theme', t);"
                 " localStorage.setItem('se-console-theme', t); }",
@@ -486,32 +486,48 @@ def main() -> int:
               all((p.get("lifecycle") or {}).get("value") is None for p in unman),
               f"lifecycle=None for {[p['dir_name'] for p in unman]} (no PROJECT.json)")
 
-        st, _h, b = http("GET", "/api/project?rel_path=PROJECTS/SHEMASEG")
-        pdet = json.loads(b)
-        gates = pdet["gates"]["matrix"]["value"]
-        check("S7", "gate matrix G0-G8 rendered from se gate",
-              len(gates) == 9 and all(g["status"]["epistemic"] == "OBSERVED" for g in gates),
-              f"{len(gates)} gates; pass={pdet['gates']['passing']} manual={pdet['gates']['manual']} "
-              f"fail={pdet['gates']['failing']}")
-        check("S7b", "lifecycle + next transition visible",
-              bool(pdet["lifecycle"]["state"]["value"]) and bool(pdet["lifecycle"]["next_transition"]["value"]),
-              f"{pdet['lifecycle']['state']['value']} -> {pdet['lifecycle']['next_transition']['value']}")
-        check("S10", "blockers enumerated with evidence",
-              pdet["attention"]["counts"]["BLOCKED"] > 0
-              and all(i["evidence"] for i in pdet["attention"]["items"]),
-              f"BLOCKED={pdet['attention']['counts']['BLOCKED']} "
-              f"WARNING={pdet['attention']['counts']['WARNING']}")
-        check("S11b", "AUTO-02 deep-scope emptiness disclosed, not hidden",
-              bool(pdet["context"]["deep_scope"]["value"]["warnings"])
-              and "focus" in ((pdet["context"].get("note") or {}).get("value") or ""),
-              "warning surfaced: "
-              + str(pdet["context"]["deep_scope"]["value"]["warnings"])
-              + " + console note explains focus-driven behaviour")
-        check("S-honest", "record counts kept distinct from se review counts",
-              pdet["records"]["value"]["REQUIREMENT"]["count"]
-              != pdet["traceability"]["review_counts"]["value"]["REQUIREMENT"],
-              f"files={pdet['records']['value']['REQUIREMENT']['count']} "
-              f"se-review-type={pdet['traceability']['review_counts']['value']['REQUIREMENT']} (not averaged)")
+        if not managed:
+            # S7-S11 exercise managed-project surfaces against a real project.
+            # With an empty PROJECTS/ root there is nothing to exercise: report
+            # the dependency explicitly instead of crashing on a missing key
+            # (measured 2026-11-15: KeyError 'gates' with 0 managed projects).
+            for _cid, _desc in [
+                ("S7", "gate matrix G0-G8 rendered from se gate"),
+                ("S7b", "lifecycle + next transition visible"),
+                ("S10", "blockers enumerated with evidence"),
+                ("S11b", "AUTO-02 deep-scope emptiness disclosed, not hidden"),
+                ("S-honest", "record counts kept distinct from se review counts"),
+            ]:
+                check(_cid, _desc, False,
+                      "no managed project in this SE root; point SE_ROOT at a "
+                      "populated checkout to exercise this check")
+        else:
+            st, _h, b = http("GET", "/api/project?rel_path=PROJECTS/SHEMASEG")
+            pdet = json.loads(b)
+            gates = pdet["gates"]["matrix"]["value"]
+            check("S7", "gate matrix G0-G8 rendered from se gate",
+                  len(gates) == 9 and all(g["status"]["epistemic"] == "OBSERVED" for g in gates),
+                  f"{len(gates)} gates; pass={pdet['gates']['passing']} manual={pdet['gates']['manual']} "
+                  f"fail={pdet['gates']['failing']}")
+            check("S7b", "lifecycle + next transition visible",
+                  bool(pdet["lifecycle"]["state"]["value"]) and bool(pdet["lifecycle"]["next_transition"]["value"]),
+                  f"{pdet['lifecycle']['state']['value']} -> {pdet['lifecycle']['next_transition']['value']}")
+            check("S10", "blockers enumerated with evidence",
+                  pdet["attention"]["counts"]["BLOCKED"] > 0
+                  and all(i["evidence"] for i in pdet["attention"]["items"]),
+                  f"BLOCKED={pdet['attention']['counts']['BLOCKED']} "
+                  f"WARNING={pdet['attention']['counts']['WARNING']}")
+            check("S11b", "AUTO-02 deep-scope emptiness disclosed, not hidden",
+                  bool(pdet["context"]["deep_scope"]["value"]["warnings"])
+                  and "focus" in ((pdet["context"].get("note") or {}).get("value") or ""),
+                  "warning surfaced: "
+                  + str(pdet["context"]["deep_scope"]["value"]["warnings"])
+                  + " + console note explains focus-driven behaviour")
+            check("S-honest", "record counts kept distinct from se review counts",
+                  pdet["records"]["value"]["REQUIREMENT"]["count"]
+                  != pdet["traceability"]["review_counts"]["value"]["REQUIREMENT"],
+                  f"files={pdet['records']['value']['REQUIREMENT']['count']} "
+                  f"se-review-type={pdet['traceability']['review_counts']['value']['REQUIREMENT']} (not averaged)")
 
         # Unmanaged project: the engine's refusal must be surfaced, not smoothed over.
         # The project is taken from the list above rather than named: any directory
@@ -575,7 +591,7 @@ def main() -> int:
               not ev["console_errors"] and not ev["failed_requests"],
               f"errors={ev['console_errors'][:3]} failed={ev['failed_requests'][:3]}")
 
-        d = ev["overflow"].get("overview-light", {})
+        d = ev["overflow"].get("overview-magenta", {})
         check("S3", "1280x800 desktop renders, no overflow",
               d.get("sw", 10**9) <= d.get("cw", 0) and d.get("panels", 0) >= 7,
               f"scrollW={d.get('sw')} clientW={d.get('cw')} panels={d.get('panels')} (7 expected)")
@@ -593,16 +609,17 @@ def main() -> int:
               f"h1={a11y.get('h1')} main={a11y.get('main')} nav={a11y.get('nav')} "
               f"live={a11y.get('live_regions')} unnamed={len(a11y.get('unnamed_controls', []))}")
 
-        for theme in ("light", "dark"):
+        for theme in ("magenta", "azul", "claro"):
             ev[f"theme_{theme}"] = {
                 "aria_chars": ev.get(f"aria_overview_{theme}", 0),
                 "panels": ev["overflow"][f"overview-{theme}"].get("panels", 0),
                 "screenshot": f"artifacts/evidence/overview-1280x800-{theme}.png",
             }
-        check("S-theme", "both themes render populated", all(
-            ev["overflow"][f"overview-{t}"].get("panels", 0) >= 7 for t in ("light", "dark")
-        ), f"light_panels={ev['overflow']['overview-light']['panels']} "
-           f"dark_panels={ev['overflow']['overview-dark']['panels']}")
+        check("S-theme", "all three themes render populated", all(
+            ev["overflow"][f"overview-{t}"].get("panels", 0) >= 7 for t in ("magenta", "azul", "claro")
+        ), f"magenta_panels={ev['overflow']['overview-magenta']['panels']} "
+           f"azul_panels={ev['overflow']['overview-azul']['panels']} "
+           f"claro_panels={ev['overflow']['overview-claro']['panels']}")
 
         # Drawer characterization (S16-S19). The behaviour already ships; these
         # checks pin it. A failure here is a real regression, not a missing RED.
