@@ -74,7 +74,7 @@ receipts instead of claims.
   the repository or the project directory you name; the console's views are
   read-only, and its only writes come from three explicit, token-authenticated
   actions that you trigger yourself.
-- It is **not production-validated yet**. Version 0.10.1 is
+- It is **not production-validated yet**. Version 0.11.0 is
   *foundation / development*: usable and tested, but young.
 
 ---
@@ -282,7 +282,7 @@ SE-INSTALLER\.venv\Scripts\python.exe SCRIPTS\se.py adapter opencode
 SE-INSTALLER/.venv/bin/python SCRIPTS/se.py adapter opencode
 ```
 
-`se adapter opencode` writes `.opencode/` with **12 agents, 24 commands and 7
+`se adapter opencode` writes `.opencode/` with **12 agents, 26 commands and 7
 skills**, all generated — never edit them by hand, regenerate instead.
 
 If you installed with `tui`, a custom `-c/--components` selection, or
