@@ -1,6 +1,6 @@
 {
   "provider": "universal",
-  "model": "gpt-4o-mini",
+  "model": "<your-model-id>",
   "temperature": 0.3,
   "max_tokens": 4096,
   "provider_options": {

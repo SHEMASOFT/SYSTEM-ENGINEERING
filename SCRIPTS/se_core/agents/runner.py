@@ -128,7 +128,7 @@ Return results as JSON with the following structure:
         return create_provider_from_config(llm_config)
 
     def _load_repo_llm_config(self) -> Optional[Dict[str, Any]]:
-        """Load LLM config from se-llm-config.json in the repo root.
+        """Load the repo-level LLM config from its registered location.
 
         This is a single, easy-to-edit file that sets the default model for all
         agents when no per-agent llm_config or SE_LLM_* env vars are present.
