@@ -433,8 +433,9 @@ class OrchestrateCheckpointCliTests(unittest.TestCase):
         # Capture what engine.execute receives
         captured = {}
 
-        def fake_execute(self, workflow_id, project_id, execution_id=None, dry_run=False, start_node=None, resume_from_checkpoint=None):
+        def fake_execute(self, workflow_id, project_id, execution_id=None, dry_run=False, start_node=None, resume_from_checkpoint=None, project_dir=None):
             captured["resume_from_checkpoint"] = resume_from_checkpoint
+            captured["project_dir"] = project_dir
             # Return minimal successful result
             return {
                 "execution_id": execution_id or "WEX-0002",
@@ -458,6 +459,9 @@ class OrchestrateCheckpointCliTests(unittest.TestCase):
 
         self.assertEqual(code, 0, out)
         self.assertEqual(captured.get("resume_from_checkpoint"), cp_id)
+        # The resolved project directory reaches the engine, so a workspace
+        # outside PROJECTS/ is executable.
+        self.assertEqual(captured.get("project_dir"), self.project.resolve())
 
 
 class SimulatedNodeRegressionTests(unittest.TestCase):

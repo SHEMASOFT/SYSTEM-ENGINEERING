@@ -433,3 +433,149 @@ class DummyProvider(LLMProvider):
         yield LLMResponse(content="[DUMMY] ", finish_reason=None)
         yield LLMResponse(content="streaming ", finish_reason=None)
         yield LLMResponse(content="response", finish_reason="stop")
+
+
+class UniversalProvider(LLMProvider):
+    """Universal OpenAI-compatible provider.
+
+    Works with any runtime that exposes an OpenAI-compatible chat completions
+    endpoint (DeepSeek, OpenRouter, local OpenAI proxies, etc.). Configure the
+    target runtime via ``base_url`` and ``api_key``.
+    """
+
+    def __init__(
+        self,
+        model: str,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        timeout: int = 300,
+        **kwargs
+    ):
+        if not HAS_REQUESTS:
+            raise ImportError("requests package required: pip install requests")
+        super().__init__(model)
+        self.api_key = api_key or os.environ.get("SE_LLM_API_KEY")
+        self.base_url = (base_url or "").rstrip("/")
+        self.timeout = timeout
+        self.session = requests.Session()
+        self.session.headers.update({"Content-Type": "application/json"})
+        if self.api_key:
+            self.session.headers.update({"Authorization": f"Bearer {self.api_key}"})
+
+    def chat(
+        self,
+        messages: List[LLMMessage],
+        tools: Optional[List[Dict]] = None,
+        temperature: float = 0.3,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> LLMResponse:
+        payload: Dict[str, Any] = {
+            "model": self.model,
+            "messages": self._format_messages(messages),
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": False,
+        }
+        if tools:
+            payload["tools"] = [
+                {"type": "function", "function": t}
+                for t in self._to_openai_tools(tools)
+            ]
+
+        url = f"{self.base_url}/chat/completions" if self.base_url else "/chat/completions"
+        try:
+            resp = self.session.post(url, json=payload, timeout=self.timeout)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            return LLMResponse(
+                content="", finish_reason="error", raw_response={"error": str(exc)}
+            )
+
+        choice = data.get("choices", [{}])[0]
+        message = choice.get("message", {})
+        tool_calls = None
+        if message.get("tool_calls"):
+            tool_calls = [
+                {
+                    "id": tc.get("id"),
+                    "type": "function",
+                    "function": {
+                        "name": tc.get("function", {}).get("name", ""),
+                        "arguments": tc.get("function", {}).get("arguments", "{}"),
+                    },
+                }
+                for tc in message["tool_calls"]
+            ]
+        usage = None
+        if "usage" in data:
+            u = data["usage"]
+            usage = {
+                "prompt_tokens": u.get("prompt_tokens", 0),
+                "completion_tokens": u.get("completion_tokens", 0),
+                "total_tokens": u.get("total_tokens", 0),
+            }
+        return LLMResponse(
+            content=message.get("content", ""),
+            tool_calls=tool_calls,
+            usage=usage,
+            finish_reason=choice.get("finish_reason", "stop"),
+            raw_response=data,
+        )
+
+    def stream_chat(self, messages, tools=None, temperature=0.3, max_tokens=4096, **kwargs):
+        payload: Dict[str, Any] = {
+            "model": self.model,
+            "messages": self._format_messages(messages),
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+        if tools:
+            payload["tools"] = [
+                {"type": "function", "function": t}
+                for t in self._to_openai_tools(tools)
+            ]
+
+        url = f"{self.base_url}/chat/completions" if self.base_url else "/chat/completions"
+        try:
+            resp = self.session.post(url, json=payload, timeout=self.timeout, stream=True)
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                if line.startswith(b"data: "):
+                    line = line[6:]
+                if line == b"[DONE]":
+                    break
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                choice = data.get("choices", [{}])[0]
+                delta = choice.get("delta", {})
+                if delta.get("content"):
+                    yield LLMResponse(content=delta["content"], finish_reason=None)
+                if choice.get("finish_reason"):
+                    yield LLMResponse(content="", finish_reason=choice["finish_reason"])
+                    break
+        except Exception as exc:
+            yield LLMResponse(content="", finish_reason="error", raw_response={"error": str(exc)})
+
+    @staticmethod
+    def _to_openai_tools(tools: Optional[List[Dict]]) -> Optional[List[Dict]]:
+        if not tools:
+            return None
+        out = []
+        for tool in tools:
+            func = tool.get("function", tool)
+            out.append({
+                "type": "function",
+                "function": {
+                    "name": func.get("name", ""),
+                    "description": func.get("description", ""),
+                    "parameters": func.get("parameters", {"type": "object", "properties": {}}),
+                },
+            })
+        return out

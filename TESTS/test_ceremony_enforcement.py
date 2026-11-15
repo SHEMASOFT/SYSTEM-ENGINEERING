@@ -67,9 +67,26 @@ def satisfying_documents(project: Path, *, coverage=None):
 
 def executable_task(**over):
     """A task `se execute` would really run (authorizes IMPLEMENT)."""
-    task = support.task(status="READY", authorized_actions=["READ", "ANALYZE", "IMPLEMENT"])
+    task = support.task(
+        status="READY",
+        authorized_actions=["READ", "ANALYZE", "IMPLEMENT"],
+        related_requirements=["REQ-0001"],
+    )
     task.update(over)
     return task
+
+
+def with_requirement(project: Path, **over):
+    """Give the project the REQUIREMENT its task traces to.
+
+    G3.2 ("every REQUIREMENT is covered by at least one TASK") cannot be
+    evaluated on a project that declares no requirement, so a project that is
+    meant to execute work declares one.
+    """
+    support.write_json(
+        project / "requirements" / "REQ-0001.json", support.requirement(**over)
+    )
+    return project
 
 
 def snapshot(project: Path) -> dict:
@@ -175,6 +192,7 @@ class ExecuteCeremonyGateTests(unittest.TestCase):
 
     def test_unprofiled_project_keeps_current_behavior(self):
         project = support.make_project(self.root / "p")
+        with_requirement(project)
         support.write_json(project / "tasks" / "TASK-0001.json", executable_task())
 
         code, out = support.run_cli("execute", "--project", str(project), "--task", "TASK-0001", "--json")
@@ -189,6 +207,7 @@ class ExecuteCeremonyGateTests(unittest.TestCase):
 
     def test_profile_without_scale_or_risk_keeps_the_defaults(self):
         project = support.make_project(self.root / "p")
+        with_requirement(project)
         support.write_json(
             project / "PROJECT.json",
             support.manifest(profiles={"work": {"type": "brownfield"}}),
@@ -202,6 +221,7 @@ class ExecuteCeremonyGateTests(unittest.TestCase):
 
     def test_execute_passes_when_the_ceremony_is_met(self):
         project = profiled_project(self.root / "p")
+        with_requirement(project)
         satisfying_documents(project)
         support.write_json(project / "tasks" / "TASK-0001.json", executable_task())
 

@@ -137,6 +137,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_transition.add_argument("--to", required=True, help="Target lifecycle state")
     p_transition.add_argument("--attest", default=None, help="Human attestation required for MANUAL gate conditions")
     p_transition.add_argument("--by", default=None, help="Who is performing the transition")
+    p_transition.add_argument("--console-token", dest="console_token", default=None,
+                              help="SE-CONSOLE operator token proving authority to attest; "
+                                   "WARNING: visible in shell history and the process list -- "
+                                   "prefer SE_CONSOLE_TOKEN or --console-token-file")
+    p_transition.add_argument("--console-token-file", dest="console_token_file", default=None,
+                              help="Path to a file holding the SE-CONSOLE operator token")
     p_transition.add_argument("--condition", action="append", default=None,
                               help="MANUAL condition id being attested (repeatable, comma-separated accepted); "
                                    "omit to attest the whole set")
@@ -857,6 +863,57 @@ def build_parser() -> argparse.ArgumentParser:
     p_auto.add_argument("--project", required=True, help="Managed project workspace")
     p_auto.add_argument("--json", action="store_true", help="Emit a machine-readable se.auto/1 envelope instead of human-readable output")
     p_auto.set_defaults(func=commands.cmd_auto)
+
+    # shema-ai
+    p_shema = sub.add_parser(
+        "shema-ai",
+        help="SHEMA-AI Unified Interface: Model config, Install, Sync, Uninstall, Doctor",
+        description="SE SHEMA-AI: Orchestration, Model Configuration, Installation, Sync, Uninstall",
+    )
+    p_shema_sub = p_shema.add_subparsers(dest="shema_command", required=False)
+
+    # shema-ai model
+    p_model = p_shema_sub.add_parser("model", help="Model configuration per agent (TUI)")
+    p_model.add_argument("--tui", action="store_true", help="Launch TUI (default)")
+    p_model.add_argument("--list", action="store_true", help="List current assignments")
+    p_model.add_argument("--set", nargs=2, metavar=("AGENT", "MODEL"), help="Set agent model (provider/model[variant])")
+    p_model.add_argument("--unset", metavar="AGENT", help="Unset agent override")
+    p_model.add_argument("--providers", action="store_true", help="List providers & models")
+    p_model.add_argument("--global-model", metavar="MODEL", help="Set global model (provider/model[variant])")
+    p_model.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    p_model.set_defaults(func=commands.cmd_shema_model)
+
+    # shema-ai install
+    p_install = p_shema_sub.add_parser("install", help="Install/update components (TUI)")
+    p_install.add_argument("--tui", action="store_true", help="Launch TUI (default)")
+    p_install.add_argument("--components", help="Comma-separated components")
+    p_install.add_argument("--runtimes", help="Comma-separated runtimes")
+    p_install.add_argument("--dry-run", action="store_true")
+    p_install.set_defaults(func=commands.cmd_shema_install)
+
+    # shema-ai sync
+    p_sync = p_shema_sub.add_parser("sync", help="Sync declared vs registered vs actual")
+    p_sync.add_argument("--project", default=".", help="Target project directory")
+    p_sync.add_argument("--dry-run", dest="dry_run", action="store_true")
+    p_sync.add_argument("--json", action="store_true")
+    p_sync.set_defaults(func=commands.cmd_sync)
+
+    # shema-ai uninstall
+    p_uninstall = p_shema_sub.add_parser("uninstall", help="Uninstall SE-managed MCPs")
+    p_uninstall.add_argument("--project", default=".", help="Target project directory")
+    p_uninstall.add_argument("--apply", action="store_true")
+    p_uninstall.add_argument("--dry-run", dest="dry_run", action="store_true")
+    p_uninstall.add_argument("--json", action="store_true")
+    p_uninstall.set_defaults(func=commands.cmd_uninstall)
+
+    # shema-ai doctor
+    p_doctor = p_shema_sub.add_parser("doctor", help="Health check & diagnostics")
+    p_doctor.add_argument("--project", default=".", help="Target project directory")
+    p_doctor.add_argument("--json", action="store_true")
+    p_doctor.set_defaults(func=commands.cmd_shema_ai_doctor)
+
+    # If `se shema-ai` without subcommand -> main menu TUI
+    p_shema.set_defaults(func=commands.cmd_shema_main)
 
     return parser
 

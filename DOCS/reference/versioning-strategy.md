@@ -43,6 +43,16 @@ python SCRIPTS/release_master.py --bump minor --reason "feat: describe the chang
 - `--check` verifies `VERSION`, `SYSTEM.json`, `MASTER SYSTEM/VERSION`,
   `MASTER SYSTEM/MANIFEST.json`, the generated OpenCode adapter manifest, and
   the current-version markers in `README.md` and `DOCS/reference/versioning.md`.
+  It also compares `VERSION` with the published release tags: a tag newer than
+  `VERSION`, a `VERSION` that no tag publishes, and a tag published from a
+  commit that never bumped `VERSION` are reported as a failure.
+- `--check --ci` reports a drift of the *release state* (the published tags) as
+  operational (exit code `3`) instead of blocking (exit code `1`); a drift of
+  the active references still blocks. CI uses this mode, so a historical tag
+  drift - published outside the pull request - does not redden the pipeline.
+  The exit codes are the ones the CI adapter already publishes
+  (`INTEGRATIONS/ci/scripts/se_ci_common.py`): `0` OK, `1` validation, `2`
+  usage, `3` operational.
 - `--bump` updates those references, inserts the release in
   `MASTER SYSTEM/CHANGELOG.md`, regenerates the OpenCode adapter, rebases the
   documentation coverage baseline, and runs `se validate`, `se doctor`, and the

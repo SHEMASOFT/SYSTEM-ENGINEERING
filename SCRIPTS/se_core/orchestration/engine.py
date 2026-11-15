@@ -21,7 +21,7 @@ from collections import deque, defaultdict
 from ..paths import repo_root, now_utc, load_json
 from ..schemas import load_schemas, validate
 from ..gates import evaluate_gate, load_gate_model
-from ..artifacts import read_manifest
+from ..artifacts import read_manifest, resolve_project_dir
 from ..memory.engine import MemoryEngine
 from ..agents.runner import AgentRunner
 from ..ceremony import check_project_ceremony
@@ -89,7 +89,18 @@ class OrchestrationEngine:
             self._gate_model = load_gate_model()
         return self._gate_model
 
-    def _find_project_dir(self, project_id: str) -> Optional[Path]:
+    def _find_project_dir(
+        self, project_id: str, project_dir: Optional[Path] = None
+    ) -> Optional[Path]:
+        """Resolve the directory of a project.
+
+        An explicit ``project_dir`` wins: the caller already resolved it (the
+        CLI accepts any managed workspace, including one outside
+        ``PROJECTS/``), so the sweep of ``PROJECTS/`` is only the fallback for
+        callers that know nothing but the project id.
+        """
+        if project_dir is not None:
+            return resolve_project_dir(project_dir, project_id)
         for p in (repo_root() / "PROJECTS").glob("*"):
             if (p / "PROJECT.json").exists():
                 manifest = read_manifest(p)
@@ -97,9 +108,11 @@ class OrchestrationEngine:
                     return p
         return None
 
-    def load_workflow(self, workflow_id: str, project_id: str) -> Dict[str, Any]:
+    def load_workflow(
+        self, workflow_id: str, project_id: str, project_dir: Optional[Path] = None
+    ) -> Dict[str, Any]:
         """Load workflow definition from project."""
-        project_dir = self._find_project_dir(project_id)
+        project_dir = self._find_project_dir(project_id, project_dir)
         if not project_dir:
             raise ValueError(f"Project {project_id} not found")
 
@@ -126,6 +139,7 @@ class OrchestrationEngine:
         dry_run: bool = False,
         start_node: Optional[str] = None,
         resume_from_checkpoint: Optional[str] = None,
+        project_dir: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """Execute a workflow deterministically.
 
@@ -136,12 +150,14 @@ class OrchestrationEngine:
             dry_run: If True, only validate and plan, don't execute
             start_node: Optional node to start from (for resume)
             resume_from_checkpoint: Optional checkpoint ID to resume from
+            project_dir: Optional explicit project directory (a managed
+                workspace outside ``PROJECTS/``)
 
         Returns:
             Execution result with status and node states
         """
         # Load workflow
-        workflow = self.load_workflow(workflow_id, project_id)
+        workflow = self.load_workflow(workflow_id, project_id, project_dir=project_dir)
 
         # Check for native execution mode (P3-C)
         if workflow.get("execution_mode") == "native":
@@ -164,7 +180,14 @@ class OrchestrationEngine:
             execution_id = f"WEX-{random.randint(1000, 9999):04d}"
 
         # Load project
-        project_dir = self._find_project_dir(workflow["project_id"])
+        project_dir = self._find_project_dir(project_id, project_dir)
+        if not project_dir:
+            raise ValueError(f"Project {project_id} not found")
+        declared = workflow.get("project_id")
+        if declared and declared != project_id:
+            raise ValueError(
+                f"project_id mismatch: workflow says {declared}, expected {project_id}"
+            )
         project_data = read_manifest(project_dir)
 
         # Ceremony check: fail-closed before any execution (dry-run included)
@@ -320,6 +343,7 @@ class OrchestrationEngine:
                         },
                         tags=["gate", "blocked", gate_id],
                         topic_key=f"gate:{workflow_id}:{node_id}:{gate_id}",
+                        project_dir=project_dir,
                     )
                     return self._fail_execution(
                         execution_id_final, workflow, node_states,
@@ -414,6 +438,7 @@ class OrchestrationEngine:
                     },
                     tags=["failure", "node", node_id],
                     topic_key=f"failure:{workflow_id}:{node_id}",
+                    project_dir=project_dir,
                 )
                 return self._fail_execution(
                     execution_id_final, workflow, node_states,
@@ -477,6 +502,7 @@ class OrchestrationEngine:
                     },
                     tags=["node", "completed", node_id, node.get("agent", "")],
                     topic_key=f"node:{workflow_id}:{node_id}",
+                    project_dir=project_dir,
                 )
 
             # Save checkpoint after each node
@@ -512,6 +538,7 @@ class OrchestrationEngine:
             },
             tags=["workflow", "completed", workflow_id],
             topic_key=f"workflow:{workflow_id}",
+            project_dir=project_dir,
         )
 
         return {
@@ -699,7 +726,8 @@ class OrchestrationEngine:
         max_tokens = node.get("max_context_tokens")
 
         # Create AgentRunner for the assigned agent
-        project_dir = self._find_project_dir(workflow["project_id"])
+        if project_dir is None:
+            project_dir = self._find_project_dir(workflow.get("project_id"))
         try:
             runner = AgentRunner(
                 agent_name=agent,
@@ -845,14 +873,6 @@ class OrchestrationEngine:
             "context": filtered_context,
         }
 
-    def _find_project_dir(self, project_id: str) -> Optional[Path]:
-        for p in (repo_root() / "PROJECTS").glob("*"):
-            if (p / "PROJECT.json").exists():
-                manifest = read_manifest(p)
-                if manifest.get("project_id") == project_id:
-                    return p
-        return None
-
     def _auto_save_memory(
         self,
         project_id: str,
@@ -860,12 +880,13 @@ class OrchestrationEngine:
         content: Dict[str, Any],
         tags: List[str],
         topic_key: str,
+        project_dir: Optional[Path] = None,
     ) -> None:
         """Best-effort memory save. Never fails the workflow."""
-        # Skip if the project is not a managed project (e.g. in tests).
-        if self.memory_engine._find_project_dir(project_id) is None:
-            return
         try:
+            # Skip if the project is not a managed project (e.g. in tests).
+            if self.memory_engine._find_project_dir(project_id, project_dir) is None:
+                return
             self.memory_engine.add(
                 project_id=project_id,
                 type=memory_type,
@@ -876,6 +897,7 @@ class OrchestrationEngine:
                 topic_key=topic_key,
                 source="engine.execute",
                 state="active",
+                project_dir=project_dir,
             )
         except Exception as exc:
             import sys as _sys
@@ -912,6 +934,7 @@ class OrchestrationEngine:
         project_id: str,
         execution_id: Optional[str] = None,
         start_node: Optional[str] = None,
+        project_dir: Optional[Path] = None,
     ) -> str:
         """Generate a prompt for the coordinator to execute workflow natively via OpenCode.
 
@@ -922,14 +945,16 @@ class OrchestrationEngine:
             Prompt string for the coordinator agent.
         """
         # Load workflow
-        workflow = self.load_workflow(workflow_id, project_id)
+        workflow = self.load_workflow(workflow_id, project_id, project_dir=project_dir)
 
         # Generate execution ID
         if not execution_id:
             execution_id = f"WEX-{random.randint(1000, 9999):04d}"
 
         # Load project
-        project_dir = self._find_project_dir(workflow["project_id"])
+        project_dir = self._find_project_dir(project_id, project_dir)
+        if not project_dir:
+            raise ValueError(f"Project {project_id} not found")
         project_data = read_manifest(project_dir)
 
         # Build execution context
@@ -1124,19 +1149,31 @@ def create_workflow(
     edges: List[Dict],
     gates: Optional[List[Dict]] = None,
     root: Optional[Path] = None,
+    project_dir: Optional[Path] = None,
 ) -> Path:
-    """Create a new workflow definition."""
+    """Create a new workflow definition.
+
+    ``project_dir`` is the explicit project directory when the caller already
+    resolved one (a managed workspace outside ``PROJECTS/``). Without it the
+    project is looked up by id under ``PROJECTS/``.
+
+    The project is resolved and checked *before* any directory is created, so
+    a failed lookup never leaves a half-created workspace behind.
+    """
     from ..paths import repo_root, now_utc
     root = Path(root) if root else repo_root()
 
-    project_dir = None
-    for p in (repo_root() / "PROJECTS").glob("*"):
-        if (p / "PROJECT.json").exists():
-            manifest = read_manifest(p)
-            if manifest.get("project_id") == project_id:
-                project_dir = p
-                break
-    
+    if project_dir is not None:
+        project_dir = resolve_project_dir(project_dir, project_id)
+    else:
+        project_dir = None
+        for p in (repo_root() / "PROJECTS").glob("*"):
+            if (p / "PROJECT.json").exists():
+                manifest = read_manifest(p)
+                if manifest.get("project_id") == project_id:
+                    project_dir = p
+                    break
+
     if not project_dir:
         raise ValueError(f"Project {project_id} not found")
 

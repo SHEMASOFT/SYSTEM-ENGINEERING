@@ -2,14 +2,37 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
+
+from se_core import authority  # noqa: E402
+
+#: The operator token used by the tests below. It must match the temporary file
+#: that both `--console-token-file` and `authority.token_path` resolve to.
+OPERATOR_TOKEN = "test-operator-token"
+
+
+@contextlib.contextmanager
+def operator_authority():
+    """Authorise MANUAL attestation, never touching the real ``~/.config``.
+
+    Yields the argv fragment to append to an attesting call: the temporary file
+    is BOTH what ``--console-token-file`` reads and what the patched
+    ``authority.token_path`` returns, so verification succeeds in-process.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "token"
+        path.write_text(OPERATOR_TOKEN + "\n", encoding="utf-8")
+        with mock.patch.object(authority, "token_path", return_value=path):
+            yield ("--console-token-file", str(path))
 
 
 def init_project(root: Path, name="Demo"):
@@ -67,9 +90,11 @@ class TransitionTests(unittest.TestCase):
             self.assertIn("requires human attestation", out)
             self.assertEqual(manifest(project)["lifecycle_state"], "DISCOVERY")
 
-            code, out = support.run_cli(
-                "transition", "--project", str(project), "--to", "PLANNING", "--attest", "reviewed"
-            )
+            with operator_authority() as auth_args:
+                code, out = support.run_cli(
+                    "transition", "--project", str(project), "--to", "PLANNING",
+                    "--attest", "reviewed", *auth_args,
+                )
             self.assertEqual(code, 0, out)
             self.assertEqual(manifest(project)["lifecycle_state"], "PLANNING")
             record = manifest(project)["metadata"]["transitions"][-1]
@@ -84,7 +109,11 @@ class TransitionTests(unittest.TestCase):
                 "new", "objective", "--project", str(project),
                 "--title", "Objective", "--epistemic-status", "UNKNOWN", "--rationale", "unknown",
             )
-            support.run_cli("transition", "--project", str(project), "--to", "PLANNING", "--attest", "ok")
+            with operator_authority() as auth_args:
+                support.run_cli(
+                    "transition", "--project", str(project), "--to", "PLANNING",
+                    "--attest", "ok", *auth_args,
+                )
             # Jump straight to RELEASED: no such transition exists.
             code, out = support.run_cli("transition", "--project", str(project), "--to", "RELEASED")
             self.assertEqual(code, 1, out)
@@ -141,9 +170,11 @@ class TransitionAttestationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "p"
             reach_manual_gate(project)
-            code, out = support.run_cli(
-                "transition", "--project", str(project), "--to", "PLANNING", "--attest", "reviewed"
-            )
+            with operator_authority() as auth_args:
+                code, out = support.run_cli(
+                    "transition", "--project", str(project), "--to", "PLANNING",
+                    "--attest", "reviewed", *auth_args,
+                )
             self.assertEqual(code, 0, out)
             attested = self.last(project)["conditions_attested"]
             self.assertTrue(attested, "the attested MANUAL set was not recorded")
@@ -154,10 +185,11 @@ class TransitionAttestationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "p"
             reach_manual_gate(project)
-            code, out = support.run_cli(
-                "transition", "--project", str(project), "--to", "PLANNING",
-                "--attest", "reviewed", "--condition", "G1.5",
-            )
+            with operator_authority() as auth_args:
+                code, out = support.run_cli(
+                    "transition", "--project", str(project), "--to", "PLANNING",
+                    "--attest", "reviewed", "--condition", "G1.5", *auth_args,
+                )
             self.assertEqual(code, 0, out)
             self.assertEqual(self.last(project)["conditions_attested"], ["G1.5"])
 
@@ -166,10 +198,11 @@ class TransitionAttestationTests(unittest.TestCase):
             project = Path(tmp) / "p"
             reach_manual_gate(project)
             before = manifest(project)["lifecycle_state"]
-            code, out = support.run_cli(
-                "transition", "--project", str(project), "--to", "PLANNING",
-                "--attest", "reviewed", "--condition", "G9.9",
-            )
+            with operator_authority() as auth_args:
+                code, out = support.run_cli(
+                    "transition", "--project", str(project), "--to", "PLANNING",
+                    "--attest", "reviewed", "--condition", "G9.9", *auth_args,
+                )
             self.assertEqual(code, 1, out)
             self.assertIn("not MANUAL conditions", out)
             self.assertEqual(manifest(project)["lifecycle_state"], before)
@@ -179,10 +212,11 @@ class TransitionAttestationTests(unittest.TestCase):
             project = Path(tmp) / "p"
             reach_manual_gate(project)
             rev = sha256(project / "PROJECT.json")
-            code, out = support.run_cli(
-                "transition", "--project", str(project), "--to", "PLANNING",
-                "--attest", "reviewed", "--by", "alice",
-            )
+            with operator_authority() as auth_args:
+                code, out = support.run_cli(
+                    "transition", "--project", str(project), "--to", "PLANNING",
+                    "--attest", "reviewed", "--by", "alice", *auth_args,
+                )
             self.assertEqual(code, 0, out)
             rec = self.last(project)
             self.assertEqual(rec["by"], "alice")           # WHO
@@ -197,10 +231,11 @@ class TransitionAttestationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "p"
             reach_manual_gate(project)
-            code, out = support.run_cli(
-                "transition", "--project", str(project), "--to", "PLANNING",
-                "--attest", "reviewed", "--by", "alice",
-            )
+            with operator_authority() as auth_args:
+                code, out = support.run_cli(
+                    "transition", "--project", str(project), "--to", "PLANNING",
+                    "--attest", "reviewed", "--by", "alice", *auth_args,
+                )
             self.assertEqual(code, 0, out)
             log = project / "mutation-log.jsonl"
             self.assertTrue(log.exists(), "transition wrote no audit entry")
@@ -217,14 +252,15 @@ class TransitionAttestationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "p"
             reach_manual_gate(project)
-            argv = (
-                "transition", "--project", str(project), "--to", "PLANNING",
-                "--attest", "reviewed", "--idempotency-key", "k1",
-            )
-            code, out = support.run_cli(*argv)
-            self.assertEqual(code, 0, out)
-            code, out = support.run_cli(*argv)
-            self.assertEqual(code, 0, out)
+            with operator_authority() as auth_args:
+                argv = (
+                    "transition", "--project", str(project), "--to", "PLANNING",
+                    "--attest", "reviewed", "--idempotency-key", "k1", *auth_args,
+                )
+                code, out = support.run_cli(*argv)
+                self.assertEqual(code, 0, out)
+                code, out = support.run_cli(*argv)
+                self.assertEqual(code, 0, out)
             self.assertIn("replayed", out)
             self.assertEqual(manifest(project)["lifecycle_state"], "PLANNING")
             # DRAFT->DISCOVERY + DISCOVERY->PLANNING, and the replay adds no third.
@@ -235,16 +271,17 @@ class TransitionAttestationTests(unittest.TestCase):
             project = Path(tmp) / "p"
             reach_manual_gate(project)
             rev = sha256(project / "PROJECT.json")
-            code, out = support.run_cli(
-                "transition", "--project", str(project), "--to", "PLANNING",
-                "--attest", "reviewed", "--expected-revision", "0" * 64,
-            )
-            self.assertEqual(code, 1, out)
-            self.assertEqual(manifest(project)["lifecycle_state"], "DISCOVERY")
-            code, out = support.run_cli(
-                "transition", "--project", str(project), "--to", "PLANNING",
-                "--attest", "reviewed", "--expected-revision", rev,
-            )
+            with operator_authority() as auth_args:
+                code, out = support.run_cli(
+                    "transition", "--project", str(project), "--to", "PLANNING",
+                    "--attest", "reviewed", "--expected-revision", "0" * 64, *auth_args,
+                )
+                self.assertEqual(code, 1, out)
+                self.assertEqual(manifest(project)["lifecycle_state"], "DISCOVERY")
+                code, out = support.run_cli(
+                    "transition", "--project", str(project), "--to", "PLANNING",
+                    "--attest", "reviewed", "--expected-revision", rev, *auth_args,
+                )
             self.assertEqual(code, 0, out)
             self.assertEqual(manifest(project)["lifecycle_state"], "PLANNING")
 

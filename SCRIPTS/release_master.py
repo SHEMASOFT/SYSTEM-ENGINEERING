@@ -2,7 +2,10 @@
 
 The script automates the mechanical part of a release, never the decision:
 
-* ``--check`` verifies that every active version reference agrees with ``VERSION``.
+* ``--check`` verifies that every active version reference agrees with
+  ``VERSION`` and that the published git tags agree with it too.
+* ``--check --ci`` reports a drift of the release state as operational
+  (exit 3) instead of blocking (exit 1).
 * ``--bump patch|minor --reason ...`` updates those references, regenerates the
   OpenCode adapter, rebases the documentation baseline, and runs validation.
 * ``--dry-run`` shows the plan without writing.
@@ -33,6 +36,15 @@ VERSIONING_VERSION_RE = re.compile(
     r"(?P<prefix>Current version: \*\*)(?P<version>\d+\.\d+\.\d+)(?P<suffix>\*\*)"
 )
 CHANGELOG_VERSION_RE = re.compile(r"(?m)^## \[(?P<version>\d+\.\d+\.\d+)\]")
+
+# CI exit codes. They mirror INTEGRATIONS/ci/scripts/se_ci_common.py, the
+# canonical home of the CI exit-code contract: SCRIPTS/ must not depend on
+# INTEGRATIONS/, so the values are mirrored here and parity-tested
+# (TESTS/test_release_master_tags.py). No new exit code is invented.
+EXIT_OK = 0
+EXIT_VALIDATION = 1
+EXIT_USAGE = 2
+EXIT_OPERATIONAL = 3
 
 
 class ReleaseError(RuntimeError):
@@ -257,7 +269,12 @@ def apply_release(
     return sorted(set(changed))
 
 
-def check_consistency(root: Path | str | None = None) -> list[str]:
+def check_reference_consistency(root: Path | str | None = None) -> list[str]:
+    """Compare every active version reference with ``VERSION``.
+
+    These are the references the release machinery rewrites: the working tree
+    must be coherent with itself.
+    """
     root = Path(root) if root is not None else repo_root()
     issues: list[str] = []
     try:
@@ -331,6 +348,132 @@ def check_consistency(root: Path | str | None = None) -> list[str]:
     return issues
 
 
+# --------------------------------------------------------------------------- #
+# Release state (the published git tags)
+# --------------------------------------------------------------------------- #
+
+
+def _git_runner():
+    """The read-only git runner used to inspect the release state."""
+    from se_core.upgrade import default_git_runner
+
+    return default_git_runner()
+
+
+def _is_git_checkout(root: Path) -> bool:
+    """True when ``root`` is the root of a git working tree.
+
+    A directory that is merely *inside* another repository is not this
+    repository: its tags would be the tags of somebody else.
+    """
+    result = _git_runner()(
+        ["git", "rev-parse", "--show-toplevel"], cwd=str(root), timeout=30
+    )
+    if getattr(result, "returncode", 1) != 0:
+        return False
+    top = (getattr(result, "stdout", "") or "").strip()
+    if not top:
+        return False
+    try:
+        return Path(top).resolve() == root.resolve()
+    except OSError:  # pragma: no cover - unresolvable path
+        return False
+
+
+def _tagged_version(root: Path, tag: str) -> str | None:
+    """The ``VERSION`` file inside the commit the tag publishes."""
+    result = _git_runner()(
+        ["git", "show", f"{tag}:VERSION"], cwd=str(root), timeout=30
+    )
+    if getattr(result, "returncode", 1) != 0:
+        return None
+    return (getattr(result, "stdout", "") or "").strip() or None
+
+
+def check_release_consistency(root: Path | str | None = None) -> list[str]:
+    """Compare the published release tags with ``VERSION``.
+
+    The active references prove that the working tree is coherent; the tags
+    prove that a release was actually published for that version. Without this
+    comparison a stale ``VERSION`` (a tag newer than it) or a tag published
+    from a commit that never bumped ``VERSION`` stays invisible: the check
+    reports PASS on a repository whose release state is wrong.
+    """
+    root = Path(root) if root is not None else repo_root()
+    try:
+        version = read_version(root)
+    except ReleaseError as exc:
+        return [str(exc)]
+
+    if not _is_git_checkout(root):
+        # Outside a git checkout there is no release state to judge.
+        return []
+
+    from se_core.upgrade import list_local_tags, parse_semver
+
+    listed = list_local_tags(_git_runner(), cwd=str(root))
+    if listed.get("error"):
+        return [f"git tags: cannot list the release tags ({listed['error']})"]
+
+    published: dict[tuple[int, int, int], str] = {}
+    for tag in listed.get("tags") or []:
+        parsed = parse_semver(tag)
+        if parsed is None:
+            continue
+        published.setdefault(parsed, tag)
+
+    if not published:
+        return ["git tags: no release tag found in this repository"]
+
+    issues: list[str] = []
+    current = version_tuple(version)
+    owner = published.get(current)
+    if owner is None:
+        issues.append(
+            f"git tags: no release tag publishes VERSION ({version}) "
+            f"(expected 'v{version}')"
+        )
+    for parsed in sorted(published):
+        if parsed <= current:
+            continue
+        tag = published[parsed]
+        newer = ".".join(str(part) for part in parsed)
+        issues.append(f"git tag {tag}: {newer} != VERSION ({version})")
+        tagged = _tagged_version(root, tag)
+        if tagged and tagged != newer:
+            issues.append(f"git tag {tag}: tagged VERSION is {tagged} != {newer}")
+    if owner is not None:
+        tagged = _tagged_version(root, owner)
+        if tagged and tagged != version:
+            issues.append(f"git tag {owner}: tagged VERSION is {tagged} != {version}")
+    return issues
+
+
+def check_consistency(root: Path | str | None = None) -> list[str]:
+    """Every consistency issue: the active references and the release state."""
+    return check_reference_consistency(root) + check_release_consistency(root)
+
+
+def check_exit_code(
+    reference_issues, release_issues, *, ci: bool = False
+) -> int:
+    """Map the two consistency dimensions onto the CI exit-code contract.
+
+    * A drift of the active references (the working tree disagrees with
+      ``VERSION``) blocks everywhere: it is a validation failure of the change
+      under test.
+    * A drift of the release state (the published tags disagree with
+      ``VERSION``) blocks the operator-facing check, but in CI mode it is
+      operational (exit 3): the tags are published outside the pull request,
+      so a historical drift must not redden the pipeline forever.
+    """
+    if reference_issues:
+        return EXIT_VALIDATION
+    if release_issues:
+        return EXIT_OPERATIONAL if ci else EXIT_VALIDATION
+    return EXIT_OK
+
+
 def _git_dirty(root: Path) -> str | None:
     if not (root / ".git").exists():
         return None
@@ -346,7 +489,7 @@ def _git_dirty(root: Path) -> str | None:
     return result.stdout.strip() or None
 
 
-def _run_command(label: str, command: list[str], root: Path) -> tuple[bool, str]:
+def _run_command(label: str, command: list[str], root: Path) -> tuple[int, str]:
     print(f"Running {label}...")
     result = subprocess.run(
         command,
@@ -360,7 +503,7 @@ def _run_command(label: str, command: list[str], root: Path) -> tuple[bool, str]
         print("\n".join(output.splitlines()[-8:]))
     elif output:
         print(output)
-    return result.returncode == 0, output
+    return result.returncode, output
 
 
 def run_validation(root: Path, *, run_tests: bool) -> list[str]:
@@ -372,9 +515,18 @@ def run_validation(root: Path, *, run_tests: bool) -> list[str]:
         commands.append(("tests", [sys.executable, "TESTS/run_tests.py"]))
     failures = []
     for label, command in commands:
-        ok, _ = _run_command(label, command, root)
-        if not ok:
+        code, _ = _run_command(label, command, root)
+        if code != EXIT_OK:
             failures.append(label)
+    # The release tag is published after the merge, so an unpublished or a
+    # stale tag is operational here: it must not block the release preparation.
+    code, _ = _run_command(
+        "release",
+        [sys.executable, "SCRIPTS/release_master.py", "--check", "--ci"],
+        root,
+    )
+    if code not in (EXIT_OK, EXIT_OPERATIONAL):
+        failures.append("release")
     return failures
 
 
@@ -404,6 +556,14 @@ def _parser() -> argparse.ArgumentParser:
         help="with --bump: print the plan without writing",
     )
     parser.add_argument(
+        "--ci",
+        action="store_true",
+        help=(
+            "with --check: report a drift of the published release state as "
+            "operational (exit 3) instead of blocking (exit 1)"
+        ),
+    )
+    parser.add_argument(
         "--skip-tests",
         action="store_true",
         help="with --bump: run validate and doctor only, not the full test suite",
@@ -431,17 +591,29 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = repo_root()
 
+    if args.ci and not args.check:
+        parser.error("--ci is only valid with --check")
+
     if args.check:
         if args.dry_run:
             parser.error("--dry-run is only valid with --bump")
-        issues = check_consistency(root)
-        if issues:
-            print("Release check: FAIL")
-            for issue in issues:
+        reference = check_reference_consistency(root)
+        release = check_release_consistency(root)
+        code = check_exit_code(reference, release, ci=args.ci)
+        if code == EXIT_OK:
+            print(f"Release check: PASS (VERSION {read_version(root)})")
+            return EXIT_OK
+        if code == EXIT_OPERATIONAL:
+            print("Release check: OPERATIONAL")
+            print("  The active references agree with VERSION, but the published")
+            print("  release state does not:")
+            for issue in release:
                 print(f"  - {issue}")
-            return 1
-        print(f"Release check: PASS (VERSION {read_version(root)})")
-        return 0
+            return EXIT_OPERATIONAL
+        print("Release check: FAIL")
+        for issue in reference + release:
+            print(f"  - {issue}")
+        return EXIT_VALIDATION
 
     if not args.reason.strip():
         parser.error("--reason is required with --bump")

@@ -27,6 +27,7 @@ Machine-readable: `COMMANDS/commands.json`. Human summary: `COMMANDS/README.md`.
 | `handoff` | — | coordinator |
 | `archive` | — | coordinator |
 | `restore` | — | coordinator |
+| `shema-ai` | — | coordinator |
 | `execute` | G3 | implementer |
 | `observe` | — | implementer |
 | `orchestrate` | varies | coordinator |

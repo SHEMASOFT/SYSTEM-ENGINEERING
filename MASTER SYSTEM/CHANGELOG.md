@@ -7,6 +7,25 @@ Versions are normalized SemVer (see `DOCS/VERSIONING_STRATEGY.md`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **External managed workspaces**: `se orchestrate` and `se memory` resolve the
+  project from the directory the caller passes, so a workspace managed outside
+  `PROJECTS/` is usable. A project whose manifest declares another id is an
+  explicit error, never a silent fallback to another workspace.
+
+- **Gates fail closed on records they cannot prove**: a collection now holds
+  only the records that validate against their schema; an invalid record is
+  reported once per record and fails the gate, and a collection that holds
+  nothing fails instead of passing empty. A check that cannot answer is a
+  failure, not a warning.
+
+- **Release check compares the published tags**: `release_master.py --check`
+  now compares `VERSION` with the published git tags. A drift of the release
+  state is reported as operational (exit code `3`) in CI mode, so a historical
+  tag drift does not redden the pipeline; a drift of the active references
+  still blocks (exit code `1`).
+
 ## [0.11.0] - 2026-10-23
 
 ### Changed

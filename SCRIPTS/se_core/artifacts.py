@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .paths import load_json, write_json
+from .schemas import HAVE_JSONSCHEMA, load_schemas, validate
 
 PROJECT_MANIFEST = "PROJECT.json"
 DISCOVERY_FILE = "discovery.json"
@@ -79,17 +80,69 @@ def write_discovery(project_dir, data: dict) -> None:
     write_json(Path(project_dir) / DISCOVERY_FILE, data)
 
 
+_SCHEMA_BY_KIND: dict = {}
+
+
+def schema_for_kind(kind: str):
+    """The schema a collection kind is validated against (cached per process)."""
+    if kind not in _SCHEMA_BY_KIND:
+        _SCHEMA_BY_KIND[kind] = load_schemas().get(kind)
+    return _SCHEMA_BY_KIND[kind]
+
+
+def resolve_project_dir(project_dir, project_id=None) -> Path:
+    """Resolve an explicit project directory and check it against ``project_id``.
+
+    The directory is the authority: the caller already resolved it, so this
+    only verifies that it *is* a project and that it is the project the caller
+    expects. A manifest that declares another project is an explicit error,
+    never a silent fallback to a different workspace.
+    """
+    path = Path(project_dir)
+    if not (path / PROJECT_MANIFEST).exists():
+        raise ValueError(f"no {PROJECT_MANIFEST} in {path}")
+    manifest = read_manifest(path)
+    declared = manifest.get("project_id")
+    if project_id and declared and declared != project_id:
+        raise ValueError(
+            f"project_id mismatch: path says {declared}, expected {project_id}"
+        )
+    return path
+
+
 def collection(project_dir, kind: str):
-    """Return (items, errors) where items is [(path, data), ...]."""
+    """Return (items, errors) where items is [(path, data), ...].
+
+    Only a record that parses *and* validates against its schema is returned.
+    A record the workspace cannot prove is not evidence of anything: counting
+    it would let a gate report a fact the workspace does not contain (an empty
+    wrapper file used to make G4 pass without evaluating a single task).
+
+    Every rejected record is reported in ``errors`` as ``(path, reason)`` with
+    exactly one entry per record, so a caller can state how many records are
+    invalid and why.
+    """
     meta = COLLECTIONS[kind]
     directory = Path(project_dir) / meta["dir"]
     items, errors = [], []
+    # Without jsonschema the environment cannot validate anything; `se doctor`
+    # already fails it, so the collection stays readable instead of raising.
+    schema = schema_for_kind(kind) if HAVE_JSONSCHEMA else None
     if directory.is_dir():
         for path in sorted(directory.glob("*.json")):
             try:
-                items.append((path, load_json(path)))
+                data = load_json(path)
             except Exception as exc:  # pragma: no cover - reported by callers
-                errors.append((path, str(exc)))
+                errors.append((path, f"unreadable JSON: {exc}"))
+                continue
+            if schema is not None:
+                problems = validate(data, schema)
+                if problems:
+                    errors.append(
+                        (path, "schema validation failed: " + "; ".join(problems))
+                    )
+                    continue
+            items.append((path, data))
     return items, errors
 
 

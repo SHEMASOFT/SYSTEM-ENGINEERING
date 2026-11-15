@@ -166,7 +166,15 @@ class SkillCatalogMcpTests(unittest.TestCase):
         proc.stdin.close(); proc.wait(timeout=5)
         if "error" in resp:
             return {"error": resp["error"]}
-        return resp.get("result", {})
+        # MCP response wraps result in JSON-RPC: result.content[0].text contains JSON string
+        result = resp.get("result", {})
+        content = result.get("content", [])
+        if content and isinstance(content, list) and content[0].get("type") == "text":
+            try:
+                return json.loads(content[0].get("text", "{}"))
+            except json.JSONDecodeError:
+                return {"error": "Failed to parse tool result JSON", "raw": content[0].get("text", "")}
+        return result
 
     def test_catalog_list(self):
         result = self._call_tool("skill_catalog_list", {})

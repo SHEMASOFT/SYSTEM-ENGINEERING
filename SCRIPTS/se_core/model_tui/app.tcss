@@ -1,0 +1,133 @@
+/* SE SHEMA-AI Model Picker TUI Styles */
+
+Screen {
+    background: $surface;
+}
+
+#logo {
+    content-align: center middle;
+    text-style: bold;
+    color: $primary;
+    height: 3;
+    margin-bottom: 1;
+}
+
+#subtitle {
+    content-align: center middle;
+    color: $text-muted;
+    height: 1;
+    margin-bottom: 2;
+}
+
+#sidebar {
+    width: 28;
+    height: 100%;
+    background: $panel;
+    border-right: solid $primary;
+    padding: 1 2;
+}
+
+#sidebar Button {
+    width: 100%;
+    margin: 1 0;
+}
+
+#spacer {
+    height: 1fr;
+}
+
+#main-content {
+    width: 1fr;
+    height: 100%;
+    padding: 1 2;
+}
+
+#content-title {
+    text-style: bold;
+    color: $primary;
+    height: 2;
+    margin-bottom: 1;
+}
+
+#content-body {
+    height: 1fr;
+}
+
+.section-title {
+    text-style: bold underline;
+    color: $secondary;
+    margin: 1 0;
+}
+
+.provider-header {
+    text-style: bold;
+    color: $accent;
+    margin: 1 0 0 0;
+}
+
+DataTable {
+    height: auto;
+    min-height: 10;
+}
+
+DataTable > .datatable--cursor {
+    background: $primary 30%;
+}
+
+#loading {
+    content-align: center middle;
+    height: 10;
+    color: $text-muted;
+}
+
+#search-input {
+    margin: 1 0;
+    width: 100%;
+}
+
+#screen-container {
+    width: 100%;
+    height: 100%;
+    padding: 1;
+}
+
+#screen-title {
+    text-style: bold;
+    color: $primary;
+    margin-bottom: 1;
+}
+
+#screen-container Button {
+    margin-top: 1;
+}
+
+Label {
+    margin-bottom: 1;
+}
+
+Select {
+    width: 100%;
+    margin: 1 0;
+}
+
+Input {
+    width: 100%;
+    margin: 1 0;
+}
+
+#btn-save {
+    width: 100%;
+}
+
+#btn-reset {
+    width: 100%;
+}
+
+#btn-quit {
+    width: 100%;
+}
+
+#nav-global, #nav-agents, #nav-providers {
+    width: 100%;
+    margin: 1 0;
+}

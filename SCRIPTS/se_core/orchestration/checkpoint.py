@@ -61,6 +61,7 @@ class CheckpointManager:
         gate_results: Dict[str, Any],
         context: Dict[str, Any],
         status: str = "IN_PROGRESS",
+        har_id: Optional[str] = None,
     ) -> str:
         """Save a new checkpoint."""
         checkpoint_id = self._next_checkpoint_id()
@@ -77,6 +78,8 @@ class CheckpointManager:
             "created_at": now_utc(),
             "status": status,
         }
+        if har_id:
+            checkpoint["har_id"] = har_id
 
         # Validate against schema
         errors = validate(checkpoint, self._schemas.get("checkpoint", {}))
