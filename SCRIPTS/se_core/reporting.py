@@ -178,3 +178,56 @@ def error_envelope(operation: str, message: str, *, status: str = "FAIL", scope:
 def render_json(envelope: dict) -> str:
     """Serialize an envelope to deterministic, ASCII-safe JSON (valid UTF-8)."""
     return json.dumps(envelope, indent=2, ensure_ascii=True, sort_keys=True) + "\n"
+
+
+def build_trace_envelope(
+    operation: str = "trace",
+    status: str = "PASS",
+    *,
+    scope: str = "trace",
+    root_kind: str,
+    root_id: str,
+    direction: str,
+    depth: int,
+    cap: int,
+    truncated: bool,
+    forward_nodes: list[dict],
+    reverse_nodes: list[dict],
+    edges: list[dict],
+    gaps: list[str],
+    provenance: dict,
+    source_root: str,
+) -> dict:
+    """Build the ``se.trace/1`` envelope for record dependency tracing.
+
+    This is a dedicated envelope for the trace operation, distinct from
+    ``se.report/1``, because the trace payload has a fixed schema with
+    operation-specific semantics (direction, depth, cap, truncated, gaps,
+    forward/reverse nodes, edges) that do not map cleanly onto the
+    generic ``se.report/1`` root keys.
+
+    The envelope is intentionally compact: nodes carry only the fields
+    defined in ``CONTEXT_REF_FIELDS`` for their kind, edges capture the
+    relationship (source field, direction), and gaps report references
+    that were declared but could not be resolved.
+    """
+    return {
+        "report": "se.trace/1",
+        "operation": operation,
+        "status": status,
+        "scope": scope,
+        "root": {"kind": root_kind, "id": root_id},
+        "direction": direction,
+        "depth": depth,
+        "cap": cap,
+        "truncated": truncated,
+        "gaps": sorted(gaps),
+        "forward": forward_nodes,
+        "reverse": reverse_nodes,
+        "edges": edges,
+        "observation": {
+            "observed_at": now_utc(),
+            "tool": "se",
+            "source_root": source_root,
+        },
+    }

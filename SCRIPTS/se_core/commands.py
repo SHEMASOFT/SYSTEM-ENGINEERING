@@ -8,6 +8,7 @@ import re
 import shlex
 import subprocess
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 from . import authority
@@ -41,7 +42,7 @@ from .projects import (
     project_category,
     resolve_init_target,
 )
-from .reporting import build_envelope, error_envelope, render_json, wants_json
+from .reporting import build_envelope, build_trace_envelope, error_envelope, render_json, wants_json
 from .schemas import check_schema, load_schemas, validate
 
 DOMAIN_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -364,6 +365,49 @@ def _emit_failure(args, operation, message, *, status="FAIL", scope="identity", 
     else:
         print(f"FAIL: {message}")
     return 1
+
+
+def _trace_emit_failure(args, operation, kind, kind_name, message, *, scope="trace", source_root=None) -> int:
+    """Emit a trace failure as a JSON envelope with se.trace/1."""
+    if wants_json(args):
+        envelope = {
+            "report": "se.trace/1",
+            "operation": operation,
+            "kind": kind,
+            "kind_name": kind_name,
+            "status": "FAIL",
+            "scope": scope,
+            "conflicts": [message],
+            "observation": {
+                "observed_at": now_utc(),
+                "tool": "se",
+                "source_root": source_root,
+            },
+        }
+        print(render_json(envelope))
+    else:
+        print(f"FAIL: {message}")
+    return 1
+
+def _trace_failure(args, message, *, scope="trace", source_root=None) -> int:
+    """Emit a trace usage error (exit code 2 for usage errors)."""
+    if wants_json(args):
+        envelope = {
+            "report": "se.trace/1",
+            "operation": "trace",
+            "status": "FAIL",
+            "scope": scope,
+            "conflicts": [message],
+            "observation": {
+                "observed_at": now_utc(),
+                "tool": "se",
+                "source_root": source_root,
+            },
+        }
+        print(render_json(envelope))
+    else:
+        print(f"FAIL: {message}")
+    return 2
 
 
 GITIGNORE_TEMPLATE = "TEMPLATES/gitignore.template"
@@ -6802,6 +6846,96 @@ def _context_dependency_graph(index, start_id):
     return {"graph": sorted(edges, key=lambda edge: (edge["from"], edge["to"])), "acyclic": acyclic}
 
 
+def _build_reverse_targets() -> dict[tuple[str, str], tuple[tuple[str, str], ...]]:
+    """Build reverse edges from REFERENCE_TARGETS.
+
+    Returns a mapping ``(target_kind, field) -> ((source_kind, source_field), ...)``.
+    Only fields declared in REFERENCE_TARGETS are included; kinds without any
+    incoming edges (e.g., ``objective``, ``run``) simply do not appear.
+    """
+    from collections import defaultdict
+
+    rev: dict[tuple[str, str], list[tuple[str, str]]] = defaultdict(list)
+    for (src_kind, src_field), targets in REFERENCE_TARGETS.items():
+        for tgt_kind in targets:
+            rev[(tgt_kind, src_field)].append((src_kind, src_field))
+    # Convert to sorted tuples for determinism
+    return {k: tuple(sorted(v)) for k, v in rev.items()}
+
+def _context_reverse_closure(index, start_kind, start_id, max_depth, cap):
+    """Bounded deterministic reverse traversal (ancestors).
+
+    Walks REFERENCE_TARGETS in reverse by scanning all potential source nodes
+    that could point to the current node. Returns ``(visited_sorted, truncated)``
+    like its forward counterpart.
+    """
+    # Pre-compute: for each target kind, what (source_kind, source_field) pairs point to it
+    reverse_edges = defaultdict(list)
+    for (src_kind, src_field), targets in REFERENCE_TARGETS.items():
+        for tgt_kind in targets:
+            reverse_edges[tgt_kind].append((src_kind, src_field))
+
+    visited = {(start_kind, start_id)}
+    frontier = [(start_kind, start_id)]
+    truncated = False
+    depth = 0
+    while frontier and depth < max_depth:
+        next_frontier = []
+        for kind, identifier in sorted(frontier):
+            # Find all (source_kind, source_field) that can point to this kind
+            for src_kind, src_field in reverse_edges.get(kind, ()):
+                # Scan all nodes of source_kind to find those referencing this node
+                for src_id, src_data in index.get(src_kind, {}).items():
+                    value = src_data.get(src_field)
+                    refs = value if isinstance(value, list) else ([value] if value else [])
+                    for ref in refs:
+                        if not isinstance(ref, str) or not ref:
+                            continue
+                        if ref != identifier:
+                            continue
+                        node = (src_kind, src_id)
+                        if node in visited:
+                            continue
+                        if len(visited) >= cap:
+                            truncated = True
+                            continue
+                        visited.add(node)
+                        next_frontier.append(node)
+        frontier = next_frontier
+        depth += 1
+    return sorted(visited), truncated
+
+def _resolve_kind(record_id: str, explicit_kind: str | None = None) -> str | None:
+    """Resolve the record kind from an explicit --kind or the ID prefix.
+
+    If ``explicit_kind`` is provided, it is validated against COLLECTIONS.
+    Otherwise the prefix is looked up in CONTEXT_FOCUS_PREFIXES.
+    Returns the canonical kind name or None if ambiguous/unknown.
+    """
+    if explicit_kind:
+        if explicit_kind in COLLECTIONS:
+            return explicit_kind
+        return None
+    return _context_focus_kind(record_id)
+    """Deterministic task selection: IN_PROGRESS > READY > PENDING, else head of gate."""
+    tasks = index.get("task", {})
+    active = sorted(
+        (CONTEXT_ACTIVE_TASK_ORDER[data.get("status")], identifier)
+        for identifier, data in tasks.items()
+        if data.get("status") in CONTEXT_ACTIVE_TASK_ORDER
+    )
+    if active:
+        return active[0][1], "active-task"
+    unsettled = sorted(
+        identifier
+        for identifier, data in tasks.items()
+        if data.get("status") not in CONTEXT_SETTLED_TASK_STATES
+    )
+    if unsettled:
+        return unsettled[0], "head-of-gate"
+    return None, "none"
+
+
 def cmd_context(args) -> int:
     """Reconstruct the minimum relevant context (LEVEL 0-4) for a project/focus."""
     project = Path(args.project)
@@ -7197,6 +7331,240 @@ def _handoff_heuristic_next_actions(project: Path) -> list:
     if not actions:
         actions.append(f"se review --project {project_ref}")
     return actions
+
+
+TRACE_OPERATION = "trace"
+TRACE_SCOPES = ("forward", "reverse", "both")
+TRACE_DEFAULT_DEPTH = 3
+TRACE_DEFAULT_CAP = 100
+
+
+def cmd_trace(args) -> int:
+    """Trace record dependencies (READ-ONLY)."""
+    project = Path(args.project)
+    if not (project / "PROJECT.json").exists():
+        return _trace_failure(
+            args, f"no PROJECT.json in {project}", scope="trace", source_root=str(project)
+        )
+
+    record_id = str(getattr(args, "record_id", None) or "").strip()
+    if not record_id:
+        return _trace_failure(
+            args, "record_id is required", scope="trace", source_root=str(project)
+        )
+
+    explicit_kind = getattr(args, "kind", None)
+    if explicit_kind is not None:
+        explicit_kind = str(explicit_kind).strip() or None
+
+    depth = int(getattr(args, "depth", TRACE_DEFAULT_DEPTH))
+    if depth < 0:
+        return _trace_failure(
+            args, "depth must be >= 0", scope="trace", source_root=str(project)
+        )
+
+    cap = int(getattr(args, "cap", TRACE_DEFAULT_CAP))
+    if cap <= 0:
+        return _trace_failure(
+            args, "cap must be >= 1", scope="trace", source_root=str(project)
+        )
+
+    direction = str(getattr(args, "direction", "forward")).lower()
+    if direction not in ("forward", "reverse", "both"):
+        return _trace_failure(
+            args,
+            f"direction must be one of: forward, reverse, both (got '{direction}')",
+            scope="trace",
+            source_root=str(project),
+        )
+
+    collections = all_collections(project)
+    index = _index(collections)
+
+    # Resolve kind
+    kind = _resolve_kind(record_id, explicit_kind)
+    if kind is None:
+        return _trace_failure(
+            args,
+            f"cannot infer kind from '{record_id}'; use --kind (one of: {', '.join(sorted(COLLECTIONS))})",
+            scope="trace",
+            source_root=str(project),
+        )
+    if kind not in COLLECTIONS:
+        return _trace_failure(
+            args,
+            f"invalid kind '{kind}' (expected one of: {', '.join(sorted(COLLECTIONS))})",
+            scope="trace",
+            source_root=str(project),
+        )
+
+    # Verify record exists
+    if record_id not in index.get(kind, {}):
+        return _trace_emit_failure(args, TRACE_OPERATION, kind, "trace",
+            f"record {record_id} not found in {kind}",
+            scope="trace",
+            source_root=str(project),
+        )
+
+    # Build the trace
+    want_json = wants_json(args)
+
+    forward_nodes = []
+    reverse_nodes = []
+    edges = []
+    gaps = []
+    truncated = False
+
+    # Helper to build node dicts with minimal fields
+    def make_node_dict(k, i):
+        data = index.get(k, {}).get(i, {})
+        if not data:
+            return None
+        fields = CONTEXT_REF_FIELDS.get(k, (None, ()))[1]
+        node = {"kind": k, "id": i}
+        for f in fields:
+            v = data.get(f)
+            if isinstance(v, list):
+                node[f] = list(v)
+            elif v is not None:
+                node[f] = v
+        return node
+
+    # Helper to record a gap
+    def add_gap(field, ref, expected_kinds):
+        gaps.append(
+            f"{field}: reference {ref} does not exist (expected {'/'.join(sorted(expected_kinds))})"
+        )
+
+    # Forward traversal
+    if direction in ("forward", "both"):
+        fwd_visited, fwd_truncated = _context_closure(index, kind, record_id, depth, cap)
+        truncated = truncated or fwd_truncated
+        # Build edges and nodes from forward traversal
+        # We need to reconstruct edges from the traversal
+        for fwd_kind, fwd_id in fwd_visited:
+            if (fwd_kind, fwd_id) == (kind, record_id):
+                continue
+            node = make_node_dict(fwd_kind, fwd_id)
+            if node:
+                forward_nodes.append(node)
+        # Reconstruct forward edges by walking again and recording edges
+        fwd_visited_set = set(fwd_visited)
+        for fwd_kind, fwd_id in sorted(fwd_visited):
+            data = index.get(fwd_kind, {}).get(fwd_id, {})
+            for field, candidates, ref in _context_out_edges(fwd_kind, data):
+                target_kind = _context_resolve_ref(index, ref, candidates)
+                if target_kind is None:
+                    add_gap(field, ref, candidates)
+                    continue
+                edges.append(
+                    {
+                        "from_kind": fwd_kind,
+                        "from_id": fwd_id,
+                        "field": field,
+                        "to_kind": target_kind,
+                        "to_id": ref,
+                    }
+                )
+
+    # Reverse traversal
+    if direction in ("reverse", "both"):
+        rev_visited, rev_truncated = _context_reverse_closure(index, kind, record_id, depth, cap)
+        truncated = truncated or rev_truncated
+        rev_visited_set = set(rev_visited)
+        # Add root to the visited set for edge reconstruction
+        rev_visited_set.add((kind, record_id))
+        for rev_kind, rev_id in rev_visited:
+            if (rev_kind, rev_id) == (kind, record_id):
+                continue
+            node = make_node_dict(rev_kind, rev_id)
+            if node:
+                reverse_nodes.append(node)
+        # Reconstruct reverse edges: for each visited node (ancestor), find its
+        # forward edges that point to another visited node (closer to root).
+        # We iterate in reverse order (from root outward) so ancestors are processed first.
+        for rev_kind, rev_id in sorted(rev_visited):
+            data = index.get(rev_kind, {}).get(rev_id, {})
+            # Find forward edges from this node
+            for field, candidates, ref in _context_out_edges(rev_kind, data):
+                target_kind = _context_resolve_ref(index, ref, candidates)
+                if target_kind is None:
+                    add_gap(field, ref, candidates)
+                    continue
+                # Check if the target is in the visited set (including root)
+                if (target_kind, ref) in rev_visited_set:
+                    edges.append(
+                        {
+                            "from_kind": rev_kind,
+                            "from_id": rev_id,
+                            "field": field,
+                            "to_kind": target_kind,
+                            "to_id": ref,
+                        }
+                    )
+
+    # Deduplicate nodes while preserving order
+    def dedupe(nodes):
+        seen = set()
+        out = []
+        for n in nodes:
+            key = (n["kind"], n["id"])
+            if key not in seen:
+                seen.add(key)
+                out.append(n)
+        return out
+
+    forward_nodes = dedupe(forward_nodes)
+    reverse_nodes = dedupe(reverse_nodes)
+
+    # Deduplicate edges
+    edge_keys = set()
+    deduped_edges = []
+    for e in edges:
+        key = (e["from_kind"], e["from_id"], e["field"], e["to_kind"], e["to_id"])
+        if key not in edge_keys:
+            edge_keys.add(key)
+            deduped_edges.append(e)
+    edges = deduped_edges
+
+    # Build envelope
+    envelope = build_trace_envelope(
+        operation="trace",
+        status="PASS",
+        scope="trace",
+        root_kind=kind,
+        root_id=record_id,
+        direction=direction,
+        depth=depth,
+        cap=cap,
+        truncated=truncated,
+        forward_nodes=forward_nodes,
+        reverse_nodes=reverse_nodes,
+        edges=edges,
+        gaps=sorted(gaps),
+        provenance={
+            "trace": "SCRIPTS/se_core/commands.py:cmd_trace",
+            "project": str(project),
+        },
+        source_root=str(project),
+    )
+
+    if want_json:
+        print(render_json(envelope))
+    else:
+        # Human-readable summary
+        print(f"TRACE: {kind} {record_id} ({direction})")
+        print(f"  forward: {len(forward_nodes)} nodes")
+        print(f"  reverse: {len(reverse_nodes)} nodes")
+        print(f"  edges: {len(edges)}")
+        if gaps:
+            print(f"  gaps: {len(gaps)}")
+            for g in sorted(gaps):
+                print(f"    - {g}")
+        if truncated:
+            print(f"  TRUNCATED at cap {cap}")
+
+    return 0
 
 
 def cmd_handoff(args) -> int:
