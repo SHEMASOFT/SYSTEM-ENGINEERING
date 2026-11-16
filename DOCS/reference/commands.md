@@ -32,6 +32,7 @@ Machine-readable: `COMMANDS/commands.json`. Human summary: `COMMANDS/README.md`.
 | `observe` | — | implementer |
 | `orchestrate` | varies | coordinator |
 | `upgrade` | — | devops |
+| `trace` | — | coordinator |
 
 `adapter` is a CLI infrastructure group (not a contract command — it consumes the contracts
 to generate tool artifacts):

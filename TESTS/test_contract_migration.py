@@ -26,7 +26,7 @@ EXPECTED_COMMANDS = {
     "init", "explore", "new", "update", "transition", "plan", "implement",
     "verify", "review", "release", "doctor", "validate", "gate", "capabilities",
     "context", "health", "auto", "intent", "handoff", "archive", "restore",
-    "shema-ai", "execute", "observe", "orchestrate", "upgrade",
+    "shema-ai", "execute", "observe", "orchestrate", "upgrade", "trace",
 }
 INTENTS = {"CREATE", "READ", "MUTATE", "CONTROL", "ANALYZE", "DEPLOY", "REPORT", "IMPLEMENT"}
 RISKS = {"low", "medium", "high", "critical"}
