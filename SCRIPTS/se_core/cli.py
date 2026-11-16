@@ -686,6 +686,46 @@ def build_parser() -> argparse.ArgumentParser:
     p_context.add_argument("--json", action="store_true", help="Emit a machine-readable se.report/1 envelope")
     p_context.set_defaults(func=commands.cmd_context)
 
+    # trace
+    p_trace = sub.add_parser("trace", help="Trace record dependencies (READ-ONLY)")
+    p_trace.add_argument("--project", required=True, help="Managed project workspace")
+    p_trace.add_argument("record_id", help="Record ID to trace (e.g. REQ-0001, TASK-0005)")
+    p_trace.add_argument(
+        "--kind",
+        default=None,
+        choices=[
+            "objective",
+            "requirement",
+            "task",
+            "artifact",
+            "evidence",
+            "decision",
+            "acceptance",
+            "release",
+            "sdd",
+            "odd",
+            "rdd",
+            "run",
+        ],
+        help="Force record kind (required for SDD/ODD/RDD/RUN which have no prefix)",
+    )
+    p_trace.add_argument(
+        "--depth", type=int, default=3, help="Traversal depth (default: 3)"
+    )
+    p_trace.add_argument(
+        "--cap", type=int, default=100, help="Max nodes to visit (default: 100)"
+    )
+    p_trace.add_argument(
+        "--direction",
+        choices=["forward", "reverse", "both"],
+        default="forward",
+        help="Traversal direction: forward (descendants), reverse (ancestors), both (default: forward)",
+    )
+    p_trace.add_argument(
+        "--json", action="store_true", help="Emit a machine-readable se.trace/1 envelope"
+    )
+    p_trace.set_defaults(func=commands.cmd_trace)
+
     # handoff
     p_handoff = sub.add_parser("handoff", help="Create or load a HANDOFF.json artifact for project continuity")
     p_handoff_sub = p_handoff.add_subparsers(dest="subcommand", required=True)

@@ -45,9 +45,17 @@ Conventions:
 - Outside the contract, the CLI also exposes support subcommands: `install`, `sync`,
   `uninstall` and `adapter` manage the tool itself and its generated artifacts, while
   `adopt`, `ceremony`, `coverage`, `har`, `intelligence`, `memory`, `resume`, `run`, `skill`,
-  `subagent`, and `status` are documented support. `TESTS/test_cli_contract_boundary.py` pins that
+  `subagent`, `trace` and `status` are documented support. `TESTS/test_cli_contract_boundary.py` pins that
   boundary: adding a subcommand means choosing between the contract (a governed change:
   ADR + `VERSION` bump, per ADR-0020) and this support list.
+
+### Support command: `se trace`
+
+`trace` walks the dependency graph between a project's records in either direction
+(`--direction forward|reverse|both`), bounded by `--depth` (default 3) and `--cap`
+(default 100). It is read-only, never mutates the project, and emits a `se.trace/1`
+envelope under `--json`. `--kind` disambiguates records that carry no identifier
+prefix (SDD, ODD, RDD, RUN).
 
 ### Support command exit codes: `se subagent`
 
