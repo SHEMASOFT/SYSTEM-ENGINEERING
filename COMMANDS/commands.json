@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "interface_version": "0.5.0",
+  "interface_version": "0.6.0",
   "description": "Conceptual command interface. Exposable via CLI, OpenCode, other agents or automation.",
   "conventions": {
     "project_flag": "--project <dir> points at a managed project workspace.",
@@ -1416,6 +1416,87 @@
           "description": "Emit a machine-readable se.report/1 envelope instead of human-readable output."
         }
       ]
+    },
+  {
+    "id": "CMD-0027",
+    "version": "1.0.0",
+    "name": "trace",
+    "description": "Trace the dependency graph of a project record (read-only).",
+    "purpose": "Walk the dependency graph between project records: forward (what the record references) or in reverse (what references it), bounded by depth and node cap.",
+    "agent": "shema-ai-coordinador",
+    "execution_intent": "ANALYZE",
+    "risk_level": "low",
+    "inputs": [
+      "record_id",
+      "--project",
+      "--kind",
+      "--depth",
+      "--cap",
+      "--direction",
+      "--json"
+    ],
+    "outputs": [
+      "se.trace/1 envelope (with --json)",
+      "human-readable trace"
+    ],
+    "gate": null,
+    "primary_agent": "shema-ai-coordinador",
+    "mutates": false,
+    "implemented": true,
+    "permissions": [
+      "READ",
+      "ANALYZE"
+    ],
+    "arguments": [
+      {
+        "name": "record_id",
+        "type": "string",
+        "required": true,
+        "description": "Record ID to trace (e.g. REQ-0001, TASK-0005)."
+      },
+      {
+        "name": "--project",
+        "type": "path",
+        "required": true,
+        "description": "Managed project workspace."
+      },
+      {
+        "name": "--kind",
+        "type": "string",
+        "required": false,
+        "description": "Force the record kind; required for SDD/ODD/RDD/RUN, which carry no identifier prefix."
+      },
+      {
+        "name": "--depth",
+        "type": "integer",
+        "required": false,
+        "default": 3,
+        "description": "Traversal depth (default: 3)."
+      },
+      {
+        "name": "--cap",
+        "type": "integer",
+        "required": false,
+        "default": 100,
+        "description": "Maximum number of nodes to visit (default: 100)."
+      },
+      {
+        "name": "--direction",
+        "type": "string",
+        "required": false,
+        "default": "forward",
+        "description": "Traversal direction: forward, reverse or both (default: forward)."
+      },
+      {
+        "name": "--json",
+        "type": "boolean",
+        "required": false,
+        "description": "Emit a machine-readable se.trace/1 envelope."
+      }
+    ],
+    "metadata": {
+      "read_only": true
     }
+  }
   ]
 }

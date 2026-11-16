@@ -240,6 +240,11 @@ class TraceTests(unittest.TestCase):
         code2, env2 = self._trace("OBJ-0001", direction="both", depth=3, cap=50)
         self.assertEqual(code1, code2)
         import json
+
+        # `observation.observed_at` records when each run happened, so it is not
+        # part of what "deterministic output" means here.
+        for env in (env1, env2):
+            env.pop("observation", None)
         self.assertEqual(json.dumps(env1, sort_keys=True), json.dumps(env2, sort_keys=True))
 
     def test_gaps_only_reports_declared_refs(self):

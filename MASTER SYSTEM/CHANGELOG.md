@@ -7,6 +7,12 @@ Versions are normalized SemVer (see `DOCS/VERSIONING_STRATEGY.md`).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-16
+
+### Changed
+
+- promote the se trace command into the command contract (CMD-0027)
+
 ### Fixed
 
 - **External managed workspaces**: `se orchestrate` and `se memory` resolve the

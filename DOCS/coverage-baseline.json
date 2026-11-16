@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-11-09T04:46:46Z",
+  "created_at": "2026-11-16T11:01:23Z",
   "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
   "minimums": {
     "reference": 30
@@ -29,7 +29,7 @@
       },
       {
         "path": "DOCS/reference/commands.md",
-        "hash": "99e168b540caeab0"
+        "hash": "ef2aa29116b87e61"
       },
       {
         "path": "DOCS/reference/conventions/CONVENTION_ARCH_IMPACT.md",
@@ -132,12 +132,20 @@
         "hash": "b445ba9b4dc5ba2f"
       },
       {
+        "path": "DOCS/reference/probar-en-otra-computadora.md",
+        "hash": "7342be6d0b5712e9"
+      },
+      {
         "path": "DOCS/reference/project-bootstrap.md",
         "hash": "114d5528a1220ad1"
       },
       {
         "path": "DOCS/reference/project-profile.md",
         "hash": "75c329abc24895d5"
+      },
+      {
+        "path": "DOCS/reference/resolver-conflicto-commands-py.md",
+        "hash": "6c99cae762c46287"
       },
       {
         "path": "DOCS/reference/review-lenses.md",
@@ -165,7 +173,7 @@
       },
       {
         "path": "DOCS/reference/versioning.md",
-        "hash": "5e3d2dc468508bff"
+        "hash": "77f465eecf74c481"
       },
       {
         "path": "DOCS/reference/visual-frontend-engineering.md",

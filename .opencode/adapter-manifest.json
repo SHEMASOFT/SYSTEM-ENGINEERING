@@ -1,6 +1,6 @@
 {
   "adapter_id": "opencode",
-  "adapter_version": "0.11.0",
+  "adapter_version": "0.12.0",
   "capabilities": {
     "agents": "SUPPORTED",
     "commands": "SUPPORTED",
@@ -82,7 +82,7 @@
     ],
     "registry": "CORE/capabilities/capabilities.json"
   },
-  "engine_version": "0.11.0",
+  "engine_version": "0.12.0",
   "input": {
     "agents": "AGENTS/*/agent.json",
     "commands": "COMMANDS/commands.json",
@@ -125,6 +125,8 @@
       "commands/release.md": "a486b9eb178b089868176b907783de790db6283195021497d4b67adac8580e10",
       "commands/restore.md": "4757fa0ac202d649cf671786a17f565448d8388ff47c81e4afd5f8718b6b99d0",
       "commands/review.md": "821bd51078d1b082b044f34232c6d9a559d820e3b6a81c40f3ff5b8dc759993b",
+      "commands/shema-ai.md": "9b000845f6812c9cbe9faf82d21f431d59f0ff46c7785ffc07ff6404666c95e5",
+      "commands/trace.md": "973b95171a1825bc96b096d3915f4da18f0b83a4ab242fff23800799b7fe3dc0",
       "commands/transition.md": "0f8c221cd00671f7c90c015c33d2ffc797f63543c2acece8671f85eb858ad30f",
       "commands/update.md": "9124716cd1a402f740ccebb680e16d24d80fe4a4a8a737609b868b5811131bee",
       "commands/upgrade.md": "cec66cbf22a063114ecb266415d89665fb8007e2da3c39b92bb8396f104e7f85",
@@ -153,7 +155,7 @@
     },
     "counts": {
       "agents": 12,
-      "commands": 25,
+      "commands": 27,
       "policies": 9,
       "skills": 7
     },
@@ -384,6 +386,18 @@
         "type": "command"
       },
       {
+        "description": "SHEMA-AI Unified Interface: Model config, Install, Sync, Uninstall, Doctor.",
+        "format": "markdown",
+        "path": ".opencode/commands/shema-ai.md",
+        "type": "command"
+      },
+      {
+        "description": "Trace the dependency graph of a project record (read-only).",
+        "format": "markdown",
+        "path": ".opencode/commands/trace.md",
+        "type": "command"
+      },
+      {
         "description": "Skill checkpoint-release",
         "format": "markdown",
         "path": ".opencode/skills/checkpoint-release/SKILL.md",
@@ -550,6 +564,8 @@
       "commands/release.md",
       "commands/restore.md",
       "commands/review.md",
+      "commands/shema-ai.md",
+      "commands/trace.md",
       "commands/transition.md",
       "commands/update.md",
       "commands/upgrade.md",
