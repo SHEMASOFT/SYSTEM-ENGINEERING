@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SYSTEM-ENGINEERING — Visualización del workflow</title>
+<style>
+  :root{
+    --bg:#F6F8FA; --card:#FFFFFF; --ink:#1B3A5C; --muted:#475569;
+    --teal:#14B8A6; --green:#15803D; --amber:#B45309; --blue:#1B3A5C;
+    --amber-text:#92400E; --gray-text:#475569; --annot:#6D5BD0;
+    --line:#D8DEE6; --line-soft:#E7ECF1;
+    --green-bg:#EAF6EE; --amber-bg:#FBF1E3; --blue-bg:#EAF0F6; --gray-bg:#EEF1F4;
+    --focus:#1B3A5C;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;overflow-x:clip}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:15px; line-height:1.5;
+  }
+  .wrap{max-width:1400px;margin:0 auto;padding:22px 18px 64px}
+  header.top{margin-bottom:14px}
+  h1{font-size:22px;margin:0 0 6px;letter-spacing:-.2px}
+  .sub{color:var(--muted);font-size:13.5px;margin:0}
+  .sub code{background:var(--gray-bg);padding:1px 4px;border-radius:4px;font-size:12.5px}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;margin-bottom:14px;
+  }
+  .card h2{font-size:15px;margin:0 0 10px}
+  .card h3{font-size:13.5px;margin:14px 0 6px;color:var(--ink)}
+  .card p{margin:6px 0}
+  .card ul{margin:6px 0;padding-left:20px}
+  .card li{margin:3px 0}
+  .kv{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted)}
+  .kv b{color:var(--ink);font-weight:600}
+  .note{font-size:12.5px;color:var(--muted)}
+  .ev{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;background:var(--gray-bg);color:#334155;padding:1px 5px;border-radius:4px}
+  .flag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:999px;border:1px solid transparent;vertical-align:middle}
+  .flag.g{background:var(--green-bg);color:var(--green);border-color:#B6DCC0}
+  .flag.b{background:var(--blue-bg);color:var(--blue);border-color:#BFD2E4}
+  .flag.a{background:var(--amber-bg);color:var(--amber-text);border-color:#EED9BE}
+  .flag.n{background:var(--gray-bg);color:var(--gray-text);border-color:#D6DDE5}
+
+  /* ---------- Tabs ---------- */
+  .tablist{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--line);margin-bottom:12px;padding-bottom:0}
+  [role="tab"]{
+    appearance:none;background:transparent;border:1px solid transparent;border-bottom:none;
+    color:var(--muted);font:inherit;font-size:13.5px;font-weight:600;
+    padding:8px 12px;border-radius:8px 8px 0 0;cursor:pointer;
+  }
+  [role="tab"]:hover{color:var(--ink);background:#EFF3F7}
+  [role="tab"][aria-selected="true"]{color:var(--ink);background:var(--card);border-color:var(--line);box-shadow:inset 0 2px 0 var(--teal)}
+  [role="tabpanel"]{outline:none}
+  [role="tabpanel"][hidden]{display:none}
+
+  /* ---------- Layout ---------- */
+  .stage{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+  .panel-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+  .panel-card h2{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:2px 0 8px}
+  svg#graph,svg.graph{display:block;width:100%;height:auto;background:#FCFDFE;border-radius:8px}
+  svg.graph{min-width:1180px}
+  .svgwrap{overflow-x:auto;max-width:100%}
+  svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  .node-box{fill:#fff;stroke:var(--line);stroke-width:1.4}
+  .node-title{font-size:17px;font-weight:700;fill:var(--ink)}
+  .node-role{font-size:13px;fill:var(--muted)}
+  .node-desc{font-size:13.5px;fill:#475569}
+  .statlabel{font-size:12px;font-weight:700}
+  .node-flag{font-size:11px;font-weight:700;fill:var(--amber-text)}
+  .edge{fill:none;stroke:#B9C4D0;stroke-width:1.4}
+  .edge.flow{stroke:var(--teal)}
+  .edge.annot{stroke:var(--annot);stroke-width:1.6;stroke-dasharray:6 4;opacity:.65}
+  .flowdot{
+    fill:var(--teal);stroke:none;
+    stroke-dasharray:0.001 13;stroke-linecap:round;
+    animation:dash 1.15s linear infinite;
+  }
+  @keyframes dash{to{stroke-dashoffset:-13}}
+  .group rect{fill:none}
+  g.node[data-state="green"] .node-box{stroke:#9CCDAF;fill:var(--green-bg)}
+  g.node[data-state="green"] .badge{fill:var(--green)}
+  g.node[data-state="blue"] .node-box{stroke:#B9CDE2;fill:var(--blue-bg)}
+  g.node[data-state="blue"] .badge{fill:var(--blue)}
+  g.node[data-state="amber"] .node-box{stroke:#E6CBA6;fill:var(--amber-bg)}
+  g.node[data-state="amber"] .badge{fill:var(--amber)}
+  g.node[data-state="gray"] .node-box{stroke:#CBD4DE;fill:var(--gray-bg);stroke-dasharray:4 3}
+  g.node[data-state="gray"] .badge{fill:#64748B}
+  g.node .badge{stroke:#fff;stroke-width:1.5}
+  g.node{cursor:pointer}
+  g.node rect.hit{fill:transparent;stroke:none}
+  g.node:focus{outline:none}
+  g.node:focus .node-box{stroke:var(--focus);stroke-width:2.4}
+  g.node.sel .node-box{stroke:var(--focus);stroke-width:2.6}
+  g.node.sel .halo{stroke:var(--teal);stroke-width:1.6;fill:none;stroke-dasharray:none}
+  .halo{fill:none;stroke:none}
+  .ringtext{font-size:9.5px;fill:#475569}
+  .ann-text{font-size:9.5px;fill:#475569}
+
+  aside.detail{position:sticky;top:12px}
+  .detail .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:4px 9px;border-radius:999px;border:1px solid transparent}
+  .chip.g{background:var(--green-bg);color:var(--green);border-color:#B6DCC0}
+  .chip.b{background:var(--blue-bg);color:var(--blue);border-color:#BFD2E4}
+  .chip.a{background:var(--amber-bg);color:var(--amber-text);border-color:#EED9BE}
+  .chip.n{background:var(--gray-bg);color:var(--gray-text);border-color:#D6DDE5}
+  .detail h3{font-size:15px;margin:10px 0 2px}
+  .detail .role{font-size:12px;color:var(--muted);margin:0 0 8px}
+  .detail .desc{font-size:13px;margin:0 0 10px}
+  .detail .evblock{border-top:1px dashed var(--line);padding-top:8px;margin-top:8px}
+  .detail .evblock h4{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px}
+  .detail .evblock ul{margin:0;padding-left:2px;list-style:none}
+  .detail .evblock li{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#334155;padding:3px 0;border-bottom:1px solid var(--line-soft);word-break:break-all}
+  .detail .empty{color:var(--muted);font-size:13px}
+  .btn{
+    appearance:none;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+    background:var(--card);color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:8px 12px;
+  }
+  .btn:hover{background:#EFF3F7}
+  .btn[disabled]{cursor:not-allowed;opacity:.65}
+  .btn[disabled] .lbl::after{content:""}
+  .btn[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .btn[aria-pressed="true"] .lbl::after{content:" en curso"}
+  .btn[aria-pressed="false"] .lbl::after{content:" en pausa"}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  svg :focus{outline:none}
+
+  /* ---------- Legend ---------- */
+  .legend{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-start}
+  .legend .item{display:flex;gap:8px;align-items:flex-start;max-width:260px;font-size:12.5px}
+  .legend sw{display:inline-block;flex:0 0 auto;width:12px;height:12px;border-radius:3px;margin-top:4px;border:1px solid rgba(27,58,92,.25)}
+  .legend sw.g{background:var(--green)}
+  .legend sw.b{background:var(--blue)}
+  .legend sw.a{background:var(--amber)}
+  .legend sw.n{background:#94A3B8}
+  .legend .item b{display:block;font-size:12.5px}
+  .legend svg.legend-line{flex:0 0 auto;margin-top:3px}
+  .legend .item span{color:var(--muted)}
+
+  /* ---------- Mobile cards ---------- */
+  .cards{display:none;list-style:none;margin:0;padding:0}
+  .cards li{list-style:none;margin:0;padding:0}
+  .mnode{
+    background:var(--card);border:1px solid var(--line);border-left-width:5px;border-radius:10px;
+    padding:10px 12px;margin-bottom:9px;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;
+  }
+  .mnode[data-state="green"]{border-left-color:var(--green);background:linear-gradient(90deg,var(--green-bg),#fff 42%)}
+  .mnode[data-state="blue"]{border-left-color:var(--blue);background:linear-gradient(90deg,var(--blue-bg),#fff 42%)}
+  .mnode[data-state="amber"]{border-left-color:var(--amber);background:linear-gradient(90deg,var(--amber-bg),#fff 42%)}
+  .mnode[data-state="gray"]{border-left-color:#94A3B8;background:linear-gradient(90deg,var(--gray-bg),#fff 42%)}
+  .mnode.sel{outline:3px solid var(--focus);outline-offset:1px}
+  .mnode .t{font-size:13.5px;font-weight:700;margin:0 0 2px}
+  .mnode .r{font-size:11.5px;color:var(--muted);margin:0 0 6px}
+  .mnode .d{font-size:12px;color:#475569;margin:0}
+  .mnode .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px}
+
+  .flowline{display:flex;align-items:center;justify-content:center;height:20px;color:var(--teal)}
+  .flowline svg{display:block}
+  .pause .flowdot,.pause .pulse{animation-play-state:paused !important}
+  @media (prefers-reduced-motion: reduce){
+    .flowdot{animation:none !important}
+    .pulse{animation:none !important}
+  }
+  .pulse{fill:none;stroke:var(--teal);stroke-width:1.6;stroke-dasharray:0.5 9;stroke-linecap:round;animation:dash2 1.4s linear infinite}
+  @keyframes dash2{to{stroke-dashoffset:-18}}
+
+  @media (max-width:760px){
+    .wrap{padding:14px 12px 48px}
+    .stage{grid-template-columns:1fr}
+    .svgwrap{display:none}
+    .cards{display:block}
+    .desktop-only{display:none}
+    aside.detail{position:static}
+    .legend .item{max-width:none}
+  }
+</style>
+</head>
+<body>
+<noscript>
+  <div class="card" style="margin:14px 18px 0">
+    <h2 style="font-size:15px;margin:0 0 8px">JavaScript desactivado</h2>
+    <p class="note" style="color:var(--ink)">Las cuatro vistas interactivas de este prototipo (grafo SVG navegable y tarjetas por nodo) se construyen con JavaScript: sin JavaScript no hay grafo ni tarjetas que mostrar.</p>
+    <p class="note">El diagrama estático equivalente está en <code>diagram.svg</code> y <code>diagram.mmd</code>, en la misma carpeta.</p>
+  </div>
+</noscript>
+<div class="wrap">
+  <header class="top">
+    <h1>SYSTEM-ENGINEERING — workflow de orquestación (visualización)</h1>
+    <p class="sub">Documentación visual del workflow de orquestación de <b>SYSTEM-ENGINEERING</b>. Cada nodo incluye su evidencia en <code>archivo:línea</code> referida al snapshot auditado <code>p3-complete @ 4c18480 (2026-10-30)</code>; el contrato vigente es <code>0.12.0 — 27 comandos · 12 agentes · 7 skills</code>. Los nodos ilustrativos no llevan evidencia. La página es estática: no ejecuta comandos ni modifica el repositorio.</p>
+  </header>
+
+  <section class="card" aria-labelledby="snap-h">
+    <h2 id="snap-h">Contexto del snapshot</h2>
+    <div class="kv">
+      <span><b>Repositorio</b> SYSTEM-ENGINEERING</span>
+      <span><b>Rama auditada</b> p3-complete</span>
+      <span><b>HEAD</b> 4c18480</span>
+      <span><b>Fecha</b> 2026-10-30</span>
+      <span><b>Contrato actual</b> 0.12.0 — 27 comandos · 12 agentes · 7 skills</span>
+    </div>
+    <ul class="note">
+      <li>El trabajo <b>P3-A</b> (dispatcher de referencias), <b>P3-B.1</b> (tool <code>memory</code>, TTL/GC) y <b>P3-C</b> (modo nativo) ya está commiteado en <code>main</code> y en <code>p3-complete</code>; esta re-auditoría verifica el árbol actual, no el snapshot viejo <code>b0696eb</code>.</li>
+      <li>Esta página solo <b>lee</b> el repositorio: no ejecuta comandos ni lo modifica.</li>
+      <li>Etiqueta <span class="flag a">REPORTED</span> = afirmación de informe, sin comprobación independiente sobre el árbol actual.</li>
+    </ul>
+  </section>
+
+  <section class="card" aria-labelledby="note-h">
+    <h2 id="note-h">Nota de lectura</h2>
+    <p class="note" style="color:var(--ink)"><b>Animación explicativa: no simula una ejecución real ni llama a modelos o herramientas.</b></p>
+    <p class="note">El color <b>no</b> es la única señal: cada nodo incluye <b>etiqueta de estado</b> textual. Estados: verde <span class="flag g">IMPLEMENTADA Y PROBADA</span>, azul <span class="flag b">DEPENDE DE RUTA/CONFIG</span>, ámbar <span class="flag a">PENDIENTE DE VALIDAR</span>, gris <span class="flag n">NO IMPLEMENTADA</span>.</p>
+  </section>
+
+  <div class="btnrow" style="margin-bottom:10px">
+    <button type="button" class="btn" id="playBtn" aria-pressed="false">
+      <span class="lbl">Reproducir/Pausar animación</span>
+    </button>
+    <span class="note" id="playState">La animación se activa según la preferencia de movimiento del sistema.</span>
+  </div>
+
+  <div class="tablist" role="tablist" aria-label="Vistas del workflow" id="tabs"></div>
+
+  <div id="panels"></div>
+
+  <section class="card" aria-labelledby="lg-h" style="margin-top:14px">
+    <h2 id="lg-h">Leyenda de estados (persistente)</h2>
+    <div class="legend">
+      <div class="item"><sw class="g" aria-hidden="true"></sw><div><b>Verde — Implementada y probada</b><span>Existe en el snapshot y hay test/ejecución que la respalda.</span></div></div>
+      <div class="item"><sw class="b" aria-hidden="true"></sw><div><b>Azul — Implementada; depende de ruta/configuración</b><span>Implementada, pero su comportamiento cambia según ruta (nativa/interna) o configuración.</span></div></div>
+      <div class="item"><sw class="a" aria-hidden="true"></sw><div><b>Ámbar — En desarrollo / pendiente de validar</b><span>Y también: <b>Implementada con limitación conocida</b>. La etiqueta exacta de cada nodo manda.</span></div></div>
+      <div class="item"><sw class="n" aria-hidden="true"></sw><div><b>Gris — Planificada / no implementada</b><span>No existe en el snapshot inspeccionado.</span></div></div>
+      <div class="item"><svg class="legend-line" width="28" height="12" viewBox="0 0 28 12" aria-hidden="true" focusable="false"><line x1="1" y1="6" x2="27" y2="6" stroke="var(--annot)" stroke-width="2" stroke-dasharray="5 4"/></svg><div><b>Enlace de anotación</b><span>línea discontinua = enlace de anotación (no es flujo principal)</span></div></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="pend-h" style="margin-top:14px">
+    <h2 id="pend-h">Re-auditoría contra el árbol actual</h2>
+    <ol style="margin:6px 0;padding-left:20px;font-size:13px">
+      <li><code>_resolve_node_outputs()</code>/<code>_extract_output_refs()</code>: existen con la lógica <code>memory:new:</code>/<code>memory:</code>/<code>literal:</code> (<code>engine.py:730-812</code>), pero no hay test directo y no se alcanzan en la ruta real (desajuste `output`/`outputs`). Veredicto: <b>PARCIAL</b>.</li>
+      <li>Tool <code>memory</code> (<code>_invoke_memory_tool</code>) en AgentRunner con validación de project_id/permisos: existe y está probada (<code>runner.py:717-864</code>, 7 tests), pero ningún <code>agent.json</code> declara <code>tools</code>, así que no se anuncia al modelo. Veredicto: <b>PARCIAL</b>.</li>
+      <li>Ruta nativa resuelve referencias de extremo a extremo: <b>aún no</b>; el comando del prompt no es ejecutable (`--memory-id` obligatorio, `--project` exige directorio con PROJECT.json).</li>
+      <li>Política de retención/GC para memorias <code>node_output</code>: hay TTL/GC genérico con 6 tests, pero <code>node_output</code> se crea <code>active</code> y sin <code>ttl_days</code>, así que el GC por defecto no lo toca. Veredicto: <b>PARCIAL</b>.</li>
+      <li><code>cached_tokens</code>/<code>workflow_telemetry</code> se extraen de los providers, pero <code>runner.py:599-605</code> los descarta antes de llegar al motor; 0 coincidencias en <code>TESTS/</code>. Veredicto: <b>PARCIAL</b>.</li>
+      <li>Cifras de tests 189/189, 178/178, 62/62: no aparecen en ningún archivo del árbol actual; el conteo estático es 1360 <code>def test_</code> en <code>TESTS/</code> (+23 desde el snapshot). Su ejecución real se verifica aparte.</li>
+    </ol>
+  </section>
+
+  <p class="note" style="text-align:center;margin-top:18px">SYSTEM-ENGINEERING · documentación visual · snapshot p3-complete @ 4c18480 (2026-10-30) · contrato 0.12.0 · estático, sin dependencias ni llamadas externas.</p>
+</div>
+<script>
+"use strict";
+const SE_MODEL = {
+  meta: {
+    repo: "SYSTEM-ENGINEERING", branch: "p3-complete", head: "4c18480", date: "2026-10-30", mainHead: "ceaecaf", mainDate: "2026-10-30", contract: "0.12.0", commands: 27
+  },
+  views: [
+    {
+      id: "v1",
+      tab: "Vista general",
+      title: "Vista general — pipeline de orquestación",
+      desc: "Flujo principal del workflow y las capacidades auxiliares (grises) que NO existen en el snapshot.",
+      columns: [
+        {x: 20,  w: 214, ids: ["n1","n2","n3","n4"]},
+        {x: 274, w: 214, ids: ["n5","n6","d3"]},
+        {x: 528, w: 214, ids: ["n7","n8","n9","d1"]},
+        {x: 782, w: 214, ids: ["n10","n11"]},
+        {x: 1036,w: 224, ids: ["n12","n13","g1","g2","g3","d2"]}
+      ],
+      nodes: {
+        n1:{id:"n1",title:"Entrada de tarea / definición del workflow",role:"CLI + parser",status:"green",statusLabel:"Implementada y probada",description:"El comando recibe el workflow y sus entradas, valida el esquema y construye la definición que consume el orquestador.",evidence:["SCRIPTS/se_core/cli.py:751-769","SCRIPTS/se_core/commands.py:4520","SCRIPTS/se_core/orchestration/engine.py:113-117","TESTS/test_orchestrate_checkpoint.py"]},
+        n2:{id:"n2",title:"Orquestador (OrchestrationEngine.execute)",role:"Motor de workflow",status:"green",statusLabel:"Implementada y probada",description:"Punto único que ejecuta el grafo: resuelve orden, invoca nodos, aplica gates y persiste el estado.",evidence:["SCRIPTS/se_core/orchestration/engine.py:65","SCRIPTS/se_core/orchestration/engine.py:121","SCRIPTS/se_core/orchestration/engine.py:158-174","TESTS/test_orchestrate.py"]},
+        n3:{id:"n3",title:"Selección de ruta (nativa / interna)",role:"Branch de ejecución",status:"green",statusLabel:"Implementada y probada",description:"Según la ruta declarada, el nodo se delega al coordinador (nativa) o se ejecuta dentro del proceso (interna).",evidence:["SCRIPTS/se_core/commands.py:4610-4627","TESTS/test_orchestrate.py:719-750"]},
+        n4:{id:"n4",title:"Orden de ejecución (edges → DAG + gates por nodo)",role:"Planificación",status:"amber",statusLabel:"Implementada con limitación conocida",description:"El DAG se deriva de `edges`; cada nodo declara sus gates. El orden de ejecución depende únicamente de las aristas declaradas en `edges`.",note:"`depends_on` NO define el orden: el motor no lo lee (`engine.py:561-604`), aunque el schema lo declara (`workflow.schema.json:39-43`). `DOCS/reference/workflows.md:105` afirma que el motor usa ambos: es falso.",evidence:["SCRIPTS/se_core/orchestration/engine.py:234-236","SCRIPTS/se_core/orchestration/engine.py:561-604","SCHEMAS/workflow/workflow.schema.json:39-43"]},
+        n5:{id:"n5",title:"Ruta nativa — delegación con la herramienta `subagent`",role:"Coordinador externo",status:"green",statusLabel:"Implementada y probada",description:"El orquestador emite una instrucción al coordinador, que despacha un subagente con herramientas reales.",evidence:["SCRIPTS/se_core/orchestration/engine.py:613-645","SCRIPTS/se_core/orchestration/engine.py:846-856","TESTS/test_orchestrate.py:719-750"]},
+        n6:{id:"n6",title:"Ruta interna — AgentRunner.run",role:"Runner en proceso",status:"amber",statusLabel:"Implementada con limitación conocida",description:"Ruta ejecutada dentro del proceso: el runner despacha únicamente la herramienta `memory`; cualquier otra devuelve ERROR.",note:"Solo `memory` se despacha (`runner.py:703-704`); el resto sigue devolviendo el ERROR 'no tool dispatch is wired' (`runner.py:710-714`).",evidence:["SCRIPTS/se_core/agents/runner.py:691-715","SCRIPTS/se_core/agents/runner.py:703-704","SCRIPTS/se_core/agents/runner.py:710-714","TESTS/test_orchestrate.py:782-916"]},
+        n7:{id:"n7",title:"Runtime del modelo (LLMProvider: OpenAI/Anthropic/Local/Dummy)",role:"Proveedor LLM",status:"blue",statusLabel:"Implementada; depende de ruta/configuración",description:"La selección de proveedor depende de `llm_config`; los proveedores reales requieren credenciales y red, y no tienen test.",note:"Solo Dummy/SIMULATED está probado (`test_subagent.py:318-338`).",evidence:["SCRIPTS/se_core/llm/providers.py:99","SCRIPTS/se_core/llm/providers.py:203","SCRIPTS/se_core/llm/providers.py:299","SCRIPTS/se_core/llm/providers.py:419","SCRIPTS/se_core/llm/factory.py:88"]},
+        n8:{id:"n8",title:"Producción de outputs (status/output/usage)",role:"Resultado del nodo",status:"amber",statusLabel:"Implementada con limitación conocida",description:"Todo nodo devuelve status/output/usage/finish_reason/telemetry, pero el runner NO emite la clave `outputs`, que el motor espera.",note:"0 ocurrencias de `outputs` en `runner.py`. Además `cached_tokens` se descarta en `runner.py:599-605` (solo prompt/completion/total).",evidence:["SCRIPTS/se_core/agents/runner.py:622-636","SCRIPTS/se_core/agents/runner.py:599-605","SCRIPTS/se_core/orchestration/engine.py:425-432","SCRIPTS/se_core/orchestration/engine.py:722"]},
+        n9:{id:"n9",title:"Destinos declarados de output (node.outputs: memory:/artifact:/evidence:)",role:"Persistencia declarada",status:"amber",statusLabel:"Implementada con limitación conocida",description:"El schema permite declarar destinos por nodo; el mapping tiene implementación (`memory:new:`, `memory:`, `literal:`) pero `artifact:` y `evidence:` no la tienen, y el código no llega a usarlo en la ruta real.",note:"El mapping se pierde: `engine.py:663` lee `node.get('outputs')` y nunca lo usa, y en `:722` se alimenta con `result['outputs']` que el runner no emite.",evidence:["SCRIPTS/se_core/orchestration/engine.py:663","SCRIPTS/se_core/orchestration/engine.py:721-726","SCRIPTS/se_core/orchestration/engine.py:730-796","TESTS/test_orchestrate.py:961-1066"]},
+        n10:{id:"n10",title:"Transporte del resultado (inline implementado; por referencia no alcanzado)",role:"Paso entre nodos",status:"amber",statusLabel:"EN DESARROLLO — pendiente de validación.",description:"El transporte inline funciona y está probado: el output completo viaja dentro del input del nodo consumidor. El transporte por referencia (`memory:new:`) existe en código pero no se alcanza en la ejecución real porque el runner no emite `outputs`.",note:"El transporte por referencia existe (`engine.py:755-785`) con tests, pero todos usan un runner mockeado que devuelve `output` y `outputs` a la vez (`test_orchestrate_checkpoint.py:306-329` admite el desajuste).",evidence:["SCRIPTS/se_core/orchestration/engine.py:425-432","SCRIPTS/se_core/orchestration/engine.py:755-812","TESTS/test_orchestrate.py:961-1066","TESTS/test_orchestrate_checkpoint.py:306-329"]},
+        n11:{id:"n11",title:"Consumo downstream + validación (gates G0–G8)",role:"Gates",status:"green",statusLabel:"Implementada y probada",description:"Cada nodo se valida contra sus gates; FAIL/WARN bloquean el flujo, MANUAL se registra pero no bloquea ni se auto-aprueba.",note:"Gates G0–G8 se evalúan una vez por nodo. Matiz: la ceremony de `execute()` (`engine.py:170-179`) no cubre la ruta nativa, que retorna antes (`engine.py:146-160`).",evidence:["CORE/gates/gates.json","SCRIPTS/se_core/gates.py:436-437","SCRIPTS/se_core/gates.py:495-504","SCRIPTS/se_core/orchestration/engine.py:290-327","TESTS/test_gates.py:62-63","TESTS/test_orchestrate.py:610","TESTS/test_orchestrate.py:625","TESTS/test_orchestrate.py:640"]},
+        n12:{id:"n12",title:"Resultado final + persistencia de estado (checkpoint CP-NNNN)",role:"Estado durable",status:"green",statusLabel:"Implementada y probada",description:"Al terminar (o fallar) se escribe un checkpoint con los resultados por nodo para poder reanudar.",evidence:["SCRIPTS/se_core/orchestration/checkpoint.py:68-87","SCHEMAS/checkpoint/checkpoint.schema.json","TESTS/test_orchestrate_checkpoint.py"]},
+        n13:{id:"n13",title:"Memoria SE (advisory: libro de notas, nunca fuente de verdad)",role:"Contexto auxiliar",status:"blue",statusLabel:"Implementada; depende de ruta/configuración",description:"Lee y escribe notas por proyecto. Sigue siendo advisory para gates, pero el diseño P3-B.1 la usa como almacén del payload `node_output`: fuente de datos, no de veredictos.",note:"0 referencias a memoria en `gates.py`.",evidence:["SCRIPTS/se_core/memory/engine.py:362-372","SCRIPTS/se_core/orchestration/engine.py:856-882"]},
+        g1:{id:"g1",title:"Auxiliar: Reintento / reparación automática de nodos fallidos",role:"No implementada",status:"gray",statusLabel:"Planificada / no implementada",description:"No existe camino de reintento ni reparación automática en el árbol actual.",note:"`retry_count` nunca se incrementa; `retry_policy` del schema no se lee en ningún camino.",evidence:["SCRIPTS/se_core/orchestration/engine.py:41","SCRIPTS/se_core/orchestration/engine.py:221","SCRIPTS/se_core/orchestration/engine.py:277","SCRIPTS/se_core/orchestration/engine.py:957","SCHEMAS/workflow/workflow.schema.json:45-51"]},
+        g2:{id:"g2",title:"Auxiliar: Concurrencia de agentes",role:"No implementada",status:"gray",statusLabel:"Planificada / no implementada",description:"No hay paralelismo en SE: el bucle del motor y el dispatcher son secuenciales; `background` es instrucción al coordinador de OpenCode, no una garantía de SE.",note:"No representada.",evidence:["SCRIPTS/se_core/orchestration/engine.py:282-332","SCRIPTS/se_core/orchestration/engine.py:1072-1080","TESTS/test_orchestrate.py:713"]},
+        g3:{id:"g3",title:"Auxiliar: Auto-aprobación de gates MANUAL",role:"No implementada",status:"gray",statusLabel:"Planificada / no implementada",description:"Un gate MANUAL no se aprueba solo; queda registrado para decisión humana.",note:"No existe camino que apruebe un MANUAL: solo el attest humano (`--attest`) lo resuelve; la ceremony nueva bloquea por SDD/RDD, no aprueba gates.",evidence:["SCRIPTS/se_core/gates.py:436-437","SCRIPTS/se_core/commands.py:2284-2292","SCRIPTS/se_core/orchestration/engine.py:297-300","TESTS/test_gates.py:62-63"]},
+        d1:{id:"d1",title:"Dispatcher de referencias (P3-A): resuelve `memory_id`/`topic_key`",role:"Resolución de referencias",status:"amber",statusLabel:"Implementada con limitación conocida",description:"Resuelve referencias de memoria antes de delegar o ejecutar, con anti-ciclos y profundidad máxima 3.",note:"Tiene tests unitarios (`test_orchestrate.py:1069-1206`, `1208-1365`) pero no cubre la ruta real de extremo a extremo, limitada por el desajuste `output`/`outputs`.",evidence:["SCRIPTS/se_core/orchestration/dispatcher.py:19-133","SCRIPTS/se_core/orchestration/dispatcher.py:136-148","SCRIPTS/se_core/orchestration/engine.py:692-696","SCHEMAS/workflow/workflow.schema.json:57-61"]},
+        d2:{id:"d2",title:"API HTTP de memoria en SE-CONSOLE (`/api/memory/get|query|search|gc`)",role:"Superficie externa",status:"blue",statusLabel:"Implementada; depende de ruta/configuración",description:"Expone la memoria por HTTP desde la consola; requiere el servicio de consola en ejecución.",note:"Sin tests: `SE-CONSOLE/tests` sigue en 94 antes y después del commit. Hallazgo: `GET /api/memory/gc?dry_run=false` borra, contra el contrato 'GET handlers only' (`api.py:3-6`).",evidence:["SE-CONSOLE/console/api.py:123-248","SE-CONSOLE/console/api.py:282-286","SE-CONSOLE/se_cli.py:72-73","SE-CONSOLE/se_cli.py:140-153"]},
+        d3:{id:"d3",title:"Modo nativo declarativo (P3-C: `execution_mode: \"native\"`)",role:"Ruta declarativa",status:"amber",statusLabel:"Implementada con limitación conocida",description:"El workflow puede declarar la ruta nativa sin pasar por `--native`.",note:"3 tests (`test_orchestrate.py:1400-1434`). Hallazgo: `execute()` retorna NATIVE antes del chequeo de ceremony (`engine.py:146-160`), y `commands.py:4659-4672` imprime el prompt y sale 0 sin evaluar gates ni ceremony.",evidence:["SCRIPTS/se_core/orchestration/engine.py:146-160","SCRIPTS/se_core/orchestration/engine.py:170-179","SCHEMAS/workflow/workflow.schema.json:93","SCRIPTS/se_core/commands.py:4659-4672","TESTS/test_orchestrate.py:1400-1434"]}
+      },
+      edges:[["n1","n2"],["n2","n3"],["n3","n5"],["n3","n6"],["n5","n7"],["n6","n7"],["n7","n8"],["n8","n10"],["n10","n11"],["n11","n12"]],
+      extraEdges:[["n2","n13","flow"],["n3","n4","flow"],["n8","n9","flow"],["n12","g1","flow"],["n12","g2","flow"],["n11","g3","flow"],["d1","n10","flow"],["n8","d3","flow"]]
+    },
+    {
+      id: "v2",
+      tab: "Eficiencia de contexto",
+      title: "Eficiencia de contexto — output grande, persistencia y referencia ligera",
+      desc: "Cómo viaja un output grande entre nodos y qué está (y qué no) demostrado sobre el ahorro de contexto.",
+      columns: [
+        {x: 20,  w: 214, ids: ["c1","c2"]},
+        {x: 274, w: 214, ids: ["c3","c4"]},
+        {x: 528, w: 214, ids: ["c5","c6"]},
+        {x: 782, w: 224, ids: ["c7","c8"]}
+      ],
+      nodes: {
+        c1:{id:"c1",title:"Output grande (≈100 KB)",role:"Contexto",status:"gray",statusLabel:"Contexto (no es un estado de capacidad)",description:"Nodo ilustrativo: representa el tamaño del output de un nodo pesado. El gris aquí es decolor, no de capacidad.",evidence:[]},
+        c2:{id:"c2",title:"Transporte inline: el contenido completo viaja en el input del nodo consumidor",role:"Paso entre nodos",status:"green",statusLabel:"Implementada y probada",description:"El output completo se serializa dentro del prompt/input del nodo siguiente. Funciona, pero aumenta el contexto enviado al modelo.",note:"Puede aumentar el contexto enviado al modelo.",evidence:["TESTS/test_orchestrate.py:262","TESTS/test_orchestrate.py:308","TESTS/test_orchestrate.py:363","TESTS/test_orchestrate.py:398","TESTS/test_orchestrate.py:445"]},
+        c3:{id:"c3",title:"Persistencia → referencia ligera (`memory:new:`)",role:"Persistencia",status:"amber",statusLabel:"EN DESARROLLO — pendiente de validación.",description:"Ruta pensada para guardar el output y pasar solo una referencia corta al nodo siguiente. En el árbol actual existe el código pero no se alcanza en la ejecución real.",note:"El formato existe (`engine.py:755-778`) con test contra runner mockeado; en la ruta real `node_outputs` llega vacío por el desajuste `output`/`outputs`.",evidence:["SCRIPTS/se_core/orchestration/engine.py:755-778","TESTS/test_orchestrate.py:961-1066"]},
+        c4:{id:"c4",title:"Nodo consumidor",role:"Recepción",status:"amber",statusLabel:"Implementada con limitación conocida",description:"El nodo que recibe el resultado del anterior, ya sea inline o como referencia.",note:"`context:`, `memory:` y `literal:` resuelven y están probados, pero `context:` queda vacío en producción por el desajuste `output`/`outputs`.",evidence:["SCRIPTS/se_core/orchestration/engine.py:675-681","SCRIPTS/se_core/orchestration/engine.py:692-696","TESTS/test_orchestrate.py:379-424","TESTS/test_orchestrate.py:426-487"]},
+        c5:{id:"c5",title:"Recuperación bajo demanda — ruta nativa (instrucción `se memory get` en el prompt generado)",role:"Ruta nativa",status:"amber",statusLabel:"Reportada como implementada, pendiente de verificación independiente",description:"El prompt generado incluye una instrucción para recuperar la memoria. Es texto: no hay enforcement ni test e2e.",note:"Existe en `engine.py:1033-1036` pero NO es copiable tal cual (el CLI exige `--memory-id`; `--project` espera un directorio con PROJECT.json, no un project_id).",evidence:["SCRIPTS/se_core/orchestration/engine.py:1033-1036","SCRIPTS/se_core/cli.py:573-575","SCRIPTS/se_core/commands.py:4312-4325","TESTS/test_orchestrate.py:700-736"],flag:"REPORTED"},
+        c6:{id:"c6",title:"Recuperación bajo demanda — ruta interna (`memory.get` en AgentRunner)",role:"Ruta interna",status:"amber",statusLabel:"Implementada con limitación conocida",description:"La tool `memory` existe y valida proyecto y permiso READ, pero no se anuncia al modelo.",note:"`_invoke_memory_tool` (`runner.py:717-864`) tiene 7 tests; sin embargo `_load_tools` (`runner.py:109-120`) solo carga lo que declare `agent.json['tools']` y ningún `AGENTS/*/agent.json` declara `tools`.",evidence:["SCRIPTS/se_core/agents/runner.py:205-222","SCRIPTS/se_core/agents/runner.py:703-704","SCRIPTS/se_core/agents/runner.py:717-766","SCRIPTS/se_core/agents/runner.py:109-120","TESTS/test_orchestrate.py:782-916"]},
+        c7:{id:"c7",title:"Formatos de referencia: `memory:` / `literal:` / `memory:new:`",role:"Resolución de inputs",status:"amber",statusLabel:"Implementada con limitación conocida",description:"`memory:` y `literal:` resuelven y están probados; `memory:new:` existe en código pero no es alcanzable en la ruta real.",note:"`memory:` VERDE · `literal:` VERDE · `memory:new:` existe (`engine.py:755-778`) pero depende de `outputs`, que el runner no emite.",evidence:["SCRIPTS/se_core/orchestration/engine.py:668-679","SCRIPTS/se_core/orchestration/engine.py:755-796","TESTS/test_orchestrate.py:379-424"]},
+        c8:{id:"c8",title:"Caja de benchmark — 100,014 bytes → 84 bytes (proxy local)",role:"Medición reportada",status:"amber",statusLabel:"REPORTED — medición no reproducible en el árbol actual",description:"Medición reportada del objeto/contexto Python de referencia; proxy local, no medición de tokens facturados por proveedor. Tokens facturados al proveedor: no medido. No generalizable a todos los workflows; el ahorro facturado no está demostrado. No reproducible en el árbol actual (el código medido no está en main).",note:"Cifra REPORTED: no es una medición de tokens facturados ni generalizable a todos los workflows. No hay código de medición en el árbol.",evidence:["P3_B_IMPLEMENTATION_REPORT.md:57-58","P3_B_AUDIT_REPORT.md:137","P3_B_RECONCILIATION_REPORT.md:140-142"],flag:"REPORTED"}
+      },
+      edges:[["c1","c2"],["c2","c4"],["c3","c4"],["c4","c5"],["c4","c6"]],
+      extraEdges:[["c4","c7","flow"],["c3","c8","flow"]],
+      callout: [
+        "Una referencia NO es el resultado final: el contenido real se obtiene al recuperar.",
+        "Benchmark reportado: 100,014 bytes → 84 bytes. Medición reportada del objeto/contexto Python de referencia; proxy local, no medición de tokens facturados por proveedor. Tokens facturados al proveedor: no medido. No generalizable a todos los workflows; el ahorro facturado no está demostrado. No reproducible en el snapshot inspeccionado (el código medido no está en main)."
+      ],
+      restriction: "La memoria no sustituye el almacenamiento de todos los datos del proyecto."
+    },
+    {
+      id: "v3",
+      tab: "Memoria y referencias",
+      title: "Memoria y referencias — dónde vive y cómo se consulta",
+      desc: "Almacén, índice reconstruible, recuperación por CLI y las dos rutas de recuperación bajo demanda.",
+      columns: [
+        {x: 20,  w: 214, ids: ["m1","m2"]},
+        {x: 274, w: 214, ids: ["m3","m4"]},
+        {x: 528, w: 214, ids: ["m5","m6"]},
+        {x: 782, w: 224, ids: ["m7","m8"]}
+      ],
+      nodes: {
+        m1:{id:"m1",title:"Almacén de memoria SE (por proyecto): <project>/memories/MEM-XXXX.json",role:"Fuente de verdad de memoria",status:"green",statusLabel:"Implementada y probada",description:"Archivos JSON por memoria, direccionados por MEM-XXXX. Es el origen real de las notas.",evidence:["TESTS/test_memory.py:331","TESTS/test_memory.py:343","TESTS/test_memory.py:391-433","TESTS/test_memory.py:468-488"]},
+        m2:{id:"m2",title:"Índice `.se/` = caché reconstruible, nunca fuente de verdad",role:"Índice local",status:"blue",statusLabel:"Implementada; depende de ruta/configuración",description:"Índice derivado del almacén; se puede regenerar. No es autoritativo.",evidence:["README.md:453-455"]},
+        m3:{id:"m3",title:"`se memory get` (CLI real, `--memory-id` obligatorio)",role:"Consulta real",status:"green",statusLabel:"Implementada y probada",description:"Comando existente que devuelve una memoria por ID. Es la vía de consulta concreta.",evidence:["SCRIPTS/se_core/cli.py:571-579","SCRIPTS/se_core/commands.py:4312-4345","TESTS/test_memory.py:331-343"]},
+        m4:{id:"m4",title:"Resolución de referencias antes de delegar — ruta nativa",role:"Ruta nativa",status:"amber",statusLabel:"Reportada como implementada, pendiente de verificación independiente",description:"Se afirma que el orquestador resuelve referencias antes de delegar; es texto de prompt, sin enforcement.",note:"`build_native_subagent_input` (`engine.py:814-846`) solo filtra contexto y no resuelve referencias.",evidence:["SCRIPTS/se_core/orchestration/engine.py:1033-1049","SCRIPTS/se_core/orchestration/engine.py:814-846","TESTS/test_orchestrate.py:700-737"],flag:"REPORTED"},
+        m5:{id:"m5",title:"Herramienta `memory.get` — ruta interna (AgentRunner)",role:"Ruta interna",status:"amber",statusLabel:"Implementada con limitación conocida",description:"La tool `memory` existe en el runner y valida proyecto y permiso READ, pero no se anuncia al modelo.",note:"`_invoke_memory_tool` (`runner.py:717-864`) tiene 7 tests; sin embargo `_load_tools` (`runner.py:109-120`) solo carga lo que declare `agent.json['tools']` y ningún `AGENTS/*/agent.json` declara `tools`.",evidence:["SCRIPTS/se_core/agents/runner.py:205-222","SCRIPTS/se_core/agents/runner.py:703-704","SCRIPTS/se_core/agents/runner.py:717-766","SCRIPTS/se_core/agents/runner.py:109-120","TESTS/test_orchestrate.py:782-916"]},
+        m6:{id:"m6",title:"Formatos: `memory:` / `literal:` / `memory:new:`",role:"Resolución de inputs",status:"amber",statusLabel:"Implementada con limitación conocida",description:"`memory:` y `literal:` resuelven y están probados; `memory:new:` existe en código pero no es alcanzable en la ruta real.",note:"`memory:` VERDE · `literal:` VERDE · `memory:new:` existe (`engine.py:755-778`) pero depende de `outputs`, que el runner no emite.",evidence:["SCRIPTS/se_core/orchestration/engine.py:668-679","SCRIPTS/se_core/orchestration/engine.py:755-796","TESTS/test_orchestrate.py:379-424"]},
+        m7:{id:"m7",title:"Retención / TTL / GC de memorias `node_output`",role:"Ciclo de vida",status:"amber",statusLabel:"Implementada con limitación conocida",description:"TTL/GC genérico de memorias existe y está probado, pero no hay política específica para las memorias `node_output`.",note:"`_resolve_node_outputs` crea con `state=active` y sin `ttl_days`, y el GC por defecto solo mira `archived`/`deprecated` (`memory/engine.py:1157-1159`); esas memorias no son elegibles salvo que se archiven o se pase `--state active --older-than-days`.",evidence:["SCRIPTS/se_core/memory/engine.py:64-66","SCRIPTS/se_core/memory/engine.py:294-306","SCRIPTS/se_core/memory/engine.py:1084-1207","SCRIPTS/se_core/cli.py:656-670","SCRIPTS/se_core/commands.py:4512-4557","TESTS/test_memory.py:510-650"]},
+        m8:{id:"m8",title:"Memoria como fuente de verdad del proyecto",role:"Límite explícito",status:"gray",statusLabel:"No: la memoria es advisory y nunca hace pasar ni fallar un gate",description:"Límite explícito: la memoria informa, no decide. No sustituye el almacenamiento de todos los datos del proyecto.",note:"No sustituye el almacenamiento de todos los datos del proyecto.",evidence:["README.md:461-463"]}
+      },
+      edges:[["m1","m2"],["m1","m3"],["m3","m4"],["m3","m5"],["m4","m6"],["m5","m6"]],
+      extraEdges:[["m6","m7","flow"],["m2","m8","flow"]],
+      callout: "La memoria es advisory: nunca hace pasar ni fallar un gate.",
+      restriction: "La memoria no sustituye el almacenamiento de todos los datos del proyecto."
+    },
+    {
+      id: "v4",
+      tab: "Checkpoint y resume",
+      title: "Checkpoint y resume — qué se guarda y qué se restaura",
+      desc: "Contrato del checkpoint, cómo reanuda el motor y los límites reales de la recuperación.",
+      columns: [
+        {x: 20,  w: 214, ids: ["k1","k2"]},
+        {x: 274, w: 214, ids: ["k3","k4"]},
+        {x: 528, w: 214, ids: ["k5","k6"]},
+        {x: 782, w: 224, ids: ["k7","k8"]}
+      ],
+      nodes: {
+        k1:{id:"k1",title:"Checkpoint por nodo y final (`CP-NNNN`)",role:"Persistencia",status:"green",statusLabel:"Implementada y probada",description:"Se escribe un checkpoint por nodo y uno final, con esquema validado.",evidence:["SCRIPTS/se_core/orchestration/checkpoint.py:7-8","SCRIPTS/se_core/orchestration/checkpoint.py:68-87","SCHEMAS/checkpoint/checkpoint.schema.json","TESTS/test_orchestrate_checkpoint.py"]},
+        k2:{id:"k2",title:"Campos guardados (contrato)",role:"Esquema",status:"green",statusLabel:"Implementada y probada",description:"schema_version, checkpoint_id (CP-NNNN), workflow_id, execution_id, completed_nodes, node_results, gate_results, context, created_at, status (IN_PROGRESS|COMPLETED|FAILED|SIMULATED|RESUMED).",evidence:["SCHEMAS/checkpoint/checkpoint.schema.json","SCRIPTS/se_core/orchestration/checkpoint.py:7-8","TESTS/test_orchestrate_checkpoint.py"]},
+        k3:{id:"k3",title:"Resume: `se orchestrate execute --resume-from CP-XXXX`",role:"Reanudación",status:"green",statusLabel:"Implementada y probada",description:"Con un checkpoint previo, el motor omite los nodos completados y ejecuta el resto.",note:"Omite nodos completados y ejecuta el resto.",evidence:["SCRIPTS/se_core/orchestration/engine.py:186-199","SCRIPTS/se_core/orchestration/engine.py:258-262","TESTS/test_orchestrate_checkpoint.py"]},
+        k4:{id:"k4",title:"Contexto tras reanudar",role:"Estado restaurado",status:"amber",statusLabel:"Implementada con limitación conocida",description:"El dict `context` se restaura literalmente y ahora se poda en la reanudación. Los inputs se re-resuelven por nodo; no hay resolución de referencias dentro del checkpoint.",note:"El `context` se restaura literalmente y se poda (`_prune_context`, `engine.py:529-559`, uso en `:248-253` y `:434-439`); no hay resolución de referencias dentro del checkpoint.",evidence:["SCRIPTS/se_core/orchestration/engine.py:191-204","SCRIPTS/se_core/orchestration/engine.py:248-253","SCRIPTS/se_core/orchestration/engine.py:529-559","TESTS/test_orchestrate_checkpoint.py:264-287"]},
+        k5:{id:"k5",title:"Validación y gates",role:"Gates",status:"green",statusLabel:"Implementada y probada",description:"FAIL/WARN bloquean el flujo; MANUAL se registra pero no bloquea ni se auto-aprueba.",note:"FAIL/WARN bloquean; MANUAL se registra pero no bloquea ni se auto-aprueba.",evidence:["SCRIPTS/se_core/orchestration/engine.py:273-276","SCRIPTS/se_core/gates.py:436-437"]},
+        k6:{id:"k6",title:"Estado de error explícito",role:"Observabilidad",status:"green",statusLabel:"Implementada y probada",description:"El resultado final siempre trae status; los códigos de salida del CLI diferencian los casos.",note:"status FAILED + error; CLI exit codes: FAILED→1, SIMULATED→3, DRY_RUN→0.",evidence:["SCRIPTS/se_core/orchestration/engine.py:683-698","SCRIPTS/se_core/commands.py:4642-4672","SCRIPTS/se_core/cli.py:804-808"]},
+        k7:{id:"k7",title:"Reintento / reparación automática",role:"No implementada",status:"gray",statusLabel:"Planificada / no implementada",description:"No existe reintento automático ni reparación de nodos fallidos.",note:"`retry_count` nunca se incrementa.",evidence:["SCRIPTS/se_core/orchestration/engine.py:41","SCRIPTS/se_core/orchestration/engine.py:216","SCRIPTS/se_core/orchestration/engine.py:752"]},
+        k8:{id:"k8",title:"Artefacto `CHECKPOINT-###`",role:"No existe",status:"gray",statusLabel:"No existe: el ID real es `CP-NNNN`",description:"Los informes usan `CHECKPOINT-###` como nombre de artefacto; el identificador real en el código es `CP-NNNN`.",note:"No existe: el ID real es `CP-NNNN`.",evidence:["SCRIPTS/se_core/orchestration/checkpoint.py:7-8","SCHEMAS/checkpoint/checkpoint.schema.json"]}
+      },
+      edges:[["k1","k2"],["k1","k3"],["k3","k4"],["k4","k5"],["k5","k6"]],
+      extraEdges:[["k4","k7","flow"],["k6","k8","flow"]],
+      callout: "Una reanudación no garantiza recuperar el workflow exactamente igual: los inputs se re-resuelven por nodo.",
+      restriction: null
+    }
+  ]
+};
+</script>
+<script>
+"use strict";
+(function(){
+  var SVGNS="http://www.w3.org/2000/svg";
+  var NS="http://www.w3.org/1999/xhtml";
+  var views=SE_MODEL.views;
+  var tabsHost=document.getElementById('tabs');
+  var panelsHost=document.getElementById('panels');
+  var playBtn=document.getElementById('playBtn');
+  var playState=document.getElementById('playState');
+  var reduceMQ=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):{matches:false};
+
+  var SHORT={green:'IMPLEMENTADA Y PROBADA',blue:'DEPENDE DE RUTA / CONFIG',amber:'EN DESARROLLO / PENDIENTE',gray:'NO IMPLEMENTADA'};
+  var CHIP={green:'g',blue:'b',amber:'a',gray:'n'};
+  var CLASS_STATE={green:'green',blue:'blue',amber:'amber',gray:'gray'};
+
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function wrap(text,max){
+    var words=String(text).split(/\s+/),lines=[],cur='';
+    for(var i=0;i<words.length;i++){
+      var w=words[i];
+      if(!cur.length){cur=w;continue;}
+      if((cur+' '+w).length<=max){cur+=' '+w;continue;}
+      lines.push(cur);cur=w;
+    }
+    if(cur.length)lines.push(cur);
+    return lines;
+  }
+  /* corta un token mas largo que max, preferentemente tras / - _ : . */
+  function splitToken(word,max){
+    var out=[],rest=word,j,c;
+    while(rest.length>max){
+      var cut=max;
+      for(j=max-1;j>Math.floor(max/2);j--){
+        c=rest.charAt(j);
+        if(c==='/'||c==='-'||c==='_'||c===':'||c==='.'){cut=j+1;break;}
+      }
+      out.push(rest.slice(0,cut));rest=rest.slice(cut);
+    }
+    if(rest.length)out.push(rest);
+    return out;
+  }
+  /* como wrap(), pero parte los tokens largos sin introducir espacios extra */
+  function wrapText(text,max){
+    var words=String(text).split(/\s+/),tokens=[],i,j;
+    for(i=0;i<words.length;i++){
+      if(words[i].length>max){
+        var parts=splitToken(words[i],max);
+        for(j=0;j<parts.length;j++)tokens.push({w:parts[j],space:j>0});
+      }else{
+        tokens.push({w:words[i],space:true});
+      }
+    }
+    var lines=[],cur='';
+    for(i=0;i<tokens.length;i++){
+      var t=tokens[i];
+      if(!cur.length){cur=t.w;continue;}
+      var sep=t.space?' ':'';
+      if(cur.length+sep.length+t.w.length>max){lines.push(cur);cur=t.w;continue;}
+      cur+=sep+t.w;
+    }
+    if(cur.length)lines.push(cur);
+    return lines;
+  }
+  function el(ns,tag,attrs){
+    var e=document.createElementNS(ns,tag);
+    for(var k in attrs){if(attrs[k]!==null&&attrs[k]!==undefined)e.setAttribute(k,attrs[k]);}
+    return e;
+  }
+  function h(tag,cls,html){
+    var e=document.createElement(tag);
+    if(cls)e.className=cls;
+    if(html!==undefined&&html!==null)e.innerHTML=html;
+    return e;
+  }
+
+  /* ---------- geometry per view ---------- */
+  var TOP=40,GAP=26;
+  function statusLabelOf(n){
+    var l=(n.statusLabel!==undefined&&n.statusLabel!==null)?String(n.statusLabel).trim():'';
+    return l?l:(SHORT[n.status]||'');
+  }
+  /* Reparte las palabras en maxLines lineas minimizando el ancho de la mas larga. */
+  function bestPartitions(words,maxLines){
+    var n=words.length,best=null;
+    function rec(start,remaining,parts){
+      if(remaining===1){
+        var all=parts.concat([words.slice(start).join(' ')]);
+        var maxLen=0,q;
+        for(q=0;q<all.length;q++)if(all[q].length>maxLen)maxLen=all[q].length;
+        if(!best||maxLen<best.maxLen)best={maxLen:maxLen,lines:all};
+        return;
+      }
+      var cut;
+      for(cut=start+1;cut<=n-(remaining-1);cut++){
+        rec(cut,remaining-1,parts.concat([words.slice(start,cut).join(' ')]));
+      }
+    }
+    rec(0,maxLines,[]);
+    return best?best.lines:[words.join(' ')];
+  }
+  /* Etiqueta de estado: como maximo maxLines lineas de hasta max caracteres.
+     Si el reparto voraz no cabe, se balancea minimizando el ancho de la linea mas larga. */
+  function wrapStatusLabel(text,max,maxLines){
+    var raw=String(text).split(/\s+/),words=[],i;
+    for(i=0;i<raw.length;i++)if(raw[i].length)words.push(raw[i]);
+    if(!words.length)return [''];
+    if(words.length===1)return [words[0]];
+    var lines=[],cur='',k;
+    for(k=0;k<words.length;k++){
+      if(!cur.length){cur=words[k];continue;}
+      if((cur+' '+words[k]).length<=max){cur+=' '+words[k];continue;}
+      lines.push(cur);cur=words[k];
+    }
+    if(cur.length)lines.push(cur);
+    if(lines.length<=maxLines)return lines;
+    return bestPartitions(words,maxLines);
+  }
+  function layout(view){
+    var geo={},maxY=40,i,j;
+    for(i=0;i<view.columns.length;i++){
+      var col=view.columns[i],y=TOP;
+      for(j=0;j<col.ids.length;j++){
+        var n=view.nodes[col.ids[j]]; if(!n)continue;
+        var tl=wrapText(n.title,21),dl=wrapText(n.description||'',28),sl=wrapStatusLabel(statusLabelOf(n),26,3);
+        var contentBottom=34+tl.length*21+(dl.length?4+(dl.length-1)*17:0)+5;
+        var hh=contentBottom+27+(n.flag?18:0)+(sl.length-1)*15;
+        geo[n.id]={x:col.x,y:y,w:col.w,h:hh,col:i,tl:tl,dl:dl,sl:sl,node:n};
+        y+=hh+GAP;
+      }
+      if(y>maxY)maxY=y;
+    }
+    return {geo:geo,height:maxY+GAP};
+  }
+  function anchor(g,side){
+    if(side==='bottom')return {x:g.x+g.w/2,y:g.y+g.h};
+    if(side==='top')return {x:g.x+g.w/2,y:g.y};
+    if(side==='right')return {x:g.x+g.w,y:g.y+g.h/2};
+    return {x:g.x,y:g.y+g.h/2};
+  }
+  function edgePath(a,b,geo){
+    var ga=geo[a],gb=geo[b];
+    if(!ga||!gb)return null;
+    var p,q;
+    if(ga.col===gb.col){
+      p=anchor(ga,'bottom');q=anchor(gb,'top');
+      var my=(p.y+q.y)/2;
+      return 'M'+p.x+','+p.y+' C'+p.x+','+my+' '+q.x+','+my+' '+q.x+','+q.y;
+    }
+    p=anchor(ga,'right');q=anchor(gb,'left');
+    var mx=(p.x+q.x)/2;
+    return 'M'+p.x+','+p.y+' C'+mx+','+p.y+' '+mx+','+q.y+' '+q.x+','+q.y;
+  }
+
+  /* ---------- SVG render ---------- */
+  function renderSvg(view,L,onPick){
+    var totalW=view.columns[view.columns.length-1].x+view.columns[view.columns.length-1].w+40;
+    var svg=el(SVGNS,'svg',{id:'graph-'+view.id,class:'graph',viewBox:'0 0 '+totalW+' '+L.height,role:'group','aria-label':view.title});
+    var t=el(SVGNS,'title',{});t.textContent=view.title;svg.appendChild(t);
+    var d=el(SVGNS,'desc',{});d.textContent=view.desc+' Exploración por clic o teclado: al activar un nodo se muestran rol, estado y evidencia en el panel de detalle. El color nunca es la única señal: cada nodo incluye etiqueta de estado.';svg.appendChild(d);
+
+    var gEdges=el(SVGNS,'g',{class:'edges'});
+    var gDots=el(SVGNS,'g',{class:'dots','aria-hidden':'true'});
+    var gNodes=el(SVGNS,'g',{class:'nodes'});
+
+    function addEdge(a,b,annot){
+      var pth=edgePath(a,b,L.geo);
+      if(!pth)return;
+      gEdges.appendChild(el(SVGNS,'path',{d:pth,class:annot?'edge annot':'edge'}));
+      if(annot)return; /* los enlaces de anotacion no llevan punto de flujo animado */
+      var dot=el(SVGNS,'path',{d:pth,class:'flowdot'});
+      dot.setAttribute('stroke-width','1.6');
+      gDots.appendChild(dot);
+    }
+    (view.edges||[]).forEach(function(e){addEdge(e[0],e[1],false);});
+    (view.extraEdges||[]).forEach(function(e){addEdge(e[0],e[1],true);});
+
+    view.columns.forEach(function(col){
+      col.ids.forEach(function(id){
+        var n=view.nodes[id]; if(!n)return;
+        var g=L.geo[id];
+        var grp=el(SVGNS,'g',{class:'node','data-node-id':n.id,'data-state':n.status,tabindex:'0',role:'button',
+          'aria-label':n.title+' — '+statusLabelOf(n)+(n.flag?' — '+n.flag:'')});
+        var tt=el(SVGNS,'title',{});tt.textContent=n.title+' — '+statusLabelOf(n)+(n.flag?' — '+n.flag:'');grp.appendChild(tt);
+        grp.appendChild(el(SVGNS,'rect',{class:'node-box',x:g.x,y:g.y,width:g.w,height:g.h,rx:10,ry:10}));
+        grp.appendChild(el(SVGNS,'rect',{class:'halo',x:g.x-5,y:g.y-5,width:g.w+10,height:g.h+10,rx:14,ry:14}));
+        var badge=el(SVGNS,'circle',{class:'badge',cx:g.x+18,cy:g.y+16,r:7});grp.appendChild(badge);
+        grp.appendChild(el(SVGNS,'text',{class:'node-role',x:g.x+32,y:g.y+20})).textContent=n.role.toUpperCase();
+        var ty=g.y+34;
+        g.tl.forEach(function(line){
+          grp.appendChild(el(SVGNS,'text',{class:'node-title',x:g.x+12,y:ty})).textContent=line;ty+=21;
+        });
+        ty+=4;
+        g.dl.forEach(function(line){
+          grp.appendChild(el(SVGNS,'text',{class:'node-desc',x:g.x+12,y:ty})).textContent=line;ty+=17;
+        });
+        var col=CLASS_STATE[n.status];
+        var sl=g.sl||[''],slBase=g.y+g.h-10;
+        var st=el(SVGNS,'text',{x:g.x+12,y:slBase,class:'statlabel','data-state':n.status});
+        st.setAttribute('fill',n.status==='green'?'#15803D':n.status==='blue'?'#1B3A5C':n.status==='amber'?'#92400E':'#475569');
+        st.setAttribute('font-weight','700');
+        sl.forEach(function(line,i){
+          var sp=el(SVGNS,'tspan',{x:g.x+12,y:slBase-(sl.length-1-i)*15});
+          sp.textContent=line+(i<sl.length-1?' ':'');
+          /* si la linea no cabe en la caja se condensa (no se recorta ni se altera el texto) */
+          /* ultimo recurso: si la linea no cabe, se condensa como maximo un 5% */
+          var maxW=g.w-20,est=line.length*6.4;
+          if(est>maxW){
+            sp.setAttribute('textLength',Math.max(maxW,est*0.95));
+            sp.setAttribute('lengthAdjust','spacingAndGlyphs');
+          }
+          st.appendChild(sp);
+        });
+        grp.appendChild(st);
+        if(n.flag){
+          var fl=el(SVGNS,'text',{x:g.x+12,y:slBase-(sl.length-1)*15-21,class:'node-flag'});
+          fl.textContent='['+n.flag+']';
+          grp.appendChild(fl);
+        }
+        grp.addEventListener('click',function(){onPick(n);});
+        grp.addEventListener('keydown',function(ev){
+          if(ev.key==='Enter'||ev.key===' '||ev.key==='Spacebar'){ev.preventDefault();onPick(n);}
+        });
+        gNodes.appendChild(grp);
+      });
+    });
+    svg.appendChild(gEdges);svg.appendChild(gDots);svg.appendChild(gNodes);
+    return svg;
+  }
+
+  /* ---------- detail aside ---------- */
+  function buildAside(view){
+    var aside=h('aside','detail card');
+    aside.setAttribute('aria-live','polite');
+    var st=h('p','empty','Sin selección. Elige un nodo con el ratón o con Enter/Espacio para ver su rol, estado y evidencia.');
+    st.id='detail-empty-'+view.id;
+    aside.appendChild(st);
+    aside._body=null;
+    return aside;
+  }
+  function fillAside(aside,view,n){
+    aside.innerHTML='';
+    if(!n){
+      var p=h('p','empty','Sin selección. Elige un nodo con el ratón o con Enter/Espacio para ver su rol, estado y evidencia.');
+      aside.appendChild(p);
+      aside._body=null;
+      return;
+    }
+    var head=h('div');
+    var chip=h('span','chip '+CHIP[n.status],esc(n.statusLabel));
+    head.appendChild(chip);
+    if(n.flag)head.appendChild(h('span','flag a',' '+esc(n.flag)));
+    aside.appendChild(head);
+    aside.appendChild(h('h3','',esc(n.title)));
+    aside.appendChild(h('p','role',esc(n.role)));
+    aside.appendChild(h('p','desc',esc(n.description)));
+    if(n.note)aside.appendChild(h('p','note','<b>Limitación:</b> '+esc(n.note)));
+    var eb=h('div','evblock');
+    eb.appendChild(h('h4','','Evidencia (archivo:línea)'));
+    if(n.evidence&&n.evidence.length){
+      var ul=h('ul');
+      n.evidence.forEach(function(e){ul.appendChild(h('li','',esc(e)));});
+      eb.appendChild(ul);
+    }else{
+      eb.appendChild(h('p','note','Sin evidencia de código: nodo ilustrativo.'));
+    }
+    aside.appendChild(eb);
+    var clear=h('button','btn','Deseleccionar');
+    clear.type='button';
+    clear.style.marginTop='10px';
+    clear.addEventListener('click',function(){
+      var host=aside._panel||aside.parentNode;
+      Array.prototype.forEach.call(host.querySelectorAll('g.node.sel,button.mnode.sel'),function(e){
+        e.classList.remove('sel');e.setAttribute('aria-pressed','false');
+      });
+      fillAside(aside,view,null);
+    });
+    aside.appendChild(clear);
+    aside._body=n;
+  }
+
+  /* ---------- mobile cards ---------- */
+  function renderCards(view,onPick){
+    var wrapC=h('ul','cards');
+    wrapC.setAttribute('role','list');
+    var first=true;
+    view.columns.forEach(function(col){
+      col.ids.forEach(function(id){
+        var n=view.nodes[id]; if(!n)return;
+        var li=h('li','mitem');
+        if(!first){
+          var fl=h('div','flowline');
+          fl.setAttribute('aria-hidden','true');
+          var s=el(SVGNS,'svg',{width:'26',height:'20',viewBox:'0 0 26 20'});
+          var pt=el(SVGNS,'path',{d:'M13,1 C13,10 13,10 13,18',class:'pulse'});
+          s.appendChild(pt);fl.appendChild(s);
+          li.appendChild(fl);
+        }
+        first=false;
+        var b=h('button','mnode');
+        b.type='button';
+        b.setAttribute('data-state',n.status);
+        b.setAttribute('data-node-id',n.id);
+        b.setAttribute('aria-pressed','false');
+        b.appendChild(h('p','t',esc(n.title)));
+        b.appendChild(h('p','r',esc(n.role)));
+        b.appendChild(h('p','d',esc(n.description)));
+        var row=h('div','row');
+        row.appendChild(h('span','chip '+CHIP[n.status],esc(n.statusLabel)));
+        if(n.flag)row.appendChild(h('span','flag a',esc(n.flag)));
+        b.appendChild(row);
+        b.addEventListener('click',function(){onPick(n);});
+        li.appendChild(b);
+        wrapC.appendChild(li);
+      });
+    });
+    return wrapC;
+  }
+
+  /* ---------- build tabs & panels ---------- */
+  var panels=[];
+  views.forEach(function(view,idx){
+    var tab=h('button','','');
+    tab.type='button';
+    tab.id='tab-'+view.id;
+    tab.setAttribute('role','tab');
+    tab.setAttribute('aria-controls','panel-'+view.id);
+    tab.setAttribute('aria-selected',idx===0?'true':'false');
+    tab.tabIndex=idx===0?0:-1;
+    tab.textContent=view.tab;
+    tabsHost.appendChild(tab);
+
+    var panel=h('div','');
+    panel.id='panel-'+view.id;
+    panel.setAttribute('role','tabpanel');
+    panel.setAttribute('aria-labelledby','tab-'+view.id);
+    panel.tabIndex=0;
+    panel.hidden=idx!==0;
+
+    var card=h('section','card');
+    card.appendChild(h('h2','',esc(view.title)));
+    card.appendChild(h('p','sub',esc(view.desc)));
+
+    var L=layout(view);
+    var aside=buildAside(view);
+    aside._panel=panel;
+    var stage=h('div','stage');
+    var svgWrap=h('div','svgwrap panel-card');
+    svgWrap.appendChild(h('h2','','Grafo (SVG)'));
+    svgWrap.appendChild(renderSvg(view,L,function(n){pick(view,aside,n);}));
+    var mapWrap=h('div','panel-card desktop-only');
+    mapWrap.appendChild(h('h2','','Equivalencia en móvil (≤760px)'));
+    mapWrap.appendChild(h('p','note','Las mismas tarjetas se generan desde el mismo modelo; este mapa es referencia.'));
+    stage.appendChild(svgWrap);
+    stage.appendChild(aside);
+    card.appendChild(stage);
+    card.appendChild(renderCards(view,function(n){pick(view,aside,n);}));
+
+    if(view.callout){
+      var callouts=(Array.isArray(view.callout))?view.callout:[view.callout];
+      callouts.forEach(function(txt){
+        var c=h('p','note','<b>'+esc(txt)+'</b>');
+        c.style.marginTop='10px';
+        card.appendChild(c);
+      });
+    }
+    if(view.restriction){
+      var r=h('p','note','<b>Restricción:</b> '+esc(view.restriction));
+      card.appendChild(r);
+    }
+    panel.appendChild(card);
+    panelsHost.appendChild(panel);
+    panels.push({view:view,tab:tab,panel:panel,aside:aside});
+  });
+
+  function pick(view,aside,n){
+    var host=aside._panel||aside.parentNode;
+    Array.prototype.forEach.call(host.querySelectorAll('g.node.sel,button.mnode.sel'),function(e){
+      e.classList.remove('sel');e.setAttribute('aria-pressed','false');
+    });
+    var g=host.querySelector('g.node[data-node-id="'+n.id+'"]');
+    var b=host.querySelector('button.mnode[data-node-id="'+n.id+'"]');
+    if(g){g.classList.add('sel');g.setAttribute('aria-pressed','true');}
+    if(b){b.classList.add('sel');b.setAttribute('aria-pressed','true');}
+    fillAside(aside,view,n);
+    if(window.matchMedia&&window.matchMedia('(max-width:760px)').matches&&aside.scrollIntoView){
+      aside.scrollIntoView({block:'nearest'});
+    }
+  }
+
+  /* ---------- tabs a11y ---------- */
+  function activate(i,focus){
+    panels.forEach(function(p,k){
+      var on=k===i;
+      p.tab.setAttribute('aria-selected',on?'true':'false');
+      p.tab.tabIndex=on?0:-1;
+      p.panel.hidden=!on;
+    });
+    if(focus)panels[i].tab.focus();
+  }
+  tabsHost.addEventListener('click',function(ev){
+    var t=ev.target.closest?ev.target.closest('[role="tab"]'):null;
+    if(!t)return;
+    var i=panels.map(function(p){return p.tab;}).indexOf(t);
+    if(i>=0)activate(i,false);
+  });
+  tabsHost.addEventListener('keydown',function(ev){
+    var i=panels.map(function(p){return p.tab;}).indexOf(document.activeElement);
+    if(i<0)return;
+    var n=i;
+    if(ev.key==='ArrowRight'){n=(i+1)%panels.length;activate(n,true);ev.preventDefault();}
+    else if(ev.key==='ArrowLeft'){n=(i-1+panels.length)%panels.length;activate(n,true);ev.preventDefault();}
+    else if(ev.key==='Home'){activate(0,true);ev.preventDefault();}
+    else if(ev.key==='End'){activate(panels.length-1,true);ev.preventDefault();}
+  });
+
+  /* ---------- play / pause ---------- */
+  var playing=!reduceMQ.matches;
+  var REDUCED_TEXT='Movimiento reducido: la animación está desactivada por la preferencia del sistema.';
+  function syncPlay(){
+    var reduced=!!reduceMQ.matches;
+    if(reduced)playing=false;
+    document.documentElement.classList.toggle('pause',!playing);
+    playBtn.setAttribute('aria-pressed',playing?'true':'false');
+    if(reduced){
+      playBtn.disabled=true;
+      playBtn.setAttribute('aria-disabled','true');
+      playState.textContent=REDUCED_TEXT;
+    }else{
+      playBtn.disabled=false;
+      playBtn.removeAttribute('aria-disabled');
+      playState.textContent=playing
+        ? 'Animación en curso. Es explicativa: no simula una ejecución real ni llama a modelos o herramientas.'
+        : 'Animación en pausa.';
+    }
+  }
+  playBtn.addEventListener('click',function(){if(reduceMQ.matches)return;playing=!playing;syncPlay();});
+  if(reduceMQ.addEventListener){
+    reduceMQ.addEventListener('change',function(e){playing=!e.matches;syncPlay();});
+  }
+  syncPlay();
+})();
+</script>
+</body>
+</html>

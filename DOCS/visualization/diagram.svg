@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1128" viewBox="0 0 1400 1128" font-family="system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" role="img" aria-labelledby="svgTitle svgDesc">
+  <title id="svgTitle">Vista general — pipeline de orquestación</title>
+  <desc id="svgDesc">Flujo principal del workflow y las capacidades auxiliares (grises) que NO existen en el snapshot. Exportación estática de la vista 1 del prototipo interactivo; el color no es la única señal porque cada nodo incluye su etiqueta de estado.</desc>
+  <defs>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#14B8A6"/>
+    </marker>
+    <marker id="arrowGray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748B"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1400" height="1128" fill="#F6F8FA"/>
+  <text x="40" y="54" font-size="23" font-weight="700" fill="#1B3A5C">SYSTEM-ENGINEERING — Vista general — pipeline de orquestación</text>
+  <text x="40" y="78" font-size="12.5" fill="#64748B">Flujo principal del workflow y las capacidades auxiliares (grises) que NO existen en el snapshot.</text>
+  <text x="40" y="97" font-size="11" fill="#64748B">Exportación estática de la vista 1 del prototipo index.html · el color no es la única señal: cada nodo incluye etiqueta de estado.</text>
+  <line x1="40" y1="110" x2="1360" y2="110" stroke="#D8DEE6" stroke-width="1"/>
+  <g class="edges" fill="none">
+    <path class="edge" d="M152.0 221.0 C152.0 237.0 152.0 231.0 152.0 247.0" stroke="#14B8A6" stroke-width="2" marker-end="url(#arrowTeal)"/>
+    <path class="edge" d="M152.0 336.0 C152.0 352.0 152.0 346.0 152.0 362.0" stroke="#14B8A6" stroke-width="2" marker-end="url(#arrowTeal)"/>
+    <path class="edge" d="M264.0 406.5 C282.0 406.5 282.0 176.5 300.0 176.5" stroke="#14B8A6" stroke-width="2" marker-end="url(#arrowTeal)"/>
+    <path class="edge" d="M264.0 406.5 C282.0 406.5 282.0 291.5 300.0 291.5" stroke="#14B8A6" stroke-width="2" marker-end="url(#arrowTeal)"/>
+    <path class="edge" d="M524.0 176.5 C542.0 176.5 542.0 189.0 560.0 189.0" stroke="#14B8A6" stroke-width="2" marker-end="url(#arrowTeal)"/>
+    <path class="edge" d="M524.0 291.5 C542.0 291.5 542.0 189.0 560.0 189.0" stroke="#14B8A6" stroke-width="2" marker-end="url(#arrowTeal)"/>
+    <path class="edge" d="M672.0 246.0 C672.0 262.0 672.0 256.0 672.0 272.0" stroke="#14B8A6" stroke-width="2" marker-end="url(#arrowTeal)"/>
+    <path class="edge" d="M784.0 316.5 C802.0 316.5 802.0 189.0 820.0 189.0" stroke="#14B8A6" stroke-width="2" marker-end="url(#arrowTeal)"/>
+    <path class="edge" d="M932.0 246.0 C932.0 262.0 932.0 256.0 932.0 272.0" stroke="#14B8A6" stroke-width="2" marker-end="url(#arrowTeal)"/>
+    <path class="edge" d="M1044.0 316.5 C1062.0 316.5 1062.0 183.5 1080.0 183.5" stroke="#14B8A6" stroke-width="2" marker-end="url(#arrowTeal)"/>
+    <path class="edge-extra" d="M40.0 291.5 L14.0 291.5 L14.0 604.0 L40.0 604.0" stroke="#64748B" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+    <path class="edge-extra" d="M152.0 451.0 C152.0 499.0 412.0 499.0 412.0 547.0" stroke="#64748B" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+    <path class="edge-extra" d="M672.0 361.0 C672.0 454.0 672.0 454.0 672.0 547.0" stroke="#64748B" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+    <path class="edge-extra" d="M1192.0 235.0 C1192.0 391.0 1192.0 391.0 1192.0 547.0" stroke="#64748B" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+    <path class="edge-extra" d="M1304.0 183.5 L1330.0 183.5 L1330.0 720.5 L1304.0 720.5" stroke="#64748B" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+    <path class="edge-extra" d="M932.0 361.0 C932.0 454.0 932.0 454.0 932.0 547.0" stroke="#64748B" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+    <path class="edge-extra" d="M784.0 727.5 C802.0 727.5 802.0 189.0 820.0 189.0" stroke="#64748B" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+    <path class="edge-extra" d="M672.0 361.0 C672.0 511.5 412.0 511.5 412.0 662.0" stroke="#64748B" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+  </g>
+  <g class="nodes">
+    <g class="node green" data-node-id="n1" data-state="green">
+      <title>Entrada de tarea / definición del workflow — Implementada y probada</title>
+      <rect x="40.0" y="132.0" width="224.0" height="89.0" rx="10" fill="#EAF6EE" stroke="#9CCDAF" stroke-width="1.4"/>
+      <rect x="40.0" y="132.0" width="5" height="89.0" rx="2.5" fill="#15803D"/>
+      <text x="56.0" y="152.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">CLI + PARSER</text>
+      <text x="56.0" y="172.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Entrada de tarea /</text>
+      <text x="56.0" y="186.0" font-size="12.5" font-weight="700" fill="#1B3A5C">definición del workflow</text>
+      <text class="status-label" x="56.0" y="207.0" font-size="9.5" font-weight="700" fill="#15803D">Implementada y probada</text>
+    </g>
+    <g class="node green" data-node-id="n2" data-state="green">
+      <title>Orquestador (OrchestrationEngine.execute) — Implementada y probada</title>
+      <rect x="40.0" y="247.0" width="224.0" height="89.0" rx="10" fill="#EAF6EE" stroke="#9CCDAF" stroke-width="1.4"/>
+      <rect x="40.0" y="247.0" width="5" height="89.0" rx="2.5" fill="#15803D"/>
+      <text x="56.0" y="267.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">MOTOR DE WORKFLOW</text>
+      <text x="56.0" y="287.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Orquestador</text>
+      <text x="56.0" y="301.0" font-size="12.5" font-weight="700" fill="#1B3A5C">(OrchestrationEngine.execute)</text>
+      <text class="status-label" x="56.0" y="322.0" font-size="9.5" font-weight="700" fill="#15803D">Implementada y probada</text>
+    </g>
+    <g class="node green" data-node-id="n3" data-state="green">
+      <title>Selección de ruta (nativa / interna) — Implementada y probada</title>
+      <rect x="40.0" y="362.0" width="224.0" height="89.0" rx="10" fill="#EAF6EE" stroke="#9CCDAF" stroke-width="1.4"/>
+      <rect x="40.0" y="362.0" width="5" height="89.0" rx="2.5" fill="#15803D"/>
+      <text x="56.0" y="382.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">BRANCH DE EJECUCIÓN</text>
+      <text x="56.0" y="402.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Selección de ruta (nativa /</text>
+      <text x="56.0" y="416.0" font-size="12.5" font-weight="700" fill="#1B3A5C">interna)</text>
+      <text class="status-label" x="56.0" y="437.0" font-size="9.5" font-weight="700" fill="#15803D">Implementada y probada</text>
+    </g>
+    <g class="node green" data-node-id="n5" data-state="green">
+      <title>Ruta nativa — delegación con la herramienta `subagent` — Implementada y probada</title>
+      <rect x="300.0" y="132.0" width="224.0" height="89.0" rx="10" fill="#EAF6EE" stroke="#9CCDAF" stroke-width="1.4"/>
+      <rect x="300.0" y="132.0" width="5" height="89.0" rx="2.5" fill="#15803D"/>
+      <text x="316.0" y="152.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">COORDINADOR EXTERNO</text>
+      <text x="316.0" y="172.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Ruta nativa — delegación con</text>
+      <text x="316.0" y="186.0" font-size="12.5" font-weight="700" fill="#1B3A5C">la herramienta `subagent`</text>
+      <text class="status-label" x="316.0" y="207.0" font-size="9.5" font-weight="700" fill="#15803D">Implementada y probada</text>
+    </g>
+    <g class="node amber" data-node-id="n6" data-state="amber">
+      <title>Ruta interna — AgentRunner.run — Implementada con limitación conocida</title>
+      <rect x="300.0" y="247.0" width="224.0" height="89.0" rx="10" fill="#FBF1E3" stroke="#E6CBA6" stroke-width="1.4"/>
+      <rect x="300.0" y="247.0" width="5" height="89.0" rx="2.5" fill="#B45309"/>
+      <text x="316.0" y="267.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">RUNNER EN PROCESO</text>
+      <text x="316.0" y="287.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Ruta interna —</text>
+      <text x="316.0" y="301.0" font-size="12.5" font-weight="700" fill="#1B3A5C">AgentRunner.run</text>
+      <text class="status-label" x="316.0" y="322.0" font-size="9.5" font-weight="700" fill="#B45309">Implementada con limitación conocida</text>
+    </g>
+    <g class="node blue" data-node-id="n7" data-state="blue">
+      <title>Runtime del modelo (LLMProvider: OpenAI/Anthropic/Local/Dummy) — Implementada; depende de ruta/configuración</title>
+      <rect x="560.0" y="132.0" width="224.0" height="114.0" rx="10" fill="#EAF0F6" stroke="#B9CDE2" stroke-width="1.4"/>
+      <rect x="560.0" y="132.0" width="5" height="114.0" rx="2.5" fill="#1B3A5C"/>
+      <text x="576.0" y="152.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">PROVEEDOR LLM</text>
+      <text x="576.0" y="172.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Runtime del modelo</text>
+      <text x="576.0" y="186.0" font-size="12.5" font-weight="700" fill="#1B3A5C">(LLMProvider:</text>
+      <text x="576.0" y="200.0" font-size="12.5" font-weight="700" fill="#1B3A5C">OpenAI/Anthropic/Local/Dummy)</text>
+      <text class="status-label" x="576.0" y="221.0" font-size="9.5" font-weight="700" fill="#1B3A5C">Implementada; depende de</text>
+      <text class="status-label" x="576.0" y="232.0" font-size="9.5" font-weight="700" fill="#1B3A5C">ruta/configuración</text>
+    </g>
+    <g class="node amber" data-node-id="n8" data-state="amber">
+      <title>Producción de outputs (status/output/usage) — Implementada con limitación conocida</title>
+      <rect x="560.0" y="272.0" width="224.0" height="89.0" rx="10" fill="#FBF1E3" stroke="#E6CBA6" stroke-width="1.4"/>
+      <rect x="560.0" y="272.0" width="5" height="89.0" rx="2.5" fill="#B45309"/>
+      <text x="576.0" y="292.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">RESULTADO DEL NODO</text>
+      <text x="576.0" y="312.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Producción de outputs</text>
+      <text x="576.0" y="326.0" font-size="12.5" font-weight="700" fill="#1B3A5C">(status/output/usage)</text>
+      <text class="status-label" x="576.0" y="347.0" font-size="9.5" font-weight="700" fill="#B45309">Implementada con limitación conocida</text>
+    </g>
+    <g class="node amber" data-node-id="n10" data-state="amber">
+      <title>Transporte del resultado (inline implementado; por referencia no alcanzado) — EN DESARROLLO — pendiente de validación.</title>
+      <rect x="820.0" y="132.0" width="224.0" height="114.0" rx="10" fill="#FBF1E3" stroke="#E6CBA6" stroke-width="1.4"/>
+      <rect x="820.0" y="132.0" width="5" height="114.0" rx="2.5" fill="#B45309"/>
+      <text x="836.0" y="152.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">PASO ENTRE NODOS</text>
+      <text x="836.0" y="172.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Transporte del resultado</text>
+      <text x="836.0" y="186.0" font-size="12.5" font-weight="700" fill="#1B3A5C">(inline implementado; por</text>
+      <text x="836.0" y="200.0" font-size="12.5" font-weight="700" fill="#1B3A5C">referencia no alcanzado)</text>
+      <text class="status-label" x="836.0" y="221.0" font-size="9.5" font-weight="700" fill="#B45309">EN DESARROLLO — pendiente de</text>
+      <text class="status-label" x="836.0" y="232.0" font-size="9.5" font-weight="700" fill="#B45309">validación.</text>
+    </g>
+    <g class="node green" data-node-id="n11" data-state="green">
+      <title>Consumo downstream + validación (gates G0–G8) — Implementada y probada</title>
+      <rect x="820.0" y="272.0" width="224.0" height="89.0" rx="10" fill="#EAF6EE" stroke="#9CCDAF" stroke-width="1.4"/>
+      <rect x="820.0" y="272.0" width="5" height="89.0" rx="2.5" fill="#15803D"/>
+      <text x="836.0" y="292.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">GATES</text>
+      <text x="836.0" y="312.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Consumo downstream +</text>
+      <text x="836.0" y="326.0" font-size="12.5" font-weight="700" fill="#1B3A5C">validación (gates G0–G8)</text>
+      <text class="status-label" x="836.0" y="347.0" font-size="9.5" font-weight="700" fill="#15803D">Implementada y probada</text>
+    </g>
+    <g class="node green" data-node-id="n12" data-state="green">
+      <title>Resultado final + persistencia de estado (checkpoint CP-NNNN) — Implementada y probada</title>
+      <rect x="1080.0" y="132.0" width="224.0" height="103.0" rx="10" fill="#EAF6EE" stroke="#9CCDAF" stroke-width="1.4"/>
+      <rect x="1080.0" y="132.0" width="5" height="103.0" rx="2.5" fill="#15803D"/>
+      <text x="1096.0" y="152.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">ESTADO DURABLE</text>
+      <text x="1096.0" y="172.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Resultado final +</text>
+      <text x="1096.0" y="186.0" font-size="12.5" font-weight="700" fill="#1B3A5C">persistencia de estado</text>
+      <text x="1096.0" y="200.0" font-size="12.5" font-weight="700" fill="#1B3A5C">(checkpoint CP-NNNN)</text>
+      <text class="status-label" x="1096.0" y="221.0" font-size="9.5" font-weight="700" fill="#15803D">Implementada y probada</text>
+    </g>
+    <g class="node blue" data-node-id="n13" data-state="blue">
+      <title>Memoria SE (advisory: libro de notas, nunca fuente de verdad) — Implementada; depende de ruta/configuración</title>
+      <rect x="40.0" y="547.0" width="224.0" height="114.0" rx="10" fill="#EAF0F6" stroke="#B9CDE2" stroke-width="1.4"/>
+      <rect x="40.0" y="547.0" width="5" height="114.0" rx="2.5" fill="#1B3A5C"/>
+      <text x="56.0" y="567.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">CONTEXTO AUXILIAR</text>
+      <text x="56.0" y="587.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Memoria SE (advisory: libro</text>
+      <text x="56.0" y="601.0" font-size="12.5" font-weight="700" fill="#1B3A5C">de notas, nunca fuente de</text>
+      <text x="56.0" y="615.0" font-size="12.5" font-weight="700" fill="#1B3A5C">verdad)</text>
+      <text class="status-label" x="56.0" y="636.0" font-size="9.5" font-weight="700" fill="#1B3A5C">Implementada; depende de</text>
+      <text class="status-label" x="56.0" y="647.0" font-size="9.5" font-weight="700" fill="#1B3A5C">ruta/configuración</text>
+    </g>
+    <g class="node blue" data-node-id="d2" data-state="blue">
+      <title>API HTTP de memoria en SE-CONSOLE (`/api/memory/get|query|search|gc`) — Implementada; depende de ruta/configuración</title>
+      <rect x="40.0" y="687.0" width="224.0" height="114.0" rx="10" fill="#EAF0F6" stroke="#B9CDE2" stroke-width="1.4"/>
+      <rect x="40.0" y="687.0" width="5" height="114.0" rx="2.5" fill="#1B3A5C"/>
+      <text x="56.0" y="707.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">SUPERFICIE EXTERNA</text>
+      <text x="56.0" y="727.0" font-size="12.5" font-weight="700" fill="#1B3A5C">API HTTP de memoria en</text>
+      <text x="56.0" y="741.0" font-size="12.5" font-weight="700" fill="#1B3A5C">SE-CONSOLE</text>
+      <text x="56.0" y="755.0" font-size="12.5" font-weight="700" fill="#1B3A5C">(`/api/memory/get|query|search|gc`)</text>
+      <text class="status-label" x="56.0" y="776.0" font-size="9.5" font-weight="700" fill="#1B3A5C">Implementada; depende de</text>
+      <text class="status-label" x="56.0" y="787.0" font-size="9.5" font-weight="700" fill="#1B3A5C">ruta/configuración</text>
+    </g>
+    <g class="node amber" data-node-id="n4" data-state="amber">
+      <title>Orden de ejecución (edges → DAG + gates por nodo) — Implementada con limitación conocida</title>
+      <rect x="300.0" y="547.0" width="224.0" height="89.0" rx="10" fill="#FBF1E3" stroke="#E6CBA6" stroke-width="1.4"/>
+      <rect x="300.0" y="547.0" width="5" height="89.0" rx="2.5" fill="#B45309"/>
+      <text x="316.0" y="567.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">PLANIFICACIÓN</text>
+      <text x="316.0" y="587.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Orden de ejecución (edges →</text>
+      <text x="316.0" y="601.0" font-size="12.5" font-weight="700" fill="#1B3A5C">DAG + gates por nodo)</text>
+      <text class="status-label" x="316.0" y="622.0" font-size="9.5" font-weight="700" fill="#B45309">Implementada con limitación conocida</text>
+    </g>
+    <g class="node amber" data-node-id="d3" data-state="amber">
+      <title>Modo nativo declarativo (P3-C: `execution_mode: &quot;native&quot;`) — Implementada con limitación conocida</title>
+      <rect x="300.0" y="662.0" width="224.0" height="103.0" rx="10" fill="#FBF1E3" stroke="#E6CBA6" stroke-width="1.4"/>
+      <rect x="300.0" y="662.0" width="5" height="103.0" rx="2.5" fill="#B45309"/>
+      <text x="316.0" y="682.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">RUTA DECLARATIVA</text>
+      <text x="316.0" y="702.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Modo nativo declarativo</text>
+      <text x="316.0" y="716.0" font-size="12.5" font-weight="700" fill="#1B3A5C">(P3-C: `execution_mode:</text>
+      <text x="316.0" y="730.0" font-size="12.5" font-weight="700" fill="#1B3A5C">&quot;native&quot;`)</text>
+      <text class="status-label" x="316.0" y="751.0" font-size="9.5" font-weight="700" fill="#B45309">Implementada con limitación conocida</text>
+    </g>
+    <g class="node amber" data-node-id="n9" data-state="amber">
+      <title>Destinos declarados de output (node.outputs: memory:/artifact:/evidence:) — Implementada con limitación conocida</title>
+      <rect x="560.0" y="547.0" width="224.0" height="103.0" rx="10" fill="#FBF1E3" stroke="#E6CBA6" stroke-width="1.4"/>
+      <rect x="560.0" y="547.0" width="5" height="103.0" rx="2.5" fill="#B45309"/>
+      <text x="576.0" y="567.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">PERSISTENCIA DECLARADA</text>
+      <text x="576.0" y="587.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Destinos declarados de</text>
+      <text x="576.0" y="601.0" font-size="12.5" font-weight="700" fill="#1B3A5C">output (node.outputs:</text>
+      <text x="576.0" y="615.0" font-size="12.5" font-weight="700" fill="#1B3A5C">memory:/artifact:/evidence:)</text>
+      <text class="status-label" x="576.0" y="636.0" font-size="9.5" font-weight="700" fill="#B45309">Implementada con limitación conocida</text>
+    </g>
+    <g class="node amber" data-node-id="d1" data-state="amber">
+      <title>Dispatcher de referencias (P3-A): resuelve `memory_id`/`topic_key` — Implementada con limitación conocida</title>
+      <rect x="560.0" y="676.0" width="224.0" height="103.0" rx="10" fill="#FBF1E3" stroke="#E6CBA6" stroke-width="1.4"/>
+      <rect x="560.0" y="676.0" width="5" height="103.0" rx="2.5" fill="#B45309"/>
+      <text x="576.0" y="696.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">RESOLUCIÓN DE REFERENCIAS</text>
+      <text x="576.0" y="716.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Dispatcher de referencias</text>
+      <text x="576.0" y="730.0" font-size="12.5" font-weight="700" fill="#1B3A5C">(P3-A): resuelve</text>
+      <text x="576.0" y="744.0" font-size="12.5" font-weight="700" fill="#1B3A5C">`memory_id`/`topic_key`</text>
+      <text class="status-label" x="576.0" y="765.0" font-size="9.5" font-weight="700" fill="#B45309">Implementada con limitación conocida</text>
+    </g>
+    <g class="node gray" data-node-id="g3" data-state="gray">
+      <title>Auxiliar: Auto-aprobación de gates MANUAL — Planificada / no implementada</title>
+      <rect x="820.0" y="547.0" width="224.0" height="89.0" rx="10" fill="#EEF1F4" stroke="#CBD4DE" stroke-width="1.4"/>
+      <rect x="820.0" y="547.0" width="5" height="89.0" rx="2.5" fill="#64748B"/>
+      <text x="836.0" y="567.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">NO IMPLEMENTADA</text>
+      <text x="836.0" y="587.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Auxiliar: Auto-aprobación de</text>
+      <text x="836.0" y="601.0" font-size="12.5" font-weight="700" fill="#1B3A5C">gates MANUAL</text>
+      <text class="status-label" x="836.0" y="622.0" font-size="9.5" font-weight="700" fill="#64748B">Planificada / no implementada</text>
+    </g>
+    <g class="node gray" data-node-id="g1" data-state="gray">
+      <title>Auxiliar: Reintento / reparación automática de nodos fallidos — Planificada / no implementada</title>
+      <rect x="1080.0" y="547.0" width="224.0" height="103.0" rx="10" fill="#EEF1F4" stroke="#CBD4DE" stroke-width="1.4"/>
+      <rect x="1080.0" y="547.0" width="5" height="103.0" rx="2.5" fill="#64748B"/>
+      <text x="1096.0" y="567.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">NO IMPLEMENTADA</text>
+      <text x="1096.0" y="587.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Auxiliar: Reintento /</text>
+      <text x="1096.0" y="601.0" font-size="12.5" font-weight="700" fill="#1B3A5C">reparación automática de</text>
+      <text x="1096.0" y="615.0" font-size="12.5" font-weight="700" fill="#1B3A5C">nodos fallidos</text>
+      <text class="status-label" x="1096.0" y="636.0" font-size="9.5" font-weight="700" fill="#64748B">Planificada / no implementada</text>
+    </g>
+    <g class="node gray" data-node-id="g2" data-state="gray">
+      <title>Auxiliar: Concurrencia de agentes — Planificada / no implementada</title>
+      <rect x="1080.0" y="676.0" width="224.0" height="89.0" rx="10" fill="#EEF1F4" stroke="#CBD4DE" stroke-width="1.4"/>
+      <rect x="1080.0" y="676.0" width="5" height="89.0" rx="2.5" fill="#64748B"/>
+      <text x="1096.0" y="696.0" font-size="9" font-weight="700" letter-spacing="0.6" fill="#64748B">NO IMPLEMENTADA</text>
+      <text x="1096.0" y="716.0" font-size="12.5" font-weight="700" fill="#1B3A5C">Auxiliar: Concurrencia de</text>
+      <text x="1096.0" y="730.0" font-size="12.5" font-weight="700" fill="#1B3A5C">agentes</text>
+      <text class="status-label" x="1096.0" y="751.0" font-size="9.5" font-weight="700" fill="#64748B">Planificada / no implementada</text>
+    </g>
+  </g>
+  <g class="legend">
+    <rect x="40" y="845.0" width="1320" height="188.0" rx="10" fill="#FFFFFF" stroke="#D8DEE6" stroke-width="1"/>
+    <text x="60" y="869.0" font-size="12" font-weight="700" fill="#1B3A5C">Leyenda de estados — el color no es la única señal: cada nodo incluye etiqueta de estado</text>
+    <rect x="60" y="880.0" width="14" height="14" rx="3" fill="#EAF6EE" stroke="#15803D" stroke-width="1.6"/>
+    <text x="84" y="891.0" font-size="11.5" font-weight="700" fill="#1B3A5C">#15803D · Implementada y probada</text>
+    <rect x="60" y="900.0" width="14" height="14" rx="3" fill="#EAF0F6" stroke="#1B3A5C" stroke-width="1.6"/>
+    <text x="84" y="911.0" font-size="11.5" font-weight="700" fill="#1B3A5C">#1B3A5C · Implementada; depende de ruta/configuración</text>
+    <rect x="60" y="920.0" width="14" height="14" rx="3" fill="#FBF1E3" stroke="#B45309" stroke-width="1.6"/>
+    <text x="84" y="931.0" font-size="11.5" font-weight="700" fill="#1B3A5C">#B45309 · En desarrollo / pendiente de validar</text>
+    <text x="84" y="947.0" font-size="10" fill="#64748B">Otras etiquetas de este estado: Implementada con limitación conocida · EN DESARROLLO — pendiente de validación. · Reportada como implementada,</text>
+    <text x="84" y="959.0" font-size="10" fill="#64748B">pendiente de verificación independiente · REPORTED — medición no reproducible en el árbol actual</text>
+    <rect x="60" y="964.0" width="14" height="14" rx="3" fill="#EEF1F4" stroke="#64748B" stroke-width="1.6"/>
+    <text x="84" y="975.0" font-size="11.5" font-weight="700" fill="#1B3A5C">#64748B · Planificada / no implementada</text>
+    <text x="84" y="991.0" font-size="10" fill="#64748B">Otras etiquetas de este estado: Contexto (no es un estado de capacidad) · No: la memoria es advisory y nunca hace pasar ni fallar un gate · No existe:</text>
+    <text x="84" y="1003.0" font-size="10" fill="#64748B">el ID real es `CP-NNNN`</text>
+  </g>
+  <text x="40" y="1059.0" font-size="10.5" fill="#64748B">Contexto del snapshot: repositorio principal SYSTEM-ENGINEERING · rama p3-complete · HEAD 4c18480 · fecha 2026-10-30 · main ceaecaf (ancestro de HEAD).</text>
+  <text x="40" y="1074.0" font-size="10.5" fill="#64748B">El trabajo P3-A / P3-B.1 / P3-C ya está commiteado en main (ceaecaf) y en p3-complete (4c18480); este prototipo solo lee el árbol, nunca lo modifica.</text>
+  <text x="40" y="1089.0" font-size="10.5" fill="#64748B">Prototipo independiente, fuera de cualquier repositorio Git, no publicado; autorizado sólo para inspección humana. Exportación estática: la animación del prototipo interactivo es explicativa y no simula una ejecución real.</text>
+</svg>
