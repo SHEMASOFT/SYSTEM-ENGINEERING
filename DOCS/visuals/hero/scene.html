@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SYSTEM ENGINEERING — hero</title>
+<style>
+  :root{
+    --bg:#05070E;
+    --ink:#E9F2FF;
+    --muted:#8FA6C4;
+    --cyan:#00E5FF;
+    --magenta:#FF2BD6;
+    --blue:#3B82F6;
+    --green:#22D3EE;
+    --card:rgba(11,18,34,.9);
+    --line:rgba(120,160,210,.17);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1440px;height:810px;overflow:hidden;background:var(--bg)}
+  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink)}
+  #stage{position:relative;width:1440px;height:810px;overflow:hidden;transform-origin:50% 50%}
+
+  .glow{position:absolute;border-radius:50%;filter:blur(100px);opacity:0}
+  .glow.a{width:760px;height:760px;left:-200px;top:-300px;background:radial-gradient(circle,rgba(0,229,255,.34),transparent 64%)}
+  .glow.b{width:900px;height:900px;right:-300px;bottom:-420px;background:radial-gradient(circle,rgba(255,43,214,.30),transparent 64%)}
+  .glow.c{width:520px;height:520px;left:44%;top:-260px;background:radial-gradient(circle,rgba(90,120,255,.16),transparent 66%)}
+  .grid{position:absolute;inset:0;opacity:0;
+    background-image:linear-gradient(to right,rgba(120,170,230,.055) 1px,transparent 1px),
+                     linear-gradient(to bottom,rgba(120,170,230,.055) 1px,transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse at 50% 42%,#000 34%,transparent 80%)}
+
+  header{position:absolute;left:78px;top:54px;right:78px}
+  .kicker{display:flex;align-items:center;gap:12px;font-size:11.5px;letter-spacing:5px;
+    font-weight:700;color:var(--cyan);opacity:0;text-transform:uppercase}
+  .kicker i{font-style:normal;letter-spacing:1.6px;color:#7FD9EE;text-transform:none}
+  .kicker .bar{width:42px;height:2px;background:linear-gradient(90deg,var(--cyan),var(--magenta));border-radius:2px}
+  h1{margin-top:15px;font-size:45px;line-height:1.05;font-weight:800;letter-spacing:-1.2px;opacity:0;
+    background:linear-gradient(93deg,#FFFFFF 6%,#D6ECFF 44%,#F5C9EF 92%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin-top:13px;font-size:16.5px;color:var(--muted);opacity:0;letter-spacing:.2px}
+
+  #graph{position:absolute;inset:0}
+  svg{position:absolute;inset:0;overflow:visible}
+  .edge{fill:none;stroke-width:2.1;stroke-linecap:round}
+  .edge.dash{stroke:rgba(150,180,220,.42);stroke-width:1.4;stroke-dasharray:5 6;fill:none}
+  .chev{fill:none;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round}
+
+  .node{position:absolute;width:176px;height:104px;padding:13px 14px 12px;border-radius:13px;
+    background:var(--card);border:1px solid var(--line);
+    box-shadow:0 20px 44px -24px rgba(0,0,0,.95), inset 0 1px 0 rgba(255,255,255,.045);
+    opacity:0;transform:translateY(14px)}
+  .node::before{content:"";position:absolute;left:0;top:11px;bottom:11px;width:3px;border-radius:3px;background:var(--accent)}
+  .node .role{font-size:9px;letter-spacing:2.1px;font-weight:700;color:var(--muted);text-transform:uppercase}
+  .node .title{margin-top:7px;font-size:14.5px;font-weight:700;line-height:1.2;letter-spacing:-.2px}
+  .node .state{margin-top:9px;font-size:10px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:6px}
+  .node .dot{width:5.5px;height:5.5px;border-radius:50%;background:var(--accent);box-shadow:0 0 9px var(--accent)}
+
+  .node.side{width:200px;height:86px;padding:11px 13px}
+  .node.side .title{font-size:13px}
+  .chip{position:absolute;top:10px;right:10px;font-size:8.5px;font-weight:800;letter-spacing:1.2px;
+    padding:2.5px 6px;border-radius:5px;color:var(--magenta);
+    border:1px solid rgba(255,43,214,.55);background:rgba(255,43,214,.10)}
+
+  #stats{position:absolute;left:78px;right:78px;bottom:104px;display:flex;gap:13px;opacity:0}
+  .pill{display:flex;align-items:baseline;gap:9px;padding:10px 16px;border-radius:11px;
+    background:rgba(12,20,36,.72);border:1px solid var(--line)}
+  .pill b{font-size:18px;font-weight:800;letter-spacing:-.4px;color:#fff}
+  .pill span{font-size:10.5px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-weight:600}
+
+  footer{position:absolute;left:78px;right:78px;bottom:40px;display:flex;align-items:center;
+    justify-content:space-between;opacity:0}
+  .cmd{display:flex;align-items:center;gap:11px;font-family:"Cascadia Code",Consolas,monospace;font-size:13.5px}
+  .cmd .shell{color:var(--magenta)}
+  .cmd .text{color:#D8E6F8}
+  .cmd .ok{color:var(--cyan);font-weight:700;letter-spacing:.7px}
+  .url{font-size:12px;color:var(--muted);letter-spacing:.4px}
+  .url b{color:#CFE9FF;font-weight:600}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow a" id="glowA"></div>
+  <div class="glow b" id="glowB"></div>
+  <div class="glow c" id="glowC"></div>
+  <div class="grid" id="grid"></div>
+
+  <header>
+    <div class="kicker" id="kicker"><span class="bar"></span>System Engineering <i>· v0.12.0</i></div>
+    <h1 id="title">A governed runtime<br>for AI coding agents</h1>
+    <div class="sub" id="sub">Lifecycle, gates, roles and memory — evidence instead of claims.</div>
+  </header>
+
+  <div id="graph">
+    <svg id="svg" width="1440" height="810" viewBox="0 0 1440 810">
+      <defs id="defs">
+        <filter id="softGlow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="3.2" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <g id="edges"></g>
+      <g id="pulses"></g>
+    </svg>
+    <div id="nodes"></div>
+  </div>
+
+  <div id="stats">
+    <div class="pill"><b>27</b><span>commands</span></div>
+    <div class="pill"><b>12</b><span>agents</span></div>
+    <div class="pill"><b>7</b><span>skills</span></div>
+    <div class="pill"><b>G0–G8</b><span>gates</span></div>
+    <div class="pill"><b>9</b><span>lifecycle states</span></div>
+  </div>
+
+  <footer id="footer">
+    <div class="cmd"><span class="shell">$</span><span class="text">se doctor</span><span class="ok">PASS</span></div>
+    <div class="url">github.com/<b>SHEMASOFT/SYSTEM-ENGINEERING</b></div>
+  </footer>
+</div>
+
+<script>
+const T = 8.0;
+const W = 176, H = 104, GAP = 52, X0 = 78, Y_MAIN = 288;
+const SIDE_W = 200, SIDE_H = 86, Y_SIDE = 468;
+
+const CYAN = [0,229,255], MAGENTA = [255,43,214];
+const mix = (a,b,t) => `rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(',')})`;
+
+const NODES = [
+  {id:'task',  x:X0+0*(W+GAP), y:Y_MAIN, role:'Intake',     title:'Task input',         state:'implemented', color:'#22D3EE', at:2.15},
+  {id:'orch',  x:X0+1*(W+GAP), y:Y_MAIN, role:'Engine',     title:'Orchestrator',       state:'implemented', color:'#22D3EE', at:2.52},
+  {id:'route', x:X0+2*(W+GAP), y:Y_MAIN, role:'Dispatch',   title:'Native / internal',  state:'implemented', color:'#22D3EE', at:2.89},
+  {id:'model', x:X0+3*(W+GAP), y:Y_MAIN, role:'Runtime',    title:'LLM provider',       state:'on config',   color:'#3B82F6', at:3.26},
+  {id:'gates', x:X0+4*(W+GAP), y:Y_MAIN, role:'Validation', title:'Gates G0–G8',        state:'implemented', color:'#22D3EE', at:3.63},
+  {id:'ckpt',  x:X0+5*(W+GAP), y:Y_MAIN, role:'State · CP-NNNN', title:'Checkpoint',  state:'implemented', color:'#22D3EE', at:4.00},
+  {id:'mem',   x:X0+1*(W+GAP), y:Y_SIDE, role:'Advisory',   title:'Memory by project',  state:'on config',   color:'#3B82F6', at:4.55, side:true},
+  {id:'trace', x:X0+2*(W+GAP), y:Y_SIDE, role:'Read-only',  title:'Trace CMD-0027',     state:'implemented', color:'#22D3EE', at:4.80, side:true, badge:'NEW'},
+];
+
+const EDGES = [
+  {from:'task',  to:'orch'},
+  {from:'orch',  to:'route'},
+  {from:'route', to:'model'},
+  {from:'model', to:'gates'},
+  {from:'gates', to:'ckpt'},
+];
+const DASHED = [
+  {from:'orch', to:'mem'},
+  {from:'route', to:'trace'},
+];
+
+const nodeBox = n => ({x:n.x, y:n.y, w:n.side?SIDE_W:W, h:n.side?SIDE_H:H, cx:n.x+(n.side?SIDE_W:W)/2, cy:n.y+(n.side?SIDE_H:H)/2});
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const easeOut=t=>1-Math.pow(1-clamp(t),3);
+const easeInOut=t=>{t=clamp(t);return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};
+const fade=(t,start,dur)=>clamp((t-start)/dur);
+
+const nodesEl=document.getElementById('nodes');
+const edgesEl=document.getElementById('edges');
+const pulsesEl=document.getElementById('pulses');
+const nodeEls={};
+
+for (const n of NODES){
+  const el=document.createElement('div');
+  el.className='node'+(n.side?' side':'');
+  el.style.left=n.x+'px'; el.style.top=n.y+'px';
+  el.style.setProperty('--accent', n.color);
+  el.innerHTML=`<div class="role">${n.role}</div>
+    <div class="title">${n.title}</div>
+    <div class="state"><span class="dot"></span>${n.state}</div>
+    ${n.badge?`<span class="chip">${n.badge}</span>`:''}`;
+  nodesEl.appendChild(el);
+  nodeEls[n.id]=el;
+}
+
+/* ---------- edges: hue walks cyan -> magenta along the chain ---------- */
+const svgNS='http://www.w3.org/2000/svg';
+const edgePaths=[];
+const chainN = EDGES.length;
+
+EDGES.forEach((e,i)=>{
+  const a=NODES.find(n=>n.id===e.from), b=NODES.find(n=>n.id===e.to);
+  const A=nodeBox(a), B=nodeBox(b);
+  const x1=A.x+A.w, y1=A.cy, x2=B.x, y2=B.cy;
+  const c=(x2-x1)*0.55;
+  const d=`M${x1} ${y1} C${x1+c} ${y1} ${x2-c} ${y2} ${x2} ${y2}`;
+
+  const gid=`eg${i}`;
+  const grad=document.createElementNS(svgNS,'linearGradient');
+  grad.setAttribute('id',gid);
+  grad.setAttribute('gradientUnits','userSpaceOnUse');
+  grad.setAttribute('x1',x1); grad.setAttribute('y1',y1);
+  grad.setAttribute('x2',x2); grad.setAttribute('y2',y2);
+  const s0=mix(CYAN,MAGENTA,i/chainN), s1=mix(CYAN,MAGENTA,(i+1)/chainN);
+  grad.innerHTML=`<stop offset="0%" stop-color="${s0}"/><stop offset="100%" stop-color="${s1}"/>`;
+  document.getElementById('defs').appendChild(grad);
+
+  const p=document.createElementNS(svgNS,'path');
+  p.setAttribute('class','edge');
+  p.setAttribute('d',d);
+  p.setAttribute('stroke',`url(#${gid})`);
+  edgesEl.appendChild(p);
+
+  // chevron at the target
+  const ch=document.createElementNS(svgNS,'path');
+  ch.setAttribute('class','chev');
+  ch.setAttribute('d',`M${x2-7} ${y2-5} L${x2} ${y2} L${x2-7} ${y2+5}`);
+  ch.setAttribute('stroke',s1);
+  edgesEl.appendChild(ch);
+
+  edgePaths.push({el:p, chev:ch, len:p.getTotalLength(), start:a.at+0.14, color:s1});
+});
+
+DASHED.forEach(e=>{
+  const a=NODES.find(n=>n.id===e.from), b=NODES.find(n=>n.id===e.to);
+  const A=nodeBox(a), B=nodeBox(b);
+  const x1=A.cx, y1=A.y+A.h, x2=B.cx, y2=B.y, mid=(y1+y2)/2;
+  const p=document.createElementNS(svgNS,'path');
+  p.setAttribute('class','edge dash');
+  p.setAttribute('d',`M${x1} ${y1} L${x1} ${mid} L${x2} ${mid} L${x2} ${y2}`);
+  edgesEl.appendChild(p);
+  edgePaths.push({el:p, len:0, start:b.at-0.12, dashed:true});
+});
+
+const PULSES=[
+  {edge:0,off:0.00,speed:0.42},
+  {edge:1,off:0.35,speed:0.42},
+  {edge:2,off:0.70,speed:0.42},
+  {edge:3,off:0.15,speed:0.42},
+  {edge:4,off:0.55,speed:0.42},
+];
+const pulseEls=PULSES.map((pu,i)=>{
+  const c=document.createElementNS(svgNS,'circle');
+  c.setAttribute('r','3');
+  c.setAttribute('fill', edgePaths[pu.edge].color);
+  c.setAttribute('opacity','0');
+  pulsesEl.appendChild(c);
+  return c;
+});
+
+window.__render=function(t){
+  t=((t%T)+T)%T;
+
+  const bgIn=easeOut(fade(t,0,0.8));
+  document.getElementById('glowA').style.opacity=(0.95*bgIn).toFixed(3);
+  document.getElementById('glowB').style.opacity=(0.95*bgIn).toFixed(3);
+  document.getElementById('glowC').style.opacity=(0.8*bgIn).toFixed(3);
+  document.getElementById('grid').style.opacity=(0.95*bgIn).toFixed(3);
+
+  const k=easeOut(fade(t,0.30,0.5));
+  const ki=document.getElementById('kicker');
+  ki.style.opacity=k.toFixed(3); ki.style.transform=`translateY(${(1-k)*10}px)`;
+
+  const ti=easeOut(fade(t,0.48,0.72));
+  const title=document.getElementById('title');
+  title.style.opacity=ti.toFixed(3); title.style.transform=`translateY(${(1-ti)*22}px)`;
+
+  const si=easeOut(fade(t,0.88,0.65));
+  const sub=document.getElementById('sub');
+  sub.style.opacity=si.toFixed(3); sub.style.transform=`translateY(${(1-si)*12}px)`;
+
+  NODES.forEach(n=>{
+    const p=easeOut(fade(t,n.at,0.46));
+    const el=nodeEls[n.id];
+    el.style.opacity=p.toFixed(3);
+    el.style.transform=`translateY(${(1-p)*16}px)`;
+  });
+
+  edgePaths.forEach(ep=>{
+    const p=easeInOut(fade(t,ep.start,ep.dashed?0.42:0.5));
+    if (ep.dashed){
+      ep.el.style.strokeDasharray='5 6';
+      ep.el.style.opacity=(0.7*p).toFixed(3);
+      return;
+    }
+    ep.el.style.strokeDasharray=`${ep.len} ${ep.len}`;
+    ep.el.style.strokeDashoffset=(ep.len*(1-p)).toFixed(1);
+    ep.el.style.opacity=(0.95*p).toFixed(3);
+    ep.chev.style.opacity=(0.95*p).toFixed(3);
+  });
+
+  PULSES.forEach((pu,i)=>{
+    const ep=edgePaths[pu.edge];
+    const appear=fade(t,ep.start+0.30,0.35);
+    const el=pulseEls[i];
+    if (appear<=0){ el.setAttribute('opacity','0'); return; }
+    const pos=((t*pu.speed+pu.off)%1);
+    const pt=ep.el.getPointAtLength(ep.len*pos);
+    el.setAttribute('cx',pt.x.toFixed(1));
+    el.setAttribute('cy',pt.y.toFixed(1));
+    el.setAttribute('r',(2.6+0.9*Math.sin(pos*Math.PI)).toFixed(2));
+    el.setAttribute('opacity',(0.9*appear).toFixed(3));
+  });
+
+  const st=easeOut(fade(t,5.15,0.55));
+  const stats=document.getElementById('stats');
+  stats.style.opacity=st.toFixed(3);
+  stats.style.transform=`translateY(${(1-st)*14}px)`;
+
+  const fo=easeOut(fade(t,5.75,0.55));
+  const footer=document.getElementById('footer');
+  footer.style.opacity=fo.toFixed(3);
+  footer.style.transform=`translateY(${(1-fo)*12}px)`;
+
+  const out=1-clamp((t-7.40)/0.55);
+  document.getElementById('stage').style.opacity=out.toFixed(3);
+};
+
+window.__render(0);
+</script>
+</body>
+</html>
