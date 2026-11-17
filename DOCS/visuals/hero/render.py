@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""Render the SYSTEM ENGINEERING README hero from ``scene.html``.
+"""Render the SYSTEM ENGINEERING hero clips from the scenes in this folder.
 
-Deterministic pipeline, no external dependencies beyond the ones already used by
-the rest of the repository's tooling (Playwright + the ffmpeg binary bundled
-with ``imageio_ffmpeg``):
+Deterministic pipeline, no new dependencies: Playwright renders the scene and the
+ffmpeg binary bundled with ``imageio_ffmpeg`` encodes the result. Every frame is a
+pure function of time (``window.__render(t)``), so the output is reproducible.
 
-    python DOCS/visuals/hero/render.py all
+    python DOCS/visuals/hero/render.py all                    # 16:9 for the README
+    python DOCS/visuals/hero/render.py all --format vertical   # 9:16 for shorts/reels
 
-Outputs (written next to this folder, in ``DOCS/assets``):
+Outputs (written to ``DOCS/assets``):
 
-    hero.mp4         1440x810, H.264, 30 fps  — full quality, for releases
-    hero.gif         880 px wide, 18 fps      — autoplaying README hero
-    hero-poster.png  1440x810 still           — social previews and fallbacks
-
-The scene is a pure function of time (``window.__render(t)``), so every frame is
-reproducible: same code in, same pixels out.
+    wide       hero.mp4 (1440x810) · hero.gif (880 px) · hero-poster.png
+    vertical   hero-vertical.mp4 (1080x1920) · hero-vertical-poster.png
 """
 from __future__ import annotations
 
@@ -30,15 +27,31 @@ import imageio_ffmpeg
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]                      # repository root
 OUT = ROOT / "DOCS" / "assets"
-SCENE = HERE / "scene.html"
+
+FORMATS = {
+    "wide": {
+        "scene": HERE / "scene.html",
+        "size": (1440, 810),
+        "video": "hero.mp4",
+        "gif": "hero.gif",
+        "gif_width": 880,
+        "poster": "hero-poster.png",
+        "poster_at": 6.9,
+    },
+    "vertical": {
+        "scene": HERE / "scene-vertical.html",
+        "size": (1080, 1920),
+        "video": "hero-vertical.mp4",
+        "gif": None,
+        "gif_width": None,
+        "poster": "hero-vertical-poster.png",
+        "poster_at": 5.6,
+    },
+}
 
 DURATION = 8.0
 FPS_MASTER = 30
 FPS_GIF = 18
-WIDTH = 1440
-HEIGHT = 810
-GIF_WIDTH = 880
-POSTER_AT = 6.9
 
 
 def ffmpeg() -> str:
@@ -55,15 +68,16 @@ def _launch(playwright):
     raise RuntimeError("no Chromium/Chrome available for Playwright")
 
 
-def render_frames(dest: Path, fps: int, duration: float) -> int:
+def render_frames(dest: Path, cfg: dict, fps: int, duration: float) -> int:
     from playwright.sync_api import sync_playwright
 
+    width, height = cfg["size"]
     dest.mkdir(parents=True, exist_ok=True)
     total = int(round(duration * fps))
     with sync_playwright() as pw:
         browser = _launch(pw)
-        page = browser.new_page(viewport={"width": WIDTH, "height": HEIGHT}, device_scale_factor=1)
-        page.goto(SCENE.as_uri())
+        page = browser.new_page(viewport={"width": width, "height": height}, device_scale_factor=1)
+        page.goto(cfg["scene"].as_uri())
         page.wait_for_timeout(250)
         for i in range(total):
             page.evaluate("t => window.__render(t)", i / fps)
@@ -72,9 +86,9 @@ def render_frames(dest: Path, fps: int, duration: float) -> int:
     return total
 
 
-def encode_video(frames: Path, fps: int) -> Path:
+def encode_video(frames: Path, cfg: dict, fps: int) -> Path:
     OUT.mkdir(parents=True, exist_ok=True)
-    dest = OUT / "hero.mp4"
+    dest = OUT / cfg["video"]
     subprocess.run(
         [ffmpeg(), "-y", "-loglevel", "error", "-framerate", str(fps),
          "-i", str(frames / "f%04d.png"),
@@ -85,11 +99,11 @@ def encode_video(frames: Path, fps: int) -> Path:
     return dest
 
 
-def encode_gif(frames: Path, fps: int) -> Path:
+def encode_gif(frames: Path, cfg: dict, fps: int) -> Path:
     OUT.mkdir(parents=True, exist_ok=True)
-    dest = OUT / "hero.gif"
+    dest = OUT / cfg["gif"]
     vf = (
-        f"fps={fps},scale={GIF_WIDTH}:-1:flags=lanczos,split[s0][s1];"
+        f"fps={fps},scale={cfg['gif_width']}:-1:flags=lanczos,split[s0][s1];"
         "[s0]palettegen=max_colors=128:stats_mode=diff[p];"
         "[s1][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle"
     )
@@ -103,10 +117,10 @@ def encode_gif(frames: Path, fps: int) -> Path:
     return dest
 
 
-def write_poster(frames: Path, fps: int) -> Path:
+def write_poster(frames: Path, cfg: dict, fps: int) -> Path:
     OUT.mkdir(parents=True, exist_ok=True)
-    dest = OUT / "hero-poster.png"
-    idx = int(round(POSTER_AT * fps))
+    dest = OUT / cfg["poster"]
+    idx = int(round(cfg["poster_at"] * fps))
     src = frames / f"f{idx:04d}.png"
     if not src.exists():
         src = sorted(frames.glob("f*.png"))[-1]
@@ -117,31 +131,35 @@ def write_poster(frames: Path, fps: int) -> Path:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("what", choices=["frames", "video", "gif", "poster", "all"], nargs="?", default="all")
+    ap.add_argument("--format", choices=sorted(FORMATS), default="wide")
     args = ap.parse_args()
+
+    cfg = FORMATS[args.format]
+    if not cfg["scene"].exists():
+        print(f"missing scene: {cfg['scene']}", file=sys.stderr)
+        return 2
 
     tmp = Path(tempfile.mkdtemp(prefix="se-hero-"))
     try:
         if args.what in {"frames", "all"}:
-            fps = FPS_MASTER
-            n = render_frames(tmp, fps, DURATION)
-            print(f"frames : {n} @ {fps} fps -> {tmp}")
+            n = render_frames(tmp, cfg, FPS_MASTER, DURATION)
+            print(f"frames : {n} @ {FPS_MASTER} fps -> {tmp}")
         else:
-            fps = FPS_MASTER
-            render_frames(tmp, fps, DURATION)
+            render_frames(tmp, cfg, FPS_MASTER, DURATION)
 
         if args.what in {"video", "all"}:
-            p = encode_video(tmp, FPS_MASTER)
+            p = encode_video(tmp, cfg, FPS_MASTER)
             print(f"video  : {p} ({p.stat().st_size / 1024 / 1024:.2f} MB)")
 
-        if args.what in {"gif", "all"}:
-            p = encode_gif(tmp, FPS_GIF)
+        if args.what in {"gif", "all"} and cfg["gif"]:
+            p = encode_gif(tmp, cfg, FPS_GIF)
             mb = p.stat().st_size / 1024 / 1024
             print(f"gif    : {p} ({mb:.2f} MB)")
             if mb > 6.0:
                 print("         WARNING: GIF above 6 MB — lower GIF_WIDTH or FPS_GIF", file=sys.stderr)
 
         if args.what in {"poster", "all"}:
-            p = write_poster(tmp, FPS_MASTER)
+            p = write_poster(tmp, cfg, FPS_MASTER)
             print(f"poster : {p} ({p.stat().st_size / 1024:.0f} KB)")
         return 0
     finally:

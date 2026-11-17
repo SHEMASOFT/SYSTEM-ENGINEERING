@@ -8,11 +8,14 @@ preview. Everything here is **generated**, never edited by hand.
 | `hero.gif` | ~1.7 MB, 880 px, 18 fps | The animated hero at the top of `README.md` (GitHub autoplays GIFs; it does not embed MP4) |
 | `hero.mp4` | ~0.34 MB, 1440×810, 8 s | The "same clip as MP4" link, release attachments and social posts |
 | `hero-poster.png` | ~0.19 MB, 1440×810 | Repository social preview and static fallbacks |
+| `hero-vertical.mp4` | ~0.42 MB, 1080×1920, 8 s | Shorts, Reels and TikTok — same story, vertical cut |
+| `hero-vertical-poster.png` | ~0.25 MB, 1080×1920 | Cover image for the vertical platforms |
 
 ## Regenerate
 
 ```bash
-python DOCS/visuals/hero/render.py all
+python DOCS/visuals/hero/render.py all                    # 16:9 for the README
+python DOCS/visuals/hero/render.py all --format vertical   # 9:16 for shorts
 ```
 
 The pipeline is deterministic: `DOCS/visuals/hero/scene.html` is a scene
