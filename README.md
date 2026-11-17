@@ -1,6 +1,20 @@
+<div align="center">
+
 # SYSTEM ENGINEERING
 
+**A governed runtime for AI coding agents.**
+Lifecycle, gates, roles and memory — evidence instead of claims.
+
 [![CI](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/actions/workflows/ci.yml)
+[![version](https://img.shields.io/github/v/tag/SHEMASOFT/SYSTEM-ENGINEERING?label=version&color=00e5ff)](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/tags)
+[![license](https://img.shields.io/badge/license-MIT-3b82f6)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.10%2B-3776ab)](https://www.python.org)
+
+[![SYSTEM ENGINEERING — the workflow in eight seconds](DOCS/assets/hero.gif)](DOCS/assets/hero.mp4)
+
+<sub>Intake → orchestrator → route → model → gates → checkpoint. <a href="DOCS/assets/hero.mp4">Same clip as MP4</a></sub>
+
+</div>
 
 A reusable, domain-agnostic **project operating system for AI-assisted work**.
 
@@ -11,6 +25,20 @@ or any other kind of project.
 
 This repository **is the system itself**. It creates and operates other projects
 without being coupled to them.
+
+| Governed lifecycle | Specialist roles | Evidence, not claims |
+|---|---|---|
+| `DRAFT → DISCOVERY → … → ARCHIVED`, every transition gated (G0–G8) and recorded | 12 agent roles and 27 commands, loaded on demand instead of one giant prompt | Artifacts, checkpoints (`CP-NNNN`) and a read-only `se trace` over the record graph |
+
+**Try it in 30 seconds**
+
+```bash
+git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git
+cd SYSTEM-ENGINEERING
+pip install jsonschema
+python SCRIPTS/se.py doctor      # health check  → PASS
+python SCRIPTS/se.py validate    # schemas + contracts → PASS
+```
 
 Developed and maintained by [Moises](https://github.com/SHEMASOFT) —
 [`SHEMASOFT/SYSTEM-ENGINEERING`](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING/).
