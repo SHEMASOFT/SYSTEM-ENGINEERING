@@ -14,6 +14,8 @@ Lifecycle, gates, roles and memory — evidence instead of claims.
 
 <sub>Intake → orchestrator → route → model → gates → checkpoint. <a href="DOCS/assets/hero.mp4">Same clip as MP4</a></sub>
 
+**[Explore the interactive workflow map →](https://shemasoft.github.io/SYSTEM-ENGINEERING/)** · [why it exists](#why-se) · [5-minute quickstart](#quickstart)
+
 </div>
 
 A reusable, domain-agnostic **project operating system for AI-assisted work**.

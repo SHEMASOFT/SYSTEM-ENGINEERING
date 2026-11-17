@@ -1,0 +1,51 @@
+%% SYSTEM-ENGINEERING — Vista general (flujo principal del workflow)
+%% Generado por tools/generate.mjs desde SE_MODEL en index.html. No editar a mano.
+%% Contexto del snapshot: repositorio principal SYSTEM-ENGINEERING · rama p3-complete · HEAD 4c18480 · fecha 2026-10-30 · main ceaecaf.
+%% El trabajo P3-A / P3-B.1 / P3-C ya está commiteado en main y en p3-complete; este prototipo solo lee el árbol, nunca lo modifica.
+%% El color no es la única señal: cada nodo incluye etiqueta de estado textual.
+flowchart TD
+  n1["Entrada de tarea / definición del workflow — Implementada y probada"]
+  n2["Orquestador (OrchestrationEngine.execute) — Implementada y probada"]
+  n3["Selección de ruta (nativa / interna) — Implementada y probada"]
+  n5["Ruta nativa — delegación con la herramienta subagent — Implementada y probada"]
+  n6["Ruta interna — AgentRunner.run — Implementada con limitación conocida"]
+  n7["Runtime del modelo (LLMProvider: OpenAI/Anthropic/Local/Dummy) — Implementada; depende de ruta/configuración"]
+  n8["Producción de outputs (status/output/usage) — Implementada con limitación conocida"]
+  n10["Transporte del resultado (inline implementado; por referencia no alcanzado) — EN DESARROLLO — pendiente de validación."]
+  n11["Consumo downstream + validación (gates G0–G8) — Implementada y probada"]
+  n12["Resultado final + persistencia de estado (checkpoint CP-NNNN) — Implementada y probada"]
+  n13["Memoria SE (advisory: libro de notas, nunca fuente de verdad) — Implementada; depende de ruta/configuración"]
+  d2["API HTTP de memoria en SE-CONSOLE (/api/memory/get|query|search|gc) — Implementada; depende de ruta/configuración"]
+  n4["Orden de ejecución (edges → DAG + gates por nodo) — Implementada con limitación conocida"]
+  d3["Modo nativo declarativo (P3-C: execution_mode: 'native') — Implementada con limitación conocida"]
+  n9["Destinos declarados de output (node.outputs: memory:/artifact:/evidence:) — Implementada con limitación conocida"]
+  d1["Dispatcher de referencias (P3-A): resuelve memory_id/topic_key — Implementada con limitación conocida"]
+  g3["Auxiliar: Auto-aprobación de gates MANUAL — Planificada / no implementada"]
+  g1["Auxiliar: Reintento / reparación automática de nodos fallidos — Planificada / no implementada"]
+  g2["Auxiliar: Concurrencia de agentes — Planificada / no implementada"]
+  n1 --> n2
+  n2 --> n3
+  n3 --> n5
+  n3 --> n6
+  n5 --> n7
+  n6 --> n7
+  n7 --> n8
+  n8 --> n10
+  n10 --> n11
+  n11 --> n12
+  n2 -.-> n13
+  n3 -.-> n4
+  n8 -.-> n9
+  n12 -.-> g1
+  n12 -.-> g2
+  n11 -.-> g3
+  d1 -.-> n10
+  n8 -.-> d3
+  classDef green fill:#EAF6EE,stroke:#15803D,stroke-width:2px,color:#1B3A5C
+  classDef blue fill:#EAF0F6,stroke:#1B3A5C,stroke-width:2px,color:#1B3A5C
+  classDef amber fill:#FBF1E3,stroke:#B45309,stroke-width:2px,color:#1B3A5C
+  classDef gray fill:#EEF1F4,stroke:#64748B,stroke-width:2px,color:#1B3A5C
+  class n1,n2,n3,n5,n11,n12 green
+  class n7,n13,d2 blue
+  class n6,n8,n10,n4,d3,n9,d1 amber
+  class g3,g1,g2 gray
