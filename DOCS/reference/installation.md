@@ -104,6 +104,11 @@ Requirements: Python 3.10+ and the package (`pip install -e SE-INSTALLER`). The
 frontend is vanilla HTML/JS/CSS at `SCRIPTS/se_installer_web/static/index.html` —
 no build step. Development mode: `se-installer-web --dev --reload`.
 
+> The browser UI installs components; it does **not** include the model step yet.
+> Select the model with `se shema-ai model` after installing, or pass
+> `--model provider/model` to the command-line installer. `se shema-ai model --reset`
+> clears the selection back to unconfigured.
+
 Everything the UI does has a CLI equivalent:
 
 ```bash

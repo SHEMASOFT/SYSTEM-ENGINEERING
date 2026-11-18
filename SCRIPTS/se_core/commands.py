@@ -8068,7 +8068,7 @@ def cmd_shema_main(args) -> int:
 def cmd_shema_model(args) -> int:
     """`se shema-ai model` — Model configuration."""
     # TUI mode (default)
-    if getattr(args, "tui", True) and not any([getattr(args, "list", False), getattr(args, "set", None), getattr(args, "unset", None), getattr(args, "providers", False), getattr(args, "global_model", None), getattr(args, "all", False)]):
+    if getattr(args, "tui", True) and not any([getattr(args, "list", False), getattr(args, "set", None), getattr(args, "unset", None), getattr(args, "providers", False), getattr(args, "global_model", None), getattr(args, "all", False), getattr(args, "reset", False)]):
         from .model_tui.app import run_model_tui
         return run_model_tui()
 
@@ -8078,6 +8078,19 @@ def cmd_shema_model(args) -> int:
     # Load current config
     from .model_tui.config import load_model_config, save_model_config
     config = load_model_config(project_path)
+
+    # --reset: clear the selection entirely, leaving every agent unconfigured
+    if getattr(args, "reset", False):
+        cleared = len(config.agent_overrides)
+        config.global_model = None
+        config.agent_overrides = {}
+        save_model_config(project_path, None, {})
+        print(
+            "Model selection cleared: no global model and no overrides"
+            + (f" ({cleared} removed)" if cleared else "")
+            + ". Agents stay unconfigured until you set one."
+        )
+        return 0
 
     # --all (optionally with --global-model): one model for every agent
     if getattr(args, "all", False):

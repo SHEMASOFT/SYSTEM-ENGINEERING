@@ -932,6 +932,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use one model for every agent: set the global model and clear every override",
     )
+    p_model.add_argument(
+        "--reset",
+        action="store_true",
+        help="Clear the selection: no global model and no overrides (agents stay unconfigured)",
+    )
     p_model.add_argument("--json", action="store_true", help="Emit machine-readable output")
     p_model.set_defaults(func=commands.cmd_shema_model)
 
