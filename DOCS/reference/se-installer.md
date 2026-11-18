@@ -23,7 +23,7 @@ se_installer/
 ├── cli.py                    # CLI: install, list, status, doctor, tui
 ├── tui.py                    # Textual TUI (interactive component selection)
 ├── model_registry.py         # 14 models, user selections, recommendations
-├── mcp_registry.py           # 6 MCPs with OpenAI function schemas
+├── mcp_registry.py           # 5 MCPs with OpenAI function schemas
 ├── agent_mcp_binding.py      # 12 agent types → MCP + model bindings
 ├── skill_mcp_bridge.py       # Skills declare MCP capabilities @decorator
 ├── runtime_config_generator.py # OpenCode/Codex/Claude Code config generation
@@ -129,7 +129,14 @@ Load: `ModelRegistry(custom_models_path=Path("mis-modelos.json"))`
 
 ---
 
-## MCP Registry — 6 Servers with Function Schemas
+## MCP Registry — five third-party servers
+
+The installer offers five MCP servers. This is **not** the same catalogue that
+`se install` writes: that one uses the four templates in `TEMPLATES/mcp/`
+(`context7`, `filesystem`, `memory-server`, `skill-server`). The overlap is
+`context7` and `filesystem`; `playwright`, `firecrawl` and `codegraph` are
+installer-only today, and SE's own `memory-server` / `skill-server` need no
+installation.
 
 Each MCP declares:
 - **Capabilities** (enum: `FILE_READ`, `WEB_SEARCH`, `CODE_INTELLIGENCE`, etc.)

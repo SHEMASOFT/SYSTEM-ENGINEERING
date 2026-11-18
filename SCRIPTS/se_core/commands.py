@@ -3384,7 +3384,11 @@ def coverage_count_test(root, resolver) -> list[str]:
                 # Document not found by hash - check if path still exists with different content
                 if expected_path in current_by_path:
                     # Path exists but content changed - document replaced
-                    failures.append(f'coverage: {logical_name} document replaced (was {expected_path}, now different content)')
+                    failures.append(
+                        f'coverage: {logical_name} document replaced '
+                        f'(was {expected_path}, now different content) '
+                        f'— run `se coverage rebase --reason "<why it changed>"` to record it'
+                    )
                 else:
                     # Document truly lost
                     failures.append(f'coverage: {logical_name} document lost ({expected_path})')
