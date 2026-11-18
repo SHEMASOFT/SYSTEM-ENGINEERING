@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SYSTEM ENGINEERING — social card</title>
+<style>
+  :root{
+    --bg:#05070E; --ink:#E9F2FF; --muted:#93AAC8;
+    --cyan:#00E5FF; --magenta:#FF2BD6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1280px;height:640px;overflow:hidden;background:var(--bg)}
+  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink)}
+  #stage{position:relative;width:1280px;height:640px;overflow:hidden}
+
+  .glow{position:absolute;border-radius:50%;filter:blur(90px)}
+  .glow.a{width:700px;height:700px;left:-240px;top:-300px;background:radial-gradient(circle,rgba(0,229,255,.34),transparent 64%)}
+  .glow.b{width:820px;height:820px;right:-280px;bottom:-380px;background:radial-gradient(circle,rgba(255,43,214,.28),transparent 64%)}
+  .grid{position:absolute;inset:0;
+    background-image:linear-gradient(to right,rgba(120,170,230,.055) 1px,transparent 1px),
+                     linear-gradient(to bottom,rgba(120,170,230,.055) 1px,transparent 1px);
+    background-size:44px 44px;
+    mask-image:radial-gradient(ellipse at 30% 40%,#000 40%,transparent 85%)}
+
+  .wrap{position:absolute;inset:0;padding:64px 72px;display:flex;flex-direction:column;justify-content:center}
+  .kicker{display:flex;align-items:center;gap:14px;font-size:18px;letter-spacing:6px;font-weight:700;
+    color:var(--cyan);text-transform:uppercase;opacity:0}
+  .kicker .bar{width:52px;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--cyan),var(--magenta))}
+  .kicker i{font-style:normal;letter-spacing:2px;color:#7FD9EE;text-transform:none}
+  h1{margin-top:22px;font-size:62px;line-height:1.04;font-weight:800;letter-spacing:-2px;opacity:0;
+    background:linear-gradient(93deg,#FFFFFF 5%,#D6ECFF 46%,#F5C9EF 92%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;max-width:1040px}
+  .sub{margin-top:22px;font-size:25px;line-height:1.35;color:var(--muted);opacity:0;max-width:900px}
+  .foot{position:absolute;left:72px;right:72px;bottom:52px;display:flex;align-items:center;
+    justify-content:space-between;opacity:0}
+  .cmd{font-family:"Cascadia Code",Consolas,monospace;font-size:19px}
+  .cmd .s{color:var(--magenta)}
+  .cmd .t{color:#D8E6F8}
+  .cmd .ok{color:var(--cyan);font-weight:700}
+  .url{font-size:18px;color:var(--muted)}
+  .url b{color:#CFE9FF;font-weight:600}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow a"></div>
+  <div class="glow b"></div>
+  <div class="grid"></div>
+
+  <div class="wrap">
+    <div class="kicker" id="kicker"><span class="bar"></span>System Engineering <i>· v0.12.0</i></div>
+    <h1 id="title">A governed runtime<br>for AI coding agents</h1>
+    <div class="sub" id="sub">Lifecycle, gates, roles and memory — evidence instead of claims.</div>
+  </div>
+
+  <div class="foot" id="foot">
+    <div class="cmd"><span class="s">$</span> <span class="t">se doctor</span> <span class="ok">PASS</span></div>
+    <div class="url">github.com/<b>SHEMASOFT/SYSTEM-ENGINEERING</b></div>
+  </div>
+</div>
+
+<script>
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const easeOut=t=>1-Math.pow(1-clamp(t),3);
+const fade=(t,s,d)=>clamp((t-s)/d);
+
+window.__render=function(t){
+  const k=easeOut(fade(t,0.1,0.5));
+  const ki=document.getElementById('kicker');
+  ki.style.opacity=k.toFixed(3); ki.style.transform=`translateY(${(1-k)*10}px)`;
+
+  const ti=easeOut(fade(t,0.3,0.7));
+  const title=document.getElementById('title');
+  title.style.opacity=ti.toFixed(3); title.style.transform=`translateY(${(1-ti)*18}px)`;
+
+  const si=easeOut(fade(t,0.7,0.6));
+  const sub=document.getElementById('sub');
+  sub.style.opacity=si.toFixed(3); sub.style.transform=`translateY(${(1-si)*10}px)`;
+
+  const fo=easeOut(fade(t,1.1,0.6));
+  const foot=document.getElementById('foot');
+  foot.style.opacity=fo.toFixed(3);
+};
+window.__render(1.6);
+</script>
+</body>
+</html>

@@ -65,6 +65,15 @@ FORMATS = {
         "poster": "delegation-poster.png",
         "poster_at": 6.0,
     },
+    "social": {
+        "scene": HERE / "scene-social.html",
+        "size": (1280, 640),
+        "video": None,
+        "gif": None,
+        "gif_width": None,
+        "poster": "social-card.png",
+        "poster_at": 1.6,
+    },
 }
 
 DURATION = 8.0
