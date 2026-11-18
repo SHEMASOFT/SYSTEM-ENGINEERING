@@ -8,6 +8,10 @@ preview. Everything here is **generated**, never edited by hand.
 | `hero.gif` | ~2.2 MB, 1000 px, 18 fps | The animated hero at the top of `README.md` (GitHub autoplays GIFs; it does not embed MP4) |
 | `hero.mp4` | ~0.38 MB, 1440×810, 8 s | The "same clip as MP4" link, release attachments and social posts |
 | `hero-poster.png` | ~0.22 MB, 1440×810 | Repository social preview and static fallbacks |
+| `lifecycle.gif` | ~1.4 MB, 900 px, 18 fps | "Nine states, every transition gated" — used in the lifecycle section of the README |
+| `lifecycle.mp4` / `lifecycle-poster.png` | ~0.34 MB / 0.19 MB, 1440×810 | The same view as a clip and as a still |
+| `delegation.gif` | ~1.4 MB, 900 px, 18 fps | "One coordinator, many fresh contexts" — used in the "Why SE" section |
+| `delegation.mp4` / `delegation-poster.png` | ~0.29 MB / 0.20 MB, 1440×810 | The same view as a clip and as a still |
 | `hero-vertical.mp4` | ~0.42 MB, 1080×1920, 8 s | Shorts, Reels and TikTok — same story, vertical cut |
 | `hero-vertical-poster.png` | ~0.25 MB, 1080×1920 | Cover image for the vertical platforms |
 | `social-60s.mp4` | ~1.95 MB, 1080×1920, 60 s | The full social clip: problem → coordinator → gates → memory → ODD/SDD/RDD → real `se doctor` → call to action |
@@ -16,9 +20,11 @@ preview. Everything here is **generated**, never edited by hand.
 ## Regenerate
 
 ```bash
-python DOCS/visuals/hero/render.py all                    # 16:9 for the README
-python DOCS/visuals/hero/render.py all --format vertical   # 9:16 for shorts
-python DOCS/visuals/social/render.py all                   # 60 s social clip
+python DOCS/visuals/hero/render.py all                     # hero: 16:9 for the README
+python DOCS/visuals/hero/render.py all --format vertical    # hero: 9:16 for shorts
+python DOCS/visuals/hero/render.py all --format lifecycle   # lifecycle view
+python DOCS/visuals/hero/render.py all --format delegation  # delegation view
+python DOCS/visuals/social/render.py all                    # 60 s social clip
 ```
 
 The pipeline is deterministic: each `scene.html` is a scene parameterised by

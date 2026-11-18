@@ -121,6 +121,14 @@ receipts instead of claims.
 
 In short: SE makes AI work **cheaper (tokens), clearer and auditable**.
 
+<div align="center">
+
+[![Delegation: one coordinator, many fresh contexts](DOCS/assets/delegation.gif)](DOCS/assets/delegation.mp4)
+
+<sub>The coordinator delegates to specialist subagents; each works in its own context and returns only its result.</sub>
+
+</div>
+
 ---
 
 ## How the pieces fit together
@@ -424,6 +432,14 @@ never auto-approves them.
 
 `PROJECTS/` is intentionally excluded from version control: each project keeps its
 own repository and history.
+
+<div align="center">
+
+[![Lifecycle: nine states, every transition gated](DOCS/assets/lifecycle.gif)](DOCS/assets/lifecycle.mp4)
+
+<sub>Every transition is gated (G0–G8): FAIL and WARN block, MANUAL needs a written attestation.</sub>
+
+</div>
 
 ---
 

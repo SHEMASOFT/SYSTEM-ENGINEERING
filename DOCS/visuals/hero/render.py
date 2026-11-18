@@ -47,6 +47,24 @@ FORMATS = {
         "poster": "hero-vertical-poster.png",
         "poster_at": 5.6,
     },
+    "lifecycle": {
+        "scene": HERE / "scene-lifecycle.html",
+        "size": (1440, 810),
+        "video": "lifecycle.mp4",
+        "gif": "lifecycle.gif",
+        "gif_width": 900,
+        "poster": "lifecycle-poster.png",
+        "poster_at": 6.4,
+    },
+    "delegation": {
+        "scene": HERE / "scene-delegation.html",
+        "size": (1440, 810),
+        "video": "delegation.mp4",
+        "gif": "delegation.gif",
+        "gif_width": 900,
+        "poster": "delegation-poster.png",
+        "poster_at": 6.0,
+    },
 }
 
 DURATION = 8.0

@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SYSTEM ENGINEERING — delegation</title>
+<style>
+  :root{
+    --bg:#05070E; --ink:#E9F2FF; --muted:#8FA6C4;
+    --cyan:#00E5FF; --magenta:#FF2BD6; --blue:#3B82F6;
+    --card:rgba(11,18,34,.92); --line:rgba(120,160,210,.19);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1440px;height:810px;overflow:hidden;background:var(--bg)}
+  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink)}
+  #stage{position:relative;width:1440px;height:810px;overflow:hidden}
+
+  .glow{position:absolute;border-radius:50%;filter:blur(100px);opacity:0}
+  .glow.a{width:760px;height:760px;left:-220px;top:-320px;background:radial-gradient(circle,rgba(0,229,255,.30),transparent 64%)}
+  .glow.b{width:900px;height:900px;right:-320px;bottom:-440px;background:radial-gradient(circle,rgba(255,43,214,.26),transparent 64%)}
+  .grid{position:absolute;inset:0;opacity:0;
+    background-image:linear-gradient(to right,rgba(120,170,230,.05) 1px,transparent 1px),
+                     linear-gradient(to bottom,rgba(120,170,230,.05) 1px,transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse at 50% 40%,#000 36%,transparent 80%)}
+
+  header{position:absolute;left:72px;top:48px;right:72px}
+  .kicker{font-size:13px;letter-spacing:5px;font-weight:700;color:var(--cyan);opacity:0;text-transform:uppercase}
+  h1{margin-top:12px;font-size:44px;line-height:1.06;font-weight:800;letter-spacing:-1.2px;opacity:0;
+    background:linear-gradient(93deg,#FFFFFF 6%,#D6ECFF 44%,#F5C9EF 92%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin-top:10px;font-size:18px;color:var(--muted);opacity:0}
+
+  .card{position:absolute;border-radius:16px;background:var(--card);border:1px solid var(--line);
+    box-shadow:0 22px 48px -26px rgba(0,0,0,.95);opacity:0;transform:translateY(14px);
+    padding:18px 20px;display:flex;flex-direction:column;justify-content:space-between}
+  .card::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:5px;border-radius:5px;background:var(--accent)}
+  .card .t{font-size:28px;font-weight:700;letter-spacing:-.5px;line-height:1.1}
+  .card .s{font-size:16px;font-weight:600;color:var(--accent)}
+  .coord{left:84px;top:330px;width:268px;height:150px;--accent:#00E5FF}
+  .coord .t{font-size:30px}
+  .agent{width:300px;height:124px}
+  .agent .t{font-size:26px}
+  .agent .s{font-size:15px;color:var(--muted);font-weight:500}
+
+  .tag{position:absolute;font-size:13px;letter-spacing:1.6px;text-transform:uppercase;font-weight:700;color:var(--muted);opacity:0}
+
+  svg{position:absolute;inset:0;overflow:visible}
+  .flow{fill:none;stroke:url(#g1);stroke-width:2.6;stroke-linecap:round}
+  .back{fill:none;stroke:rgba(255,43,214,.55);stroke-width:2;stroke-dasharray:6 7}
+
+  footer{position:absolute;left:72px;right:72px;bottom:36px;display:flex;justify-content:space-between;
+    font-size:15px;color:var(--muted);opacity:0}
+  footer b{color:#CFE9FF;font-weight:600}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow a" id="glowA"></div>
+  <div class="glow b" id="glowB"></div>
+  <div class="grid" id="grid"></div>
+
+  <header>
+    <div class="kicker" id="kicker">Delegation · token economy</div>
+    <h1 id="title">One coordinator, many fresh contexts</h1>
+    <div class="sub" id="sub">Each subagent reads what it needs, works in its own context, and returns only its result.</div>
+  </header>
+
+  <svg width="1440" height="810" viewBox="0 0 1440 810">
+    <defs>
+      <linearGradient id="g1" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#00E5FF"/><stop offset="100%" stop-color="#FF2BD6"/>
+      </linearGradient>
+    </defs>
+    <g id="edges"></g>
+  </svg>
+
+  <div class="tag" id="tagFwd" style="left:400px;top:300px">delegate</div>
+  <div class="tag" id="tagBack" style="left:430px;top:610px">result only</div>
+
+  <div id="cards"></div>
+
+  <footer id="footer">
+    <div>4 subagents · 4 contexts · <b>one result back</b></div>
+    <div>github.com/<b>SHEMASOFT/SYSTEM-ENGINEERING</b></div>
+  </footer>
+</div>
+
+<script>
+const T = 8.0;
+const CX = 84, CY = 330, CW = 268, CH = 150;
+const AX = 760, AW = 300, AH = 124;
+const ROWS = [212, 350, 488, 626];
+
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const easeOut=t=>1-Math.pow(1-clamp(t),3);
+const easeInOut=t=>{t=clamp(t);return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};
+const fade=(t,start,dur)=>clamp((t-start)/dur);
+
+const AGENTS = [
+  {id:'planner',     t:'Planner',     s:'requirements, plan',        at:2.00},
+  {id:'implementer', t:'Implementer', s:'the change itself',         at:2.25},
+  {id:'tester',      t:'Tester',      s:'evidence it works',         at:2.50},
+  {id:'reviewer',    t:'Reviewer',    s:'verdict on the candidate',  at:2.75},
+];
+
+const cardsEl=document.getElementById('cards');
+const coord=document.createElement('div');
+coord.className='card coord';
+coord.innerHTML='<div class="t">Coordinator</div><div class="s">decides the route</div>';
+cardsEl.appendChild(coord);
+
+AGENTS.forEach((a,i)=>{
+  const el=document.createElement('div');
+  el.className='card agent';
+  el.style.left=AX+'px'; el.style.top=ROWS[i]+'px';
+  el.style.width=AW+'px'; el.style.height=AH+'px';
+  el.style.setProperty('--accent', i%2 ? '#3B82F6' : '#22D3EE');
+  el.innerHTML=`<div class="t">${a.t}</div><div class="s">${a.s}</div>`;
+  cardsEl.appendChild(el);
+  a.el=el;
+});
+
+const edgesEl=document.getElementById('edges');
+const paths=[];
+const startX = CX+CW, startY = CY+CH/2;
+
+AGENTS.forEach((a,i)=>{
+  const y = ROWS[i]+AH/2;
+  const x2 = AX;
+  const c = (x2-startX)*0.5;
+  const d=`M${startX} ${startY} C${startX+c} ${startY} ${x2-c} ${y} ${x2} ${y}`;
+  const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+  p.setAttribute('class','flow'); p.setAttribute('d',d);
+  edgesEl.appendChild(p);
+  paths.push({el:p, len:p.getTotalLength(), start:1.6+i*0.25});
+
+  const back=document.createElementNS('http://www.w3.org/2000/svg','path');
+  back.setAttribute('class','back');
+  back.setAttribute('d',`M${x2} ${y+22} C${x2-c} ${y+22} ${startX+c} ${startY+22} ${startX} ${startY+22}`);
+  edgesEl.appendChild(back);
+  paths.push({el:back, len:back.getTotalLength(), start:4.3+i*0.15, dashed:true});
+});
+
+window.__render=function(t){
+  t=((t%T)+T)%T;
+
+  const bg=easeOut(fade(t,0,0.7));
+  document.getElementById('glowA').style.opacity=(0.95*bg).toFixed(3);
+  document.getElementById('glowB').style.opacity=(0.95*bg).toFixed(3);
+  document.getElementById('grid').style.opacity=(0.9*bg).toFixed(3);
+
+  const k=easeOut(fade(t,0.2,0.5));
+  const ki=document.getElementById('kicker');
+  ki.style.opacity=k.toFixed(3); ki.style.transform=`translateY(${(1-k)*10}px)`;
+
+  const ti=easeOut(fade(t,0.35,0.7));
+  const title=document.getElementById('title');
+  title.style.opacity=ti.toFixed(3); title.style.transform=`translateY(${(1-ti)*20}px)`;
+
+  const si=easeOut(fade(t,0.7,0.6));
+  const sub=document.getElementById('sub');
+  sub.style.opacity=si.toFixed(3); sub.style.transform=`translateY(${(1-si)*10}px)`;
+
+  const cp=easeOut(fade(t,1.05,0.5));
+  coord.style.opacity=cp.toFixed(3);
+  coord.style.transform=`translateY(${(1-cp)*14}px)`;
+
+  AGENTS.forEach(a=>{
+    const p=easeOut(fade(t,a.at,0.45));
+    a.el.style.opacity=p.toFixed(3);
+    a.el.style.transform=`translateY(${(1-p)*14}px)`;
+  });
+
+  paths.forEach(ep=>{
+    const p=easeInOut(fade(t,ep.start,ep.dashed?0.5:0.55));
+    if (ep.dashed){ ep.el.style.opacity=(0.75*p).toFixed(3); return; }
+    ep.el.style.strokeDasharray=`${ep.len} ${ep.len}`;
+    ep.el.style.strokeDashoffset=(ep.len*(1-p)).toFixed(1);
+    ep.el.style.opacity=(0.95*p).toFixed(3);
+  });
+
+  const tf=easeOut(fade(t,1.9,0.5)), tb=easeOut(fade(t,4.5,0.5));
+  document.getElementById('tagFwd').style.opacity=(0.8*tf).toFixed(3);
+  document.getElementById('tagBack').style.opacity=(0.8*tb).toFixed(3);
+
+  const fo=easeOut(fade(t,5.2,0.5));
+  const footer=document.getElementById('footer');
+  footer.style.opacity=fo.toFixed(3);
+  footer.style.transform=`translateY(${(1-fo)*10}px)`;
+
+  document.getElementById('stage').style.opacity=(1-clamp((t-7.4)/0.55)).toFixed(3);
+};
+window.__render(0);
+</script>
+</body>
+</html>
