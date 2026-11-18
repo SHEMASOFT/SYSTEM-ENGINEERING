@@ -172,7 +172,7 @@ bash SE-INSTALLER/install.sh install --recommended
   which `se doctor` audits cleanly. A differently-named venv *inside* the repository
   makes `se doctor` report `FAIL` on `secrets` and a `WARN` on `root_hygiene`.
 - A browser UI over the same installer is documented in
-  [`installation.md` §9](DOCS/reference/installation.md#9-instalador-web-interactivo-nuevo).
+  [`installation.md` §2](DOCS/reference/installation.md#2-browser-ui-optional).
 
 Full path, components and uninstall: [`DOCS/reference/installation.md`](DOCS/reference/installation.md).
 

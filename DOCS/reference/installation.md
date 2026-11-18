@@ -1,144 +1,181 @@
 # Installation — SYSTEM ENGINEERING
 
-SYSTEM ENGINEERING (SE) is **portable and self-contained**. It does not require
-`repo externo`, a specific runtime, a specific harness, or a specific model. This guide
-describes how to obtain SE on a clean machine and get it running, and how to add
-optional capabilities.
+SYSTEM ENGINEERING (SE) is **portable and self-contained**: it needs no `gentle-ai`,
+no specific runtime, harness or model. This guide goes from a clean machine to a
+working checkout, easiest path first.
 
 The reference implementation is a Python CLI: `python3 SCRIPTS/se.py <command>`.
-On Windows the interpreter is `python`, so throughout this guide read `python3` as
-`python` and use backslash paths (`python SCRIPTS\se.py <command>`).
+On Windows the interpreter is `python`, so read `python3` as `python` and use
+backslash paths (`python SCRIPTS\se.py <command>`).
 
----
+## Pick a path
 
-## 1. Runtime base
-
-| Dependency | Required | Purpose |
+| Path | Best for | Start with |
 |---|---|---|
-| `python3` | **yes** | Runs the reference CLI (`SCRIPTS/se.py`) and the SE Python MCP servers |
-| `node` | **yes for MCP** | Runs the portable Python MCP launcher |
-| `npx` | **yes for MCP** | Runs the package-based MCP servers (`context7`, `filesystem`) |
-| `jsonschema` | **yes** | Schema validation; `se doctor` reports FAIL without it |
-| `PyYAML` | optional | Skill frontmatter parsing (falls back to a line parser if absent) |
-| `requests` | optional | `local` LLM provider (Ollama / vLLM / OpenAI-compatible) |
-| `openai`, `anthropic` | optional | `openai` / `anthropic` LLM providers |
+| **One command** (recommended) | A fresh machine; you want the console, the MCP servers and the adapters configured | `bootstrap.ps1 install --recommended` |
+| **Browser UI** | You prefer clicking through components, runtimes and options | `install-web.ps1` |
+| **Minimal** | You only want the CLI, or you are auditing the code | `git clone` + `pip install jsonschema` |
 
-The Windows one-command bootstrap installs Python 3.12 when no 3.10+ interpreter
-is found: it tries winget, Chocolatey and Scoop, then the official signed
-python.org installer for the current user (no administrator required).
-`--dry-run` never installs prerequisites. On Linux/macOS install `python3` (and
-`python3-venv` on Debian/Ubuntu) first.
-
-Validate the runtime at any time:
-
-```bash
-python3 SCRIPTS/se.py doctor
-```
+All three end with the same validation: `se doctor` and `se validate` both pass.
 
 ---
 
-## 2. Obtain SE
+## 1. One command (recommended)
 
-```bash
-git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git SYSTEM-ENGINEERING
-cd SYSTEM-ENGINEERING
-```
+The installer creates an isolated virtual environment at `SE-INSTALLER/.venv`,
+installs SE Core and the console into it, generates the runtime adapters and
+registers the selected MCP servers.
 
-`PROJECTS/` is intentionally excluded from version control: each project keeps its
-own history (often its own repository). The clone carries the **system**, not the
-projects. The vendored **SE-CONSOLE** web console is included at `SE-CONSOLE/`.
-
----
-
-## 3. Bootstrap
-
-There are two paths, depending on how much you want installed.
-
-**Minimal (no installer).** Bootstrap is composed from the validated commands:
-
-```bash
-python3 SCRIPTS/se.py doctor      # structure, contracts, dependencies, git
-```
-
-**Unified installer (recommended).** The `se-installer` package installs SE Core +
-Console + the selected MCP servers + runtime adapters in one step, into an isolated
-virtual environment. The one-command entry points create that venv, forward every
-argument to the CLI, and after a successful `install` also register the SE MCP
-servers in `opencode.jsonc`:
-
-```bash
+```powershell
 # Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -File SE-INSTALLER\bootstrap.ps1 install --recommended
+```
+
+```bash
 # Linux / macOS
 bash SE-INSTALLER/install.sh install --recommended
 ```
 
-Add `--dry-run` to plan without installing. The interactive selector is launched
-with `tui` (Windows `bootstrap.ps1 tui`; Linux/macOS `install.sh tui`). After a
-successful install it registers the selected MCPs that have a template; pass
-`--skip-mcp-registration` to opt out. From an already-cloned checkout you can
-also chain it through the CLI with `se install --bootstrap` (see §7).
+- `--dry-run` plans without installing anything.
+- `tui` opens the interactive selector: `Space` select, `A` recommended set,
+  `Enter` install, `D` dry-run, `R` refresh, `Q` quit.
+- `--skip-mcp-registration` opts out of writing the MCP servers into the config.
+- If the installer had to install Node or OpenCode, open a **new terminal** so the
+  updated `PATH` is loaded, then run `opencode auth login` once.
 
-The Windows bootstrap installs Node/OpenCode through a package manager when they
-are missing and refreshes the process `PATH` before running `se install`. If no
-winget/Chocolatey/Scoop is available, Node falls back to the official LTS ZIP from
-nodejs.org (SHA256 verified, installed under `%LOCALAPPDATA%\Programs\node`) and
-OpenCode to its standalone binary. If a tool was installed but is still not found,
-open a new terminal and rerun. `se install` registers only servers whose dependencies
-are present (`node` + `npx` for `context7`/`filesystem`; `node` + Python for the SE
-servers); a skipped server is reported, not marked installed.
+On Windows the bootstrap installs Python 3.12 when no 3.10+ interpreter exists: it
+tries winget, Chocolatey and Scoop, then the official signed python.org installer
+for the current user (no administrator needed). Missing Node comes from the
+official LTS ZIP (SHA256 verified) and OpenCode from its standalone binary when no
+package manager is available. On Linux/macOS install `python3` (and
+`python3-venv` on Debian/Ubuntu) first.
 
-> **Where to put a virtualenv.** The one-command entry points keep their venv at
-> `SE-INSTALLER/.venv`, which `se doctor` audits cleanly. If you create your own venv,
-> keep it **outside** the repository or name it `.venv` at the repository root. Any
-> other venv directory *inside* the repo is an unregistered root directory, and one
-> whose name is not `.venv` also trips the `secrets` scan (the bundled
-> `certifi/cacert.pem`), so `se doctor` reports `FAIL`.
+> **Where a virtualenv may live.** The entry points keep theirs at
+> `SE-INSTALLER/.venv`, which `se doctor` audits cleanly. If you create your own,
+> keep it **outside** the repository or name it `.venv` at the root: any other
+> venv directory inside the repo is an unregistered root directory, and one not
+> named `.venv` also trips the `secrets` scan (the bundled `certifi/cacert.pem`),
+> so `se doctor` reports `FAIL`.
+
+`se install --bootstrap` does the same from an already-cloned checkout: it runs
+the installer first and then the MCP registration (see [§7](#7-register-mcps-optional)).
+
+---
+
+## 2. Browser UI (optional)
+
+A local web interface over the same installer: components, runtimes, options and a
+live log, all in the browser.
+
+```powershell
+# Windows — detects a free port (8765, 8766, …) and opens the browser
+.\SE-INSTALLER\install-web.ps1
+```
+
+```bash
+# Linux / macOS
+bash SE-INSTALLER/install-web.sh
+```
+
+Direct alternatives: `pip install -e SE-INSTALLER` then `se-installer-web --port 8765`,
+or without installing the package
+`python -m uvicorn se_installer_web.main:app --host 127.0.0.1 --port 8765 --reload`.
+
+The script picks a free port, opens **http://127.0.0.1:8765** (or the next free one)
+and releases the port on `Ctrl+C`.
+
+| Tab | What it does |
+|---|---|
+| **Install** | 22 components with checkboxes, runtime selection (OpenCode, Codex, Claude Code), dry-run / force / skip-verification / shortcut options, progress bar |
+| **Uninstall** | `--all`, `--include-untracked-se-mcps`, `--remove-opencode-dir`, `--purge-adapter`, `--keep-opencode-jsonc`, `--force`, `--apply`; plan first, then apply |
+| **Adapter** | Generate or remove the generated `.opencode/` layer |
+| **Log** | Real-time stream over WebSocket |
+
+REST surface for integrations: `/api/components`, `/api/status`, `/api/install`,
+`/api/uninstall`, `/api/adapter/generate`, `/api/adapter/remove`, plus a WebSocket at
+`/ws` for the live log.
+
+Requirements: Python 3.10+ and the package (`pip install -e SE-INSTALLER`). The
+frontend is vanilla HTML/JS/CSS at `SCRIPTS/se_installer_web/static/index.html` —
+no build step. Development mode: `se-installer-web --dev --reload`.
+
+Everything the UI does has a CLI equivalent:
+
+```bash
+se-installer-web --all --dry-run              # same as: python SCRIPTS/se.py uninstall --all --dry-run
+se-installer-web --all --apply                # same as: python SCRIPTS/se.py uninstall --all --apply
+```
+
+---
+
+## 3. Minimal (no installer)
+
+```bash
+git clone https://github.com/SHEMASOFT/SYSTEM-ENGINEERING.git SYSTEM-ENGINEERING
+cd SYSTEM-ENGINEERING
+pip install jsonschema
+```
+
+That is the whole minimal path: no Node, no runtime, no MCP server, no venv.
+
+| Dependency | Required | Purpose |
+|---|---|---|
+| `python3` | **yes** | The reference CLI (`SCRIPTS/se.py`) and the SE Python MCP servers |
+| `node` | **yes for MCP** | The portable Python MCP launcher |
+| `npx` | **yes for MCP** | Package-based MCP servers (`context7`, `filesystem`) |
+| `jsonschema` | **yes** | Schema validation; `se doctor` fails without it |
+| `PyYAML` | optional | Skill frontmatter parsing (falls back to a line parser) |
+| `requests` | optional | `local` LLM provider (Ollama / vLLM / OpenAI-compatible) |
+| `openai`, `anthropic` | optional | The `openai` / `anthropic` providers |
+
+`PROJECTS/` is intentionally excluded from version control: each project keeps its
+own history. The clone carries the **system**, not the projects. The console is
+vendored at `SE-CONSOLE/`.
 
 ---
 
 ## 4. Validate
 
 ```bash
-python3 SCRIPTS/se.py doctor      # canonical health checks
+python3 SCRIPTS/se.py doctor      # structure, contracts, dependencies, git, secrets
 python3 SCRIPTS/se.py validate    # schemas, agents, domains
 ```
 
-Both must pass before working with projects.
+Both must pass before working with projects. `FAIL=0` is the part that matters;
+`WARN` entries are informational. Both exit non-zero on `FAIL`, so they are safe to
+wire into CI.
 
 ---
 
-## 5. Adapt agents to a runtime
+## 5. Adapt a runtime
 
 SE generates the agent layer from its own contracts:
 
 ```bash
-python3 SCRIPTS/se.py adapter opencode
+python3 SCRIPTS/se.py adapter opencode      # .opencode/
+python3 SCRIPTS/se.py adapter claude-code   # .claude/ + .mcp.json + CLAUDE.md
+python3 SCRIPTS/se.py adapter codex         # .codex/ + AGENTS.md
+python3 SCRIPTS/se.py adapter all           # every runtime at one output root
 ```
 
-This deploys `agents/`, `commands/`, `skills/` and `mcp/` under `.opencode/`
-(generated from `AGENTS/`, `COMMANDS/`, `SKILLS/` and `TEMPLATES/mcp/`), following
-OpenCode V2's discovery paths. The output is **generated only** — never edit
-`.opencode/` by hand; regenerate instead.
+The output is **generated only**: never edit `.opencode/`, regenerate instead.
 
-- `shema-ai-coordinador` is generated as the **primary** agent, so it appears in the
-  runtime's agent selector; the other 11 roles are generated as **subagents** the
-  primary agent can launch. This keeps sessions token-efficient: each subagent runs in
-  its own fresh context and only its result returns to the parent.
-- Commands render into `.opencode/commands/*.md`; skills render into `.opencode/skills/`.
+- `shema-ai-coordinador` is generated as the **primary** agent and appears in the
+  runtime's selector; the other 11 roles are **subagents** it can launch. Each
+  subagent runs in its own fresh context and only its result returns, which is the
+  token economy of the system.
+- Commands render into `.opencode/commands/*.md`, skills into `.opencode/skills/`.
+- To make new sessions start as the coordinator, set
+  `"default_agent": "shema-ai-coordinador"` in `opencode.jsonc` (the master
+  repository already does).
 
-To start new sessions as the orchestrator, add
-`"default_agent": "shema-ai-coordinador"` to `opencode.jsonc`.
-
-> All three adapters ship today: `se adapter opencode`, `se adapter claude-code` and
-> `se adapter codex` (or `se adapter all` for every runtime at one output root).
-> Runtime-specific behavior belongs in `INTEGRATIONS/`, never in `CORE/` or `SCHEMAS/`.
+Runtime-specific behaviour belongs in `INTEGRATIONS/`, never in `CORE/` or `SCHEMAS/`.
 
 ---
 
 ## 6. Configure models per agent
 
-Each agent declares its model in its contract, `AGENTS/<name>/agent.json`:
+Each agent declares its model in `AGENTS/<name>/agent.json`:
 
 ```json
 "llm_config": {
@@ -150,130 +187,75 @@ Each agent declares its model in its contract, `AGENTS/<name>/agent.json`:
 }
 ```
 
-Providers available: `openai`, `anthropic`, `openrouter`, `ollama`, `local`
-(Ollama / vLLM / OpenAI-compatible), `dummy` (no key, deterministic — for tests).
-API keys are read from environment variables named in
-`provider_options.api_key_env`.
+Providers: `openai`, `anthropic`, `openrouter`, `ollama`, `local`
+(Ollama / vLLM / OpenAI-compatible) and `dummy` (no key, deterministic, for tests).
+Keys are read from the environment variable named in `provider_options.api_key_env`.
 
-`se adapter opencode` renders `model: <provider>/<model>` (and `temperature`, when
-declared) into `.opencode/agents/<role>.md`; `se adapter codex` writes the model to
-`.codex/agents/<role>.toml`. If `model` already contains a `/`, it is used verbatim;
-otherwise the `provider` is prepended. The aliases `free` → `openrouter` and
-`local` → `ollama` are provided for convenience. For another provider, use its
-OpenCode provider ID.
+`se adapter opencode` renders `model: <provider>/<model>` into
+`.opencode/agents/<role>.md`; `se adapter codex` writes it to
+`.codex/agents/<role>.toml`. A model that already contains `/` is used verbatim,
+otherwise the provider is prepended. Aliases: `free` → `openrouter`, `local` → `ollama`.
 
-> A dedicated CLI command to set this is not implemented yet; edit the contract and
-> re-run the adapter.
+> There is no CLI command to set this yet: edit the contract and re-run the adapter.
 
-### OpenCode provider auth
-
-SE generates the agent files but does not store provider credentials. Authenticate
-the runtime once before starting a session:
+SE never stores provider credentials. Authenticate the runtime once:
 
 ```bash
 opencode auth login
 opencode auth list      # verify the configured provider
 ```
 
-Without a provider, OpenCode starts but agent model calls fail. Environment
-variables named by the agent contract (for example `OPENAI_API_KEY`) are the
-alternative to the interactive login.
+Without a provider, OpenCode starts but agent calls fail. The environment variables
+named by the contract (for example `OPENAI_API_KEY`) are the alternative to login.
 
 ---
 
-## 7. Register MCPs with `se install` (optional)
+## 7. Register MCPs (optional)
 
-MCP integrations are **optional**; none is required by SE. `se install` takes you from a
-cloned checkout to a runtime-configured OpenCode environment: it detects the OS, preflights
+MCP integrations are **optional**; none is required by SE. `se install` takes a
+cloned checkout to a configured OpenCode environment: it detects the OS, preflights
 the external tools (never installing them for you), writes the servers declared in
-`TEMPLATES/mcp/*.json.tmpl` straight into the runtime config (surgical, portable edits — the
-`opencode` CLI is not needed for registration), and reports what was registered, skipped or
-still missing.
+`TEMPLATES/mcp/*.json.tmpl` into the runtime config with surgical, portable edits,
+and reports what was registered, skipped or still missing.
 
-Before registration, every selected `npx` server is started and asked for an MCP
-`initialize` response. This catches a broken Node install, a bad shim or a package that
-cannot start; a server that does not answer is reported and **skipped** instead of being
-written into the config. The check may download the package into the `npx` cache on first
-use. Pass `--no-verify-servers` to skip the handshake (for example, offline).
+Before writing, every selected `npx` server is started and asked for an MCP
+`initialize` response, which catches a broken Node install, a bad shim or a package
+that cannot start. A server that does not answer is reported and **skipped**. Pass
+`--no-verify-servers` to skip the handshake (offline, or faster).
 
-For a full bootstrap — SE Core + Console + MCPs + runtimes installed, then the MCP servers
-registered — pass `--bootstrap`: it runs the unified installer (`se-installer`) first and
-then continues with the registration below. The one-command entry points are
-[`SE-INSTALLER/bootstrap.ps1`](../../SE-INSTALLER/bootstrap.ps1) (Windows) and
-[`SE-INSTALLER/install.sh`](../../SE-INSTALLER/install.sh) (Linux/macOS), which create an
-isolated venv, install `se-installer` into it, and forward the arguments to the CLI.
-After a successful `install` they also run this registration automatically. The
-TUI does the same for the selected MCPs. Custom `-c/--components` selections on
-`install` and `--skip-mcp-registration` skip it.
-
-The reproducible clean-Windows check (Windows Sandbox or disposable VM) is documented in
-[clean-machine-smoke.md](clean-machine-smoke.md).
+| MCP | Purpose | Third party |
+|---|---|---|
+| `context7` | Up-to-date library documentation | yes |
+| `filesystem` | Read/write files under a root (reference server) | yes |
+| `skill-server` | SE's stdio skill server (SDD/ODD/RDD + skill catalog tools) | SE-owned |
+| `memory-server` | SE's shared memory engine over MCP | SE-owned |
 
 ```bash
 python3 SCRIPTS/se.py install --dry-run     # plan only: writes nothing
 python3 SCRIPTS/se.py install               # register every server in the project config
-python3 SCRIPTS/se.py install --bootstrap   # run se-installer, then register
+python3 SCRIPTS/se.py install --bootstrap   # run se-installer first, then register
 ```
-
-| MCP | What it is for | Third party |
-|---|---|---|
-| `context7` | Up-to-date library documentation | yes |
-| `filesystem` | Read/write files under a root (MCP reference server) | yes |
-| `skill-server` | SE's own stdio skill server (SDD/ODD/RDD + skill catalog tools) | SE-owned |
-| `memory-server` | SE's shared memory engine over MCP | SE-owned |
-
-### skill_catalog_install
-
-`skill_catalog_install` installs a skill from a controlled local source into `SKILLS/` and registers it in `CATALOG/skills.json`.
-
-- Arguments: `name` (skill name), `source_path` (local source directory), `confirm` (must be `true`).
-- Allowed roots for `source_path`: the repo root or `<tmp>/se-skill-sources`. Traversal, symlinks and Windows reparse points are rejected.
-- Validations: skill name (`^[a-z][a-z0-9-]*$`), `SKILL.json` contract, name match between the requested name and the SKILL.json name, and the static security scan (high risk blocks).
-- Collision checks (skill_id/name) run before any filesystem change.
-- Activation is atomic (`os.rename` from a staging dir under `SKILLS/`); rollback removes only what this install created (target dir and catalog entry, gated by the `activated` flag).
-
-Known limitations: no catalog lock for concurrent installs; no dependency resolution; no update mechanism; only `SKILL.md` and `SKILL.json` are copied; Windows reparse-point detection may not be exhaustive.
-
-### Flags
 
 | Flag | Effect |
 |---|---|
 | `--project <dir>` | Target project directory (default: current directory) |
 | `--global` | Register into the user config instead of the project config |
-| `--all` | Register every server (default; mutually exclusive with `--with`) |
-| `--with a,b,c` | Register only the listed servers |
-| `--no-register` | Preflight and plan only; perform no registration |
-| `--no-verify-servers` | Skip the MCP `initialize` handshake before registering (offline/faster; a broken server may be written) |
+| `--all` / `--with a,b,c` | Every server (default) / only the listed ones |
+| `--no-register` | Preflight and plan only |
+| `--no-verify-servers` | Skip the MCP `initialize` handshake |
 | `--generate-adapter` | Also generate the OpenCode adapter for the target project |
-| `--env-target {auto,windows,wsl,linux,macos}` | Runtime environment to target when resolving paths (default: `auto`; `wsl` translates Windows paths to `/mnt/<drive>`) |
-| `--bootstrap` | Run the unified `se-installer` (SE Core + Console + MCPs + runtimes, and runtime configs) first, then register |
-| `--bootstrap-components a,b` | Installer component ids for `--bootstrap` (default: recommended) |
-| `--bootstrap-runtimes a,b` | Runtimes `--bootstrap` should configure (default: `opencode`) |
-| `--dry-run` | Plan only; write nothing |
-| `--json` | Emit a machine-readable `se.report/1` envelope |
+| `--env-target {auto,windows,wsl,linux,macos}` | Path target (`wsl` translates Windows paths to `/mnt/<drive>`) |
+| `--bootstrap` / `--bootstrap-components` / `--bootstrap-runtimes` | Run the unified installer first |
+| `--dry-run` / `--json` | Plan only / machine-readable `se.report/1` envelope |
 
-Examples:
-
-```bash
-python3 SCRIPTS/se.py install --with context7,filesystem      # only these two
-python3 SCRIPTS/se.py install --global                       # user config, not the project
-python3 SCRIPTS/se.py install --no-register --project PROJECTS/MyApp
-python3 SCRIPTS/se.py install --generate-adapter --project PROJECTS/MyApp
-```
-
-A server whose external binary is missing (for example `context7` before its CLI is
-available) is **skipped** with per-OS install guidance; a server that fails the
-`initialize` handshake is also skipped with the probe output. `se install` never installs
-third-party tools itself (the handshake only lets `npx` fetch its own package into its
-cache). The SE Python servers are launched through
-`SCRIPTS/se_core/mcp/launch.mjs`, a portable Node launcher that resolves `python3` or
-`python` at startup; `SE_PYTHON` can pin a specific interpreter. `se install` only
-registers a server when its dependencies are present and, unless disabled, its runtime
-probe passes.
+A server whose external binary is missing is skipped with per-OS guidance; one that
+fails the handshake is skipped with the probe output. The SE Python servers launch
+through `SCRIPTS/se_core/mcp/launch.mjs`, a portable Node launcher that resolves
+`python3` or `python` at startup (`SE_PYTHON` pins an interpreter).
 
 ### Configuration shape (OpenCode V2)
 
-Registered servers land under `mcp.servers.<name>` in `opencode.json(c)`. A local server is:
+Servers land under `mcp.servers.<name>`:
 
 ```json
 {
@@ -281,8 +263,7 @@ Registered servers land under `mcp.servers.<name>` in `opencode.json(c)`. A loca
     "servers": {
       "filesystem": {
         "type": "local",
-        "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem",
-                    "/path/to/project"],
+        "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/project"],
         "disabled": false
       }
     }
@@ -290,47 +271,52 @@ Registered servers land under `mcp.servers.<name>` in `opencode.json(c)`. A loca
 }
 ```
 
-Server names live under `mcp.servers` (never directly under `mcp`); there is no `enabled`
-field — a server is active unless `disabled` is `true`. Environment values support
-`{env:NAME}` substitution, which is how `se install` passes secrets such as
-`CONTEXT7_API_KEY` without embedding them literally.
+There is no `enabled` field: a server is active unless `disabled` is `true`.
+`{env:NAME}` substitution is how `se install` passes secrets such as
+`CONTEXT7_API_KEY` without embedding them.
 
-**Portability rule.** Configuration committed to a repository is host-independent:
-relative paths (`"."`, `SCRIPTS/...`) and `{env:NAME}` references, never absolute host
-paths. Host-specific resolution (absolute paths, interpreter names, credentials) belongs
-to the machine, not the repo; it lives in the runtime's global configuration or in
-environment variables. The Python MCP entries therefore invoke the Node launcher instead
-of naming a host-specific Python interpreter, so the tracked config keeps working on
-Windows, WSL and Linux alike. `se doctor`'s self-containment check fails any absolute host path
-that reaches an operational surface (`opencode.jsonc`, `SCRIPTS/`, `CORE/`, ...).
+**Portability rule.** Committed configuration is host-independent: relative paths
+and `{env:NAME}` references, never absolute host paths. Host-specific resolution
+belongs to the machine (global runtime config or environment variables). The Python
+MCP entries therefore invoke the Node launcher instead of naming an interpreter, so
+the tracked config works on Windows, WSL and Linux alike. `se doctor`'s
+self-containment check fails any absolute host path that reaches an operational
+surface (`opencode.jsonc`, `SCRIPTS/`, `CORE/`, …).
 
 ### Lifecycle
 
-`se install` is the first step of a single lifecycle that also includes
-`se sync`, `se update` and `se uninstall`. They share one ownership record at
-`<target>/.se/lifecycle-state.json` and the same safety rules (plan-first,
-byte-preserving edits, backups, rollback, foreign entries never touched). The full
-reference is [`lifecycle.md`](lifecycle.md).
+`se install` is the first step of one lifecycle with `se sync`, `se update` and
+`se uninstall`. They share the ownership record at `<target>/.se/lifecycle-state.json`
+and the same safety rules: plan first, byte-preserving edits, backups, rollback, and
+foreign entries never touched. Full reference: [`lifecycle.md`](lifecycle.md).
 
 ```bash
-python3 SCRIPTS/se.py sync --dry-run                 # reconcile declared vs registered vs actual
-python3 SCRIPTS/se.py update --dry-run               # apply declared changes (with rollback) — plan only
-python3 SCRIPTS/se.py uninstall                      # plan: remove only SE-owned servers (mutates nothing)
-python3 SCRIPTS/se.py uninstall --apply              # perform the removal, reversibly
+python3 SCRIPTS/se.py sync --dry-run        # reconcile declared vs registered vs actual
+python3 SCRIPTS/se.py update --dry-run      # apply declared changes (with rollback), plan only
+python3 SCRIPTS/se.py uninstall             # plan: removes nothing
+python3 SCRIPTS/se.py uninstall --apply     # perform, reversibly
 ```
 
-`se uninstall` is a **simulation by default**; only `--apply` performs, and even then
-it removes only the servers SE recorded in the lifecycle state, backing the config up
-and moving each removed server into an audit trail.
+`se uninstall` is a **simulation by default**: only `--apply` performs, and even then
+it removes only the servers SE recorded, backing the config up and moving each
+removed entry into an audit trail.
+
+### Skill install tool
+
+`skill_catalog_install` installs a skill from a controlled local source into
+`SKILLS/` and registers it in `CATALOG/skills.json`. It requires `name`,
+`source_path` (repo root or `<tmp>/se-skill-sources` only) and `confirm: true`;
+traversal, symlinks and Windows reparse points are rejected, the `SKILL.json`
+contract and the static security scan must pass, and activation is an atomic rename
+with rollback. Known limits: no catalog lock for concurrent installs, no dependency
+resolution, no update mechanism.
 
 ---
 
-## SE-CONSOLE (web console — ships with SE)
+## 8. SE Console (ships with SE)
 
-A **local-first, read-only web console** over SYSTEM-ENGINEERING. It answers what SE is,
-what state it's in, what it's made of, what its projects are, and what needs attention.
-
-### Run it
+A **local-first, read-only web console** over the system: what SE is, what state it
+is in, what it is made of, and what needs attention.
 
 ```bash
 cd SE-CONSOLE
@@ -339,131 +325,30 @@ python scripts/dev_console.py status
 python scripts/dev_console.py stop    # clean shutdown
 ```
 
-`python -m console.server` runs the same console directly, in the foreground, with no
-idle timeout and no helper.
+- **Requirements:** Python + `jsonschema` (already needed by `se doctor`). No Node, no build step.
+- **Read-only by design:** writes answered 405; no database, no cache, no manifest of its own.
+- **Epistemic labels:** every value is `OBSERVED` (verbatim from `se`), `DERIVED` (computed) or `UNKNOWN` — never defaulted to green.
+- **Overrides:** `SE_ROOT`, `SE_CONSOLE_PORT` (default 8777), `SE_CONSOLE_IDLE_TIMEOUT`.
+- **Docs:** [`SE-CONSOLE/docs/README.md`](../../SE-CONSOLE/docs/README.md).
 
-- **Requirements:** Python + `jsonschema` (already used by `se doctor`); no Node, no build step
-- **Read-only by design:** writes answered 405; no DB, no cache, no manifest of its own
-- **Epistemic labels:** every value tagged `OBSERVED` (verbatim from `se`), `DERIVED` (computed), or `UNKNOWN` (never defaulted to green)
-- **Env overrides:** `SE_ROOT` (defaults to repo root when vendored), `SE_CONSOLE_PORT` (default 8777), `SE_CONSOLE_IDLE_TIMEOUT` (launcher's idle-timeout default)
-- **Docs:** `SE-CONSOLE/docs/README.md` · this guide
-
-### Lifecycle with SE
-
-The console ships inside the SYSTEM-ENGINEERING repository at `SE-CONSOLE/`. After cloning,
-it's ready to run. No separate install step. `se doctor` and `se validate` cover its
-dependencies (Python + `jsonschema`).
-
-The helper is a local convenience for the operator, not a service: no Docker, no systemd,
-no NSSM, no boot entry, and it writes only under `SE-CONSOLE/.runtime/` (gitignored).
-
-`start` and `restart` arm an **idle timeout** of 15 minutes (`--idle-timeout SECONDS`;
-`0` disables it). Once a client has connected, the console stops itself after that long
-with nothing asking it for anything, so closing the browser is by itself enough to bring
-it down. `status` reports `idle_timeout=15 min`, `off`, or `unknown` (a console not started
-by the helper). The timer stays disarmed until the first client connects, so a console
-nobody opens never stops on its own.
-
-Installing SE with `se-installer install --shortcuts` (or the checkbox in
-`se-installer tui`) creates **one** desktop shortcut that starts the console. There is no
-Stop shortcut: the console stops itself (DESIGN-5C D3).
+`se-installer install --shortcuts` (or the TUI checkbox) creates **one** desktop
+shortcut that starts it. There is no stop shortcut: `start` arms a 15-minute idle
+timeout (`--idle-timeout SECONDS`, `0` disables it) and, once a client has connected,
+the console stops itself when nothing asks it for anything. The timer stays disarmed
+until the first client connects, so a console nobody opens never stops on its own.
+`status` reports `idle_timeout=15 min`, `off`, or `unknown` (not started by the
+helper). The helper is a local convenience: no Docker, no systemd, no boot entry, and
+it writes only under `SE-CONSOLE/.runtime/` (gitignored).
 
 ---
 
-## 9. Instalador Web Interactivo (nuevo)
+## 9. Memory (built-in)
 
-Una **interfaz visual completa** para instalar, desinstalar y gestionar componentes SE desde el navegador.
-
-### Arranque rápido
-
-```bash
-# Opción 1: Script unificado (recomendado - detecta puerto libre, abre navegador)
-# Windows (PowerShell)
-.\SE-INSTALLER\install-web.ps1
-# Linux / macOS
-bash SE-INSTALLER/install-web.sh
-
-# Opción 2: Comando directo (requiere instalación previa)
-pip install -e SE-INSTALLER
-se-installer-web --port 8765 --reload
-
-# Opción 3: Directo con uvicorn (sin instalar paquete)
-python -m uvicorn se_installer_web.main:app --host 127.0.0.1 --port 8765 --reload
-```
-
-El script detecta un puerto libre (8765, 8766, 8767...), abre el navegador automáticamente y limpia el puerto al salir (Ctrl+C).
-
-### Abre en tu navegador
-
-**http://127.0.0.1:8765** (o el puerto que se asigne)
-
-### Pestañas disponibles
-
-| Pestaña | Funcionalidad |
-|---|---|
-| **📦 Instalar** | Lista de 22 componentes con checkboxes. Selección de runtimes (OpenCode, Codex, Claude Code). Opciones: Dry-run, Force reinstall, Skip verification, Crear acceso directo. Botón "Instalar Seleccionados" con barra de progreso. |
-| **🗑️ Desinstalar** | Limpieza completa de artefactos SE en OpenCode. Checkboxes: `--all` (todo SE), `--include-untracked-se-mcps` (se-memory-server, se-skill-server), `--remove-opencode-dir` (capa generada), `--purge-adapter`, `--keep-opencode-jsonc`, `--force`, `--apply`. Botones "Ver Plan (Dry-Run)" y "Aplicar Desinstalación". |
-| **⚙️ Adaptador** | Generar/eliminar adaptador OpenCode (`.opencode/` con agentes, comandos, skills). |
-| **📋 Log** | Streaming en tiempo real vía WebSocket. Muestra progreso de instalación/desinstalación, errores, completado. |
-
-### API REST (para integraciones)
-
-| Endpoint | Descripción |
-|---|---|
-| `GET /api/components` | Lista componentes con estado |
-| `GET /api/status` | Resumen de instalación |
-| `POST /api/install` | Iniciar instalación (async + WebSocket progress) |
-| `POST /api/uninstall` | Desinstalar (stream output) |
-| `POST /api/adapter/generate` | Generar adaptador OpenCode |
-| `POST /api/adapter/remove` | Eliminar `.opencode/` |
-| `WS /ws` | WebSocket para logs en tiempo real |
-
-### Comandos CLI equivalentes
-
-```bash
-# Instalar componentes seleccionados
-se-installer-web --port 8765
-# En la UI: selecciona componentes → clic "Instalar Seleccionados"
-
-# Desinstalar todo (dry-run)
-se-installer-web --all --dry-run
-# O vía se.py:
-python SCRIPTS/se.py uninstall --all --dry-run
-
-# Desinstalar todo (aplicar)
-se-installer-web --all --apply
-# O vía se.py:
-python SCRIPTS/se.py uninstall --all --apply
-
-# Generar adaptador
-se-installer-web --port 8765
-# En la UI: pestaña Adaptador → "Generar Adaptador"
-```
-
-### Requisitos
-
-- Python 3.10+
-- `pip install -e SE-INSTALLER` (instala `se-installer-web` command)
-- O ejecuta directo: `python -m uvicorn se_installer_web.main:app --host 127.0.0.1 --port 8765 --reload`
-
-### Desarrollo
-
-```bash
-# Con auto-reload
-se-installer-web --dev --reload
-# O
-python -m uvicorn se_installer_web.main:app --reload
-```
-
-El frontend está en `SCRIPTS/se_installer_web/static/index.html` (vanilla JS/HTML/CSS, sin build step).
-
-### Memory (built-in)
-
-SE's persistent memory is **internal**: no third-party tool and no MCP server is
+SE's persistent memory is **internal**: no third-party tool and no MCP server
 required. Storage is JSON under `<root>/.se/memory/` with a derived, rebuildable
-SQLite/FTS5 index (`se memory index --rebuild`), and semantic search is an optional
-reranker over those results (`se memory index --embeddings <vec>` or
-`SE_MEMORY_EMBEDDINGS`) that never touches the network.
+SQLite/FTS5 index; semantic search is an optional reranker over those results
+(`se memory index --embeddings <vec>` or `SE_MEMORY_EMBEDDINGS`) that never touches
+the network.
 
 ```bash
 python3 SCRIPTS/se.py memory add --type decision --title "..." --body "..."
@@ -471,31 +356,24 @@ python3 SCRIPTS/se.py memory search "topic keywords"
 python3 SCRIPTS/se.py intelligence --memory "topic"   # read-only context injection
 ```
 
-The variables to set for the registered servers (`SE_ROOT`, `SE_PROJECT_ROOT`,
-`CONTEXT7_API_KEY`, ...) are listed under **Environment variables**
-below; `se install` prints the same list in its summary.
-
-> **Recommended wording for users:** *"For additional capabilities you may install these
-> third-party MCPs. None is a dependency of SE."*
+Memory is **advisory**: no gate passes or fails because of it.
 
 ---
 
-## 8. Optional: CodeGraph
+## 10. Optional: CodeGraph
 
-CodeGraph is an **optional accelerator**, not a dependency.
+An **optional accelerator**, not a dependency:
 
 ```bash
 gentle-ai codegraph init --cwd <project-root>      # or: codegraph init <project-root>
 ```
 
-Notes:
-- On WSL with a project on a Windows drive, CodeGraph uses `.codegraph-wsl/` by
-  design; the canon tolerates it (`doctor` ignores it, `.gitignore` excludes it).
-- SE works with or without an index.
+On WSL with a project on a Windows drive it uses `.codegraph-wsl/` by design
+(`se doctor` ignores it, `.gitignore` excludes it). SE works with or without an index.
 
 ---
 
-## 9. Quickstart
+## 11. Your first project
 
 ```bash
 # create a managed project
@@ -511,6 +389,9 @@ python3 SCRIPTS/se.py skill discover --project PROJECTS/MyApp --capability verif
 python3 SCRIPTS/se.py intelligence --project PROJECTS/MyApp
 ```
 
+`se status` reporting `Overall: FAIL` on a brand-new project is expected: the later
+gates have nothing to check yet. The exit code is the verdict, not a crash.
+
 ---
 
 ## Environment variables
@@ -519,7 +400,9 @@ python3 SCRIPTS/se.py intelligence --project PROJECTS/MyApp
 |---|---|
 | `SE_ROOT` | Canon repository root (referenced by generated MCP configs) |
 | `SE_PROJECT_ROOT` | Project root being adapted (referenced by generated MCP configs) |
-| `CONTEXT7_API_KEY`, ... | Optional third-party MCP settings (API keys) |
+| `CONTEXT7_API_KEY`, … | Optional third-party MCP settings |
+| `SE_PYTHON` | Pins the interpreter the Node launcher resolves |
+| `SE_MEMORY_EMBEDDINGS` | Optional local reranker for memory search |
 
 ---
 
@@ -531,46 +414,44 @@ The **managed project's SE layer** (adapter, `AGENTS.md`, version floor) is
 reconciled with:
 
 ```bash
-python3 SCRIPTS/se.py init PROJECTS/MyApp    # reconciles version + regenerates the adapter
+python3 SCRIPTS/se.py init PROJECTS/MyApp    # reconciles version, regenerates the adapter
 ```
 
-The **runtime MCP registrations** are reconciled with the declared templates by the
-lifecycle commands:
+The **runtime MCP registrations** are reconciled with the declared templates:
 
 ```bash
-python3 SCRIPTS/se.py sync --project PROJECTS/MyApp --dry-run   # report missing / drifted servers
-python3 SCRIPTS/se.py update --project PROJECTS/MyApp           # apply declared changes, with rollback
+python3 SCRIPTS/se.py sync --project PROJECTS/MyApp --dry-run   # report missing / drifted
+python3 SCRIPTS/se.py update --project PROJECTS/MyApp           # apply, with rollback
 ```
 
 `se sync` registers missing servers and re-registers SE-owned drift while never
 touching foreign entries; `se update` diffs the declared templates against the
-registered state and applies changes, restoring a backup and reporting BLOCKED if
-anything fails. See [`lifecycle.md`](lifecycle.md) for the full reference.
+registered state and applies changes, restoring a backup and reporting `BLOCKED` if
+anything fails. See [`lifecycle.md`](lifecycle.md).
 
 ---
 
-## Adopting an existing / independent project
+## Adopting an existing project
 
 A directory that already contains its own artifacts (`.opencode`, `AGENTS.md`,
-`opencode.json`, SDD) and has no `PROJECT.json` is classified **EXTERNAL/INDEPENDENT**.
-`se init` **refuses** it by design; bring it under the SE lifecycle with `se adopt`
-instead:
+`opencode.json`, SDD) and has no `PROJECT.json` is classified
+**EXTERNAL/INDEPENDENT**. `se init` **refuses** it by design; bring it under the
+lifecycle with `se adopt`:
 
 ```bash
 python3 SCRIPTS/se.py adopt PROJECTS/LegacyApp --owner "me" \
   --scale large --risk high --criticality high
 ```
 
-Adoption is **additive**: it writes `PROJECT.json` (recording `metadata.adoption` and a
-`profiles.work` starting at `brownfield`) plus the empty workspace directories, and
-leaves every file the project already had byte-for-byte untouched. Installing a runtime
-adapter stays a separate, explicit step (`se adapter ...`). Use `--dry-run` to plan
-without writing.
+Adoption is **additive**: it writes `PROJECT.json` (recording `metadata.adoption` and
+a `profiles.work` starting at `brownfield`) plus the empty workspace directories, and
+leaves every existing file byte-for-byte untouched. Installing a runtime adapter
+stays a separate, explicit step. Use `--dry-run` to plan without writing.
 
 ---
 
 ## What SE does NOT require
 
 - `gentle-ai`
-- a specific runtime, harness, adapter, model, or provider
+- a specific runtime, harness, adapter, model or provider
 - a specific machine or filesystem layout
