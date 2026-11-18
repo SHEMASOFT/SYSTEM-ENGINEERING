@@ -8084,7 +8084,10 @@ def cmd_shema_model(args) -> int:
         if getattr(args, "global_model", None):
             config.global_model = args.global_model
         if not config.global_model:
-            print("FAIL: --all needs a global model: pass --global-model provider/model")
+            print(
+                "FAIL: --all needs a global model: none is configured "
+                "(the config has no `model` key); pass --global-model provider/model"
+            )
             return 1
         cleared = len(config.agent_overrides)
         config.agent_overrides = {}
@@ -8125,6 +8128,11 @@ def cmd_shema_model(args) -> int:
         config.agent_overrides[agent] = AgentModelOverride(provider=provider, model=model, variant=variant)
         save_model_config(project_path, config.global_model, config.agent_overrides)
         print(f"Override set for {agent}: {provider}/{model}" + (f" [{variant}]" if variant else ""))
+        if not config.global_model:
+            print(
+                "Note: no global model is configured; agents without an override "
+                "stay unconfigured (set one with --global-model provider/model)"
+            )
         return 0
 
     # --unset AGENT
@@ -8134,6 +8142,8 @@ def cmd_shema_model(args) -> int:
             from .model_tui.config import save_model_config
             save_model_config(project_path, config.global_model, config.agent_overrides)
             print(f"Override removed for {args.unset}")
+            if not config.global_model:
+                print("Note: no global model is configured, so this agent is now unconfigured")
         else:
             print(f"No override found for {args.unset}")
         return 0
@@ -8162,10 +8172,13 @@ def cmd_shema_model(args) -> int:
 
     # --list (default)
     config = load_model_config(project_path)
-    print(f"Global Model: {config.global_model}")
+    print(f"Global Model: {config.global_model or '(not configured)'}")
     print("\nAgent Overrides:")
     if not config.agent_overrides:
-        print("  (none — all inherit global)")
+        if config.global_model:
+            print("  (none — all inherit global)")
+        else:
+            print("  (none — no global model is configured either)")
     else:
         for agent, override in sorted(config.agent_overrides.items()):
             if override.provider and override.model:

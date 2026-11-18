@@ -34,6 +34,9 @@ from .screens.model_select import ModelSelectScreen
 from .screens.effort_select import EffortSelectScreen
 
 
+UNCONFIGURED_DISPLAY = "(not configured)"
+
+
 class ModelPickerApp(App):
     """SE SHEMA-AI Model Configuration TUI."""
 
@@ -43,13 +46,14 @@ class ModelPickerApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit", show=True),
         Binding("s", "save", "Save & Reload", show=True),
-        Binding("r", "reset", "Reset to Defaults", show=True),
+        Binding("r", "reset", "Reset Selection", show=True),
         Binding("tab", "next_tab", "Next Section", show=False),
         Binding("shift+tab", "prev_tab", "Prev Section", show=False),
     ]
 
-    # Reactive state
-    global_model: reactive[str] = reactive("anthropic/claude-sonnet-5-5")
+    # Reactive state. `global_model` is None when nothing is configured: the
+    # UI never claims a model the operator did not choose.
+    global_model: reactive[Optional[str]] = reactive(None)
     providers: reactive[list[ProviderInfo]] = reactive([])
     agent_overrides: reactive[dict[str, AgentModelOverride]] = reactive({})
     selected_agent_index: reactive[int] = reactive(0)
@@ -72,7 +76,7 @@ class ModelPickerApp(App):
                 yield Button("Providers", id="nav-providers", variant="default")
                 yield Static("", id="spacer")
                 yield Button("Save & Reload (s)", id="btn-save", variant="success")
-                yield Button("Reset Defaults (r)", id="btn-reset", variant="warning")
+                yield Button("Reset Selection (r)", id="btn-reset", variant="warning")
                 yield Button("Quit (q)", id="btn-quit", variant="error")
             # Main content area
             with Vertical(id="main-content"):
@@ -109,6 +113,10 @@ class ModelPickerApp(App):
         self.config = load_model_config(self.project_root)
         self.global_model = self.config.global_model
         self.agent_overrides = self.config.agent_overrides.copy()
+
+    def _global_model_display(self) -> str:
+        """Label for the current selection, never a fabricated model."""
+        return self.global_model or UNCONFIGURED_DISPLAY
 
     async def _discover_providers(self) -> None:
         """Discover available providers and models from OpenCode runtime."""
@@ -166,31 +174,51 @@ class ModelPickerApp(App):
         """Render global model selection."""
         # Provider select
         provider_names = [f"{p.name} ({p.id})" for p in self.providers]
-        current_provider = self.global_model.split("/")[0] if "/" in self.global_model else ""
+        current_model = self.global_model or ""
+        current_provider = current_model.split("/")[0] if "/" in current_model else ""
         provider_idx = next((i for i, p in enumerate(self.providers) if p.id == current_provider), 0)
+        provider_options = [(name, i) for i, name in enumerate(provider_names)]
+        if not provider_options:
+            provider_options = [("(no providers discovered)", 0)]
+        model_options = (
+            [(m.name, m.id) for m in self.providers[provider_idx].models]
+            if self.providers
+            else []
+        )
+        if not model_options:
+            model_options = [("(no models discovered)", "")]
+        current_model_id = current_model.split("/")[1] if "/" in current_model else ""
+        legal_model_ids = {value for _label, value in model_options}
+        model_value = (
+            current_model_id
+            if current_model_id and current_model_id in legal_model_ids
+            else Select.NULL
+        )
 
         await container.mount(
             Static("Global Model Configuration", classes="section-title"),
+            Label(f"Global model: {self._global_model_display()}"),
+            Label(""),
             Label("Select Provider:"),
             Select(
-                [(name, i) for i, name in enumerate(provider_names)],
+                provider_options,
                 value=provider_idx,
                 id="global-provider-select",
-                allow_blank=False,
+                allow_blank=True,
             ),
             Label(""),
             Label("Model:"),
             Select(
-                [(m.name, m.id) for m in self.providers[provider_idx].models] if self.providers else [("No models", "")],
-                value=self.global_model.split("/")[1] if "/" in self.global_model else "",
+                model_options,
+                value=model_value,
                 id="global-model-select",
-                allow_blank=False,
+                allow_blank=True,
             ),
             Label(""),
             Label("Variant/Effort:"),
             Select(
                 [("default", ""), ("high", "high"), ("medium", "medium"), ("low", "low")],
-                value="",
+                value=Select.NULL,
                 id="global-variant-select",
                 allow_blank=True,
             ),
@@ -209,13 +237,13 @@ class ModelPickerApp(App):
                     model_display += f" [{override.variant}]"
                 status = "Overridden"
             else:
-                model_display = f"(inherits: {self.global_model})"
+                model_display = f"(inherits: {self._global_model_display()})"
                 status = "Inherited"
             table.add_row(row.display_name, model_display, status, "Change" if override else "Set Override", key=row.agent_id)
 
         await container.mount(
             Static("Agent Model Overrides", classes="section-title"),
-            Label(f"Global default: {self.global_model}"),
+            Label(f"Global default: {self._global_model_display()}"),
             Label(""),
             table,
         )
@@ -247,12 +275,13 @@ class ModelPickerApp(App):
         if event.select.id == "global-provider-select":
             # Update model select when provider changes
             provider_idx = event.value
-            if provider_idx is not None and provider_idx < len(self.providers):
-                provider = self.providers[provider_idx]
-                model_select = self.query_one("#global-model-select", Select)
-                model_select.set_options([(m.name, m.id) for m in provider.models])
-                if provider.models:
-                    model_select.value = provider.models[0].id
+            if not isinstance(provider_idx, int) or not (0 <= provider_idx < len(self.providers)):
+                return
+            provider = self.providers[provider_idx]
+            model_select = self.query_one("#global-model-select", Select)
+            model_select.set_options([(m.name, m.id) for m in provider.models])
+            if provider.models:
+                model_select.value = provider.models[0].id
 
     async def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle agent row selection."""
@@ -339,7 +368,7 @@ class ModelPickerApp(App):
                         model_display += f" [{override.variant}]"
                     status = "Overridden"
                 else:
-                    model_display = f"(inherits: {self.global_model})"
+                    model_display = f"(inherits: {self._global_model_display()})"
                     status = "Inherited"
                 table.add_row(row.display_name, model_display, status, "Change" if override else "Set Override", key=row.agent_id)
         except Exception:
@@ -348,11 +377,18 @@ class ModelPickerApp(App):
     async def _save_and_reload(self) -> None:
         """Save configuration and trigger OpenCode hot reload."""
         try:
-            save_model_config(
+            written = save_model_config(
                 self.project_root,
                 global_model=self.global_model,
                 agent_overrides=self.agent_overrides,
             )
+            if not written:
+                self.notify(
+                    "Nothing to save: no global model is configured and there "
+                    "are no agent overrides.",
+                    severity="warning",
+                )
+                return
             # Trigger hot reload
             success = await reload_opencode_config(self.project_root)
             if success:
@@ -363,12 +399,15 @@ class ModelPickerApp(App):
             self.notify(f"Save failed: {e}", severity="error")
 
     async def _reset_to_defaults(self) -> None:
-        """Reset all configuration to defaults."""
-        self.global_model = "anthropic/claude-sonnet-5-5"
+        """Reset the selection to "nothing configured" (never a fake default)."""
+        self.global_model = None
         self.agent_overrides = {}
         self._refresh_agents_table()
         await self._show_section(self.current_section)
-        self.notify("Reset to defaults", severity="information")
+        self.notify(
+            f"Selection cleared: global model is {UNCONFIGURED_DISPLAY}",
+            severity="information",
+        )
 
     async def action_save(self) -> None:
         await self._save_and_reload()

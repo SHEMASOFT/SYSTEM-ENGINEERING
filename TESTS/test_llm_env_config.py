@@ -186,11 +186,16 @@ class AgentRunnerEnvPrecedenceTests(unittest.TestCase):
         with mock.patch.object(
             AgentRunner, "_load_agent_config", return_value=agent_config or {}
         ):
-            return AgentRunner(
-                agent_name="analyst",
-                project_dir=self.project,
-                override_llm_config=override,
-            )
+            # This class pins the env layer: keep the checkout's own harness
+            # selection out of the chain so the assertions stay hermetic.
+            with mock.patch.object(
+                AgentRunner, "_load_harness_llm_config", return_value=None
+            ):
+                return AgentRunner(
+                    agent_name="analyst",
+                    project_dir=self.project,
+                    override_llm_config=override,
+                )
 
     def _env(self, provider, model):
         return {"SE_LLM_PROVIDER": provider, "SE_LLM_MODEL": model}

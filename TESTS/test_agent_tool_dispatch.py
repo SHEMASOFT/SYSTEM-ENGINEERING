@@ -20,6 +20,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
@@ -45,11 +46,17 @@ class AgentToolDispatchTests(unittest.TestCase):
         self._outside_tmp.cleanup()
 
     def _runner(self, agent: str = "implementer") -> AgentRunner:
-        return AgentRunner(
-            agent_name=agent,
-            project_dir=self.project,
-            root=REPO_ROOT,
-        )
+        # This suite exercises tool dispatch, not model resolution. Hide the
+        # checkout's own opencode.jsonc so it cannot pick a provider (and an
+        # optional dependency) behind the tool assertions.
+        with mock.patch.object(
+            AgentRunner, "_load_harness_llm_config", return_value=None
+        ):
+            return AgentRunner(
+                agent_name=agent,
+                project_dir=self.project,
+                root=REPO_ROOT,
+            )
 
     @staticmethod
     def _tool_names(runner: AgentRunner):

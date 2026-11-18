@@ -48,6 +48,15 @@ class _ProjectTestCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.project = support.make_project(Path(self._tmp.name) / "proj")
+        # These tests describe an installation with no harness-level model
+        # selection. Hide the checkout's own opencode.jsonc so the developer's
+        # choice cannot leak into them; the selection itself is covered by
+        # test_runner_model_precedence.py.
+        harness = mock.patch.object(
+            AgentRunner, "_load_harness_llm_config", return_value=None
+        )
+        harness.start()
+        self.addCleanup(harness.stop)
 
     def tearDown(self):
         self._tmp.cleanup()

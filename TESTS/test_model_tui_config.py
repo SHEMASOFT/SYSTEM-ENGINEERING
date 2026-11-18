@@ -7,6 +7,8 @@ indentation and trailing commas of every other region survive byte for byte.
 from __future__ import annotations
 
 import difflib
+import json
+import os
 import sys
 import tempfile
 import unittest
@@ -293,6 +295,141 @@ class SurgicalSaveTests(unittest.TestCase):
         raw = self.path.read_text(encoding="utf-8")
         self.assertTrue(raw.startswith("{\n  \"model\":"), raw)
         self.assertTrue(raw.endswith("}\n"), raw)
+
+
+class UnsetGlobalModelTests(unittest.TestCase):
+    """An absent model is a real state, never a fabricated default.
+
+    ``global_model`` is ``None`` when the document has no ``model`` key. The
+    writer represents that as "no model key" and never emits ``"model": null``.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.path = self.root / "opencode.jsonc"
+
+    def test_missing_file_loads_unset(self) -> None:
+        self.assertIsNone(load_model_config(self.root).global_model)
+
+    def test_missing_model_key_loads_unset(self) -> None:
+        _write(self.path, '{\n  // nothing selected yet\n  "theme": "dark"\n}\n')
+
+        self.assertIsNone(load_model_config(self.root).global_model)
+
+    def test_malformed_file_loads_unset(self) -> None:
+        _write(self.path, '{\n  "model": "openai/gpt-4o",\n  "broken": [1, 2,\n}\n')
+
+        self.assertIsNone(load_model_config(self.root).global_model)
+
+    def test_empty_model_string_loads_unset(self) -> None:
+        _write(self.path, '{\n  "model": ""\n}\n')
+
+        self.assertIsNone(load_model_config(self.root).global_model)
+
+    def test_saving_an_unset_model_with_no_overrides_writes_nothing(self) -> None:
+        written = save_model_config(self.root, None, {})
+
+        self.assertFalse(written)
+        self.assertFalse(self.path.exists())
+
+    def test_overrides_are_written_without_a_model_key(self) -> None:
+        written = save_model_config(
+            self.root,
+            None,
+            {"reviewer": AgentModelOverride(provider="anthropic", model="claude-x")},
+        )
+
+        self.assertTrue(written)
+        after = self.path.read_text(encoding="utf-8")
+        self.assertNotIn("null", after)
+        data = json.loads(after)
+        self.assertNotIn("model", data)
+        self.assertEqual(
+            data["agents"]["reviewer"]["model"],
+            {"providerID": "anthropic", "model": "claude-x"},
+        )
+        self.assertIsNone(load_model_config(self.root).global_model)
+
+    def test_existing_model_member_is_removed_not_nulled(self) -> None:
+        original = '{\n  // keep this note\n  "model": "openai/gpt-4o",\n  "theme": "dark"\n}\n'
+        _write(self.path, original)
+
+        written = save_model_config(self.root, None, {})
+
+        self.assertTrue(written)
+        after = self.path.read_text(encoding="utf-8")
+        self.assertNotIn("null", after)
+        self.assertNotIn('"model"', after)
+        self.assertIn("// keep this note", after)
+        self.assertIn('"theme": "dark"', after)
+        self.assertIsNone(load_model_config(self.root).global_model)
+
+    def test_removing_the_model_while_adding_overrides_keeps_other_keys(self) -> None:
+        original = '{\n  // runtime settings\n  "model": "openai/gpt-4o",\n  "theme": "dark"\n}\n'
+        _write(self.path, original)
+
+        save_model_config(
+            self.root,
+            None,
+            {"reviewer": AgentModelOverride(provider="anthropic", model="claude-x")},
+        )
+
+        after = self.path.read_text(encoding="utf-8")
+        self.assertNotIn("null", after)
+        self.assertNotIn('"model": "openai/gpt-4o"', after)
+        self.assertIn("// runtime settings", after)
+        self.assertIn('"theme": "dark"', after)
+        loaded = load_model_config(self.root)
+        self.assertIsNone(loaded.global_model)
+        self.assertEqual(loaded.agent_overrides["reviewer"].model, "claude-x")
+
+    def test_to_opencode_config_omits_an_unset_model(self) -> None:
+        from se_core.model_tui.config import ModelConfig
+
+        self.assertNotIn("model", ModelConfig().to_opencode_config())
+
+
+class ModelCliUnsetTests(unittest.TestCase):
+    """The CLI must report "unset" honestly and never persist a null model."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.path = self.root / "opencode.jsonc"
+        self._previous_cwd = os.getcwd()
+        os.chdir(self.root)
+        self.addCleanup(os.chdir, self._previous_cwd)
+
+    def test_list_on_an_unconfigured_checkout_invents_nothing(self) -> None:
+        code, out = support.run_cli("shema-ai", "model", "--list")
+
+        self.assertEqual(code, 0, out)
+        self.assertIn("(not configured)", out)
+        self.assertFalse(self.path.exists())
+
+    def test_all_without_a_global_model_fails_and_writes_nothing(self) -> None:
+        code, out = support.run_cli("shema-ai", "model", "--all")
+
+        self.assertEqual(code, 1, out)
+        self.assertIn("none is configured", out)
+        self.assertFalse(self.path.exists())
+
+    def test_set_then_unset_never_writes_a_null_model(self) -> None:
+        code, out = support.run_cli(
+            "shema-ai", "model", "--set", "reviewer", "anthropic/claude-x"
+        )
+        self.assertEqual(code, 0, out)
+
+        code, out = support.run_cli("shema-ai", "model", "--unset", "reviewer")
+        self.assertEqual(code, 0, out)
+
+        raw = self.path.read_text(encoding="utf-8")
+        self.assertNotIn("null", raw)
+        data = json.loads(raw)
+        self.assertNotIn("model", data)
 
 
 if __name__ == "__main__":
