@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>SE — 60s Redes</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #000; }
+  #stage {
+    width: 1080px; height: 1920px; position: relative; overflow: hidden;
+    font-family: "Segoe UI", "Segoe UI Emoji", Arial, sans-serif;
+    color: #eef4f8;
+    background:
+      radial-gradient(1200px 900px at 20% 10%, #0A1830 0%, transparent 60%),
+      radial-gradient(1000px 900px at 85% 90%, #1A0C24 0%, transparent 55%),
+      #05070E;
+  }
+  #stage::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(1400px 1400px at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%);
+  }
+  .scene {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    padding: 90px; box-sizing: border-box; gap: 44px;
+  }
+  .kicker {
+    font-size: 40px; font-weight: 700; letter-spacing: 10px;
+    text-transform: uppercase; color: #00E5FF;
+  }
+  .kicker.red  { color: #FF2BD6; }
+  .kicker.blue { color: #3B82F6; }
+  h1.mega {
+    font-size: 128px; line-height: 1.08; margin: 0; font-weight: 800;
+    letter-spacing: -2px; text-transform: uppercase;
+  }
+  h1.mega .hl { color: #00E5FF; }
+  .scene-title {
+    font-size: 76px; font-weight: 800; line-height: 1.15; margin: 0;
+    text-transform: uppercase; letter-spacing: -1px;
+  }
+  .card {
+    width: 100%; box-sizing: border-box;
+    background: rgba(255,255,255,.055);
+    border: 2px solid rgba(255,255,255,.14);
+    border-left: 12px solid #FF2BD6;
+    border-radius: 22px; padding: 44px 50px;
+    display: flex; align-items: center; gap: 36px;
+    font-size: 56px; font-weight: 700; line-height: 1.2; text-align: left;
+  }
+  .card .ico { font-size: 72px; line-height: 1; }
+  .card.odd  { border-left-color: #E879F9; }
+  .card.sdd  { border-left-color: #3B82F6; }
+  .card.rdd  { border-left-color: #00E5FF; }
+  .card .tag {
+    font-size: 44px; font-weight: 800; letter-spacing: 4px;
+    text-transform: uppercase; opacity: .75; display: block; margin-bottom: 10px;
+  }
+  .card .tagline { display: block; font-size: 46px; font-weight: 500; opacity: .92; }
+  .card.odd .tag { color: #E879F9; }
+  .card.sdd .tag { color: #3B82F6; }
+  .card.rdd .tag { color: #00E5FF; }
+
+  .diagram { display: flex; flex-direction: column; align-items: center; gap: 30px; width: 100%; }
+  .node {
+    background: rgba(59,130,246,.12); border: 3px solid #3B82F6;
+    border-radius: 20px; padding: 30px 46px;
+    font-size: 54px; font-weight: 800; letter-spacing: 1px;
+    font-family: Consolas, "Courier New", monospace;
+  }
+  .node.main { background: rgba(0,229,255,.14); border-color: #00E5FF; color: #00E5FF; font-size: 60px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; width: 100%; }
+  .grid2 .node { text-align: center; font-size: 46px; padding: 30px 20px; }
+  .conn { font-size: 64px; color: #00E5FF; line-height: 1; }
+
+  .flow { display: flex; flex-direction: column; gap: 34px; width: 100%; align-items: stretch; }
+  .step {
+    display: flex; align-items: center; justify-content: center; gap: 34px;
+  }
+  .pill {
+    flex: 0 0 auto; min-width: 430px; text-align: center;
+    background: rgba(255,255,255,.06); border: 2px solid rgba(255,255,255,.18);
+    border-radius: 999px; padding: 26px 40px;
+    font-size: 52px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+    font-family: Consolas, "Courier New", monospace;
+  }
+  .gate {
+    flex: 0 0 auto; background: rgba(232,121,249,.15); border: 3px solid #E879F9;
+    color: #E879F9; border-radius: 16px; padding: 18px 30px;
+    font-size: 40px; font-weight: 800; letter-spacing: 3px;
+  }
+  .link { width: 4px; height: 34px; background: rgba(255,255,255,.25); margin-left: 240px; }
+
+  .file {
+    width: 100%; background: #0B1220; border: 3px solid #00E5FF;
+    border-radius: 24px; padding: 46px 54px; text-align: left;
+    font-family: Consolas, "Courier New", monospace; font-size: 46px; line-height: 1.55;
+  }
+  .file .fname { color: #00E5FF; font-weight: 700; display: block; margin-bottom: 18px; font-size: 50px; }
+  .file .k { color: #3B82F6; }
+  .file .v { color: #eef4f8; }
+  .file .c { color: #7f8ea3; }
+
+  .rule {
+    font-size: 50px; font-weight: 600; color: #cfe0ee; line-height: 1.35;
+    background: rgba(255,255,255,.05); border: 2px dashed rgba(255,255,255,.25);
+    border-radius: 20px; padding: 34px 44px; width: 100%; box-sizing: border-box;
+  }
+  .rule b { color: #E879F9; }
+
+  .term {
+    width: 100%; background: #05070E; border: 3px solid rgba(255,255,255,.22);
+    border-radius: 22px; overflow: hidden; text-align: left;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6);
+  }
+  .term .bar {
+    background: rgba(255,255,255,.08); padding: 22px 30px;
+    display: flex; gap: 18px; align-items: center;
+    font-size: 34px; color: #9fb0c3; font-family: Consolas, monospace;
+  }
+  .term .dot { width: 22px; height: 22px; border-radius: 50%; }
+  .term .body {
+    padding: 38px 42px; font-family: Consolas, "Courier New", monospace;
+    font-size: 34px; line-height: 1.62; color: #d7e3ef; min-height: 300px; white-space: pre-wrap;
+  }
+  .pass {
+    display: inline-block; margin-top: 26px; background: rgba(0,229,255,.15);
+    border: 3px solid #00E5FF; color: #00E5FF; border-radius: 14px;
+    padding: 16px 34px; font-size: 52px; font-weight: 800; letter-spacing: 2px;
+    font-family: Consolas, monospace;
+  }
+  .caption {
+    font-size: 84px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+    color: #00E5FF; text-shadow: 0 0 40px rgba(0,229,255,.35);
+  }
+  .repo {
+    font-family: Consolas, "Courier New", monospace; font-size: 36px; font-weight: 700;
+    background: rgba(0,229,255,.12); border: 3px solid #00E5FF; color: #00E5FF;
+    border-radius: 999px; padding: 28px 44px; white-space: nowrap;
+  }
+  .sub { font-size: 56px; font-weight: 500; color: #cfe0ee; line-height: 1.3; margin: 0; }
+
+  #records { gap: 26px; }
+  #records .card { padding: 30px 42px; font-size: 48px; gap: 28px; }
+  #records .card .tag { font-size: 38px; margin-bottom: 8px; }
+  #records .card .tagline { font-size: 38px; }
+  #records .rule { font-size: 44px; padding: 26px 36px; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- 0–3 HOOK -->
+  <section class="scene" data-in="-0.5" data-out="3.15">
+    <div class="kicker" data-in="-0.5" data-out="3.15">SYSTEM ENGINEERING · 60s</div>
+    <h1 class="mega" data-in="-0.5" data-out="3.15">Tu IA trabaja<br>como un <span class="hl">caos</span></h1>
+  </section>
+
+  <!-- 3–12 PROBLEMA -->
+  <section class="scene" data-in="3.15" data-out="12.15">
+    <div class="kicker red" data-in="3.25" data-out="12.15">El problema</div>
+    <div class="card" data-in="3.6" data-out="12.15"><span class="ico">&#9889;</span><span>Quema tokens re-explicando el contexto</span></div>
+    <div class="card" data-in="6.6" data-out="12.15"><span class="ico">&#129504;</span><span>Olvida decisiones entre sesiones</span></div>
+    <div class="card" data-in="9.6" data-out="12.15"><span class="ico">&#128065;</span><span>Nadie puede auditar lo que hizo</span></div>
+  </section>
+
+  <!-- 12–16.6 COORDINATOR -->
+  <section class="scene" data-in="12.15" data-out="16.6">
+    <div class="scene-title" data-in="12.30" data-out="16.6">Un coordinador delega<br>a subagentes</div>
+    <div class="diagram">
+      <div class="node main" data-in="12.8">coordinator</div>
+      <div class="conn" data-in="13.3">&#8595; &#8595; &#8595;</div>
+      <div class="grid2">
+        <div class="node" data-in="13.7">planner</div>
+        <div class="node" data-in="14.0">implementer</div>
+        <div class="node" data-in="14.3">tester</div>
+        <div class="node" data-in="14.6">reviewer</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 16.6–21.1 GATES -->
+  <section class="scene" data-in="16.6" data-out="21.1">
+    <div class="scene-title" data-in="16.75" data-out="21.1">Los gates validan<br>cada transici&#243;n</div>
+    <div class="flow">
+      <div class="step" data-in="17.2" data-out="21.1"><div class="pill">explore</div><div class="gate">GATE</div></div>
+      <div class="step" data-in="17.9" data-out="21.1"><div class="pill">plan</div><div class="gate">GATE</div></div>
+      <div class="step" data-in="18.6" data-out="21.1"><div class="pill">implement</div><div class="gate">GATE</div></div>
+      <div class="step" data-in="19.3" data-out="21.1"><div class="pill">verify</div><div class="gate">GATE</div></div>
+    </div>
+  </section>
+
+  <!-- 21.1–24.1 MEMORIA -->
+  <section class="scene" data-in="21.1" data-out="26.1">
+    <div class="scene-title" data-in="21.25" data-out="26.1">La memoria persiste<br>entre sesiones</div>
+    <div class="file" data-in="21.7" data-out="26.1">
+      <span class="fname">memories/MEM-0042.json</span>
+      <div data-in="22.2" data-out="26.1"><span class="k">"type"</span>: <span class="v">"decision"</span>,</div>
+      <div data-in="22.5" data-out="26.1"><span class="k">"topic_key"</span>: <span class="v">"auth-jwt"</span>,</div>
+      <div data-in="22.8" data-out="26.1"><span class="k">"revision_count"</span>: <span class="v">3</span> <span class="c">// crece con el tiempo</span></div>
+    </div>
+    <div class="sub" data-in="23.3" data-out="26.1">La pr&#243;xima sesi&#243;n arranca <b>sabiendo</b>, no re-descubriendo</div>
+  </section>
+
+  <!-- 24.1–25.4 T&#205;TULO -->
+  <section class="scene" data-in="26.1" data-out="29.45">
+    <h1 class="mega" data-in="26.30" data-out="29.45">System<br><span class="hl">Engineering</span></h1>
+    <p class="sub" data-in="26.70" data-out="29.45">el sistema operativo de proyectos para IA</p>
+  </section>
+
+  <!-- 25.4–40.3 ODD / SDD / RDD -->
+  <section class="scene" id="records" data-in="29.4" data-out="44.3">
+    <div class="kicker blue" data-in="29.5" data-out="44.3">&#191;C&#243;mo y cu&#225;ndo?</div>
+    <div class="card odd" data-in="30.0" data-out="44.3">
+      <div>
+        <span class="tag">ODD &#183; dise&#241;o abierto</span>
+        &#191;Explorando alternativas? Registra el problema y los <b>trade-offs</b>
+        <span class="tagline">odds/ODD-#### — se cierra en un ADR</span>
+      </div>
+    </div>
+    <div class="card sdd" data-in="33.5" data-out="44.3">
+      <div>
+        <span class="tag">SDD &#183; dise&#241;o acordado</span>
+        &#191;Ya decidiste? Especifica arquitectura e interfaces <b>ANTES de construir</b>
+        <span class="tagline">sdds/SDD-#### — modo spec, validado por `se validate`</span>
+      </div>
+    </div>
+    <div class="card rdd" data-in="37.5" data-out="44.3">
+      <div>
+        <span class="tag">RDD &#183; cambio probado</span>
+        &#191;Ya lo entregaste? Evidencia + veredito <b>PASS / PARTIAL</b>
+        <span class="tagline">rdds/RDD-#### — modo receipt, ligado al cambio exacto</span>
+      </div>
+    </div>
+    <div class="rule" data-in="41.0" data-out="44.3">
+      El modo se elige por <b>regla</b>: escala &#183; riesgo &#183; criticidad — no por costumbre
+    </div>
+  </section>
+
+  <!-- 40.3–50.1 TERMINAL -->
+  <section class="scene" data-in="44.3" data-out="51.1">
+    <div class="term" data-in="44.6" data-out="51.1">
+      <div class="bar">
+        <span class="dot" style="background:#FF2BD6"></span>
+        <span class="dot" style="background:#3B82F6"></span>
+        <span class="dot" style="background:#00E5FF"></span>
+        <span>&nbsp;se &#8212; doctor</span>
+      </div>
+      <div class="body"><span id="term-out"></span><span id="cursor">&#9612;</span></div>
+      <div style="padding: 0 42px 42px;"><span class="pass" data-in="48.2" data-out="51.1" data-fx="pop" data-rise="0">&#10003; PASS=21 &#183; FAIL=0</span></div>
+    </div>
+    <div class="caption" data-in="48.9" data-out="51.1">Evidencia, no promesas</div>
+  </section>
+
+  <!-- 50.1–57.2 CTA -->
+  <section class="scene" data-in="51.1" data-out="58.2">
+    <h1 class="mega" data-in="51.4" data-out="58.2">Menos tokens.<br>Trabajo <span class="hl">auditable</span>.</h1>
+    <div class="repo" data-in="52.2" data-out="58.2">github.com/SHEMASOFT/SYSTEM-ENGINEERING</div>
+  </section>
+
+  <!-- 57.2–60 CIERRE -->
+  <section class="scene" data-in="58.2" data-out="60.6">
+    <div class="kicker" data-in="58.5" data-out="60.6">SYSTEM ENGINEERING &#183; SE</div>
+    <p class="sub" data-in="58.9" data-out="60.6">SHEMASOFT</p>
+  </section>
+
+</div>
+
+<script>
+  const Q = new URLSearchParams(location.search);
+  const clamp01 = x => (x < 0 ? 0 : x > 1 ? 1 : x);
+  const FIN = 0.45, FOUT = 0.45;
+
+  const TERM_LINES = [
+    "$ python SCRIPTS/se.py doctor",
+    "[PASS] structure        18 dirs present",
+    "[PASS] contracts        27 commands",
+    "[PASS] json_integrity   156 JSON files",
+    "[PASS] secrets          none published",
+    "",
+    "Doctor summary: PASS=21 WARN=0 FAIL=0",
+    ""
+  ];
+  const TERM_ALL = TERM_LINES.join("\n");
+  const TYPE_START = 45.0, TYPE_END = 48.0;
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  function render(t) {
+    document.querySelectorAll("[data-in]").forEach(el => {
+      const i = parseFloat(el.dataset.in);
+      const o = el.dataset.out !== undefined ? parseFloat(el.dataset.out) : 1e9;
+      const a = clamp01((t - i) / FIN) * clamp01((o - t) / FOUT);
+      el.style.opacity = a;
+      el.style.visibility = a <= 0.002 ? "hidden" : "visible";
+      if (a > 0.002) {
+        if (el.dataset.fx === "pop") {
+          el.style.transform = "scale(" + (0.7 + 0.3 * a) + ")";
+        } else {
+          const rise = el.dataset.rise !== undefined ? parseFloat(el.dataset.rise) : 36;
+          el.style.transform = "translateY(" + ((1 - a) * rise) + "px)";
+        }
+      }
+    });
+
+    const out = document.getElementById("term-out");
+    const cur = document.getElementById("cursor");
+    if (out) {
+      const p = clamp01((t - TYPE_START) / (TYPE_END - TYPE_START));
+      const n = Math.floor(p * TERM_ALL.length);
+      out.textContent = TERM_ALL.slice(0, n);
+      if (cur) cur.style.opacity = (p > 0 && p < 1) ? 1 : 0;
+    }
+  }
+
+  window.__render = render;
+  render(parseFloat(Q.get("t") || "0"));
+</script>
+</body>
+</html>
