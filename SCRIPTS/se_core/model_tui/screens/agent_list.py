@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.screen import Screen
@@ -19,16 +21,20 @@ class AgentListScreen(Screen):
         Binding("enter", "edit", "Edit Override"),
     ]
 
-    def __init__(self, agents: list, overrides: dict, global_model: str):
+    def __init__(self, agents: list, overrides: dict, global_model: Optional[str]):
         super().__init__()
         self.agents = agents
         self.overrides = overrides
         self.global_model = global_model
 
+    def _global_model_display(self) -> str:
+        """Label for the inherited model, never a fabricated default."""
+        return self.global_model or "(not configured)"
+
     def compose(self) -> ComposeResult:
         yield Vertical(
             Static("Agent Overrides", id="screen-title"),
-            Label(f"Global default: {self.global_model}"),
+            Label(f"Global default: {self._global_model_display()}"),
             DataTable(id="agents-table", zebra_stripes=True),
             Label(""),
             Button("Back (Esc)", id="btn-back", variant="default"),
@@ -47,7 +53,7 @@ class AgentListScreen(Screen):
                     model_display += f" [{override.variant}]"
                 status = "Overridden"
             else:
-                model_display = f"(inherits: {self.global_model})"
+                model_display = f"(inherits: {self._global_model_display()})"
                 status = "Inherited"
             table.add_row(row.display_name, model_display, status, "Change" if override else "Set Override", key=row.agent_id)
 

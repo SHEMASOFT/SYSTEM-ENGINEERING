@@ -27,6 +27,31 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
 
+from se_core.agents.runner import AgentRunner  # noqa: E402
+
+
+_HARNESS_PATCH = None
+
+
+def setUpModule():
+    """Keep the checkout's own model selection out of these tests.
+
+    They exercise orchestration, not model resolution. Without this, the
+    repository's opencode.jsonc would choose a provider for every runner the
+    engine builds, coupling these assertions to the developer's machine.
+    The selection itself is covered by test_runner_model_precedence.py.
+    """
+    global _HARNESS_PATCH
+    _HARNESS_PATCH = mock.patch.object(
+        AgentRunner, "_load_harness_llm_config", return_value=None
+    )
+    _HARNESS_PATCH.start()
+
+
+def tearDownModule():
+    if _HARNESS_PATCH is not None:
+        _HARNESS_PATCH.stop()
+
 
 class OrchestrationSchemasImportTests(unittest.TestCase):
     """The orchestration modules must be importable at runtime."""

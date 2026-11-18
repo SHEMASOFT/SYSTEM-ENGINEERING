@@ -105,15 +105,27 @@ Return results as JSON with the following structure:
         return load_json(agent_path)
 
     def _create_llm_provider(self):
-        """Create LLM provider from agent config with env fallback."""
-        # Precedence: override > agent config > env > repo se-llm-config.json > dummy
+        """Create the LLM provider from the documented precedence chain.
+
+        Precedence: override > agent config > env > harness selection >
+        repo se-llm-config.json > dummy.
+
+        The harness selection is the model the operator picks through
+        ``se shema-ai model`` (``opencode.jsonc``). It is fail-soft: a missing
+        config module or an unreadable/malformed file simply falls through to
+        the next source instead of crashing the run.
+        """
         llm_config = self.override_llm_config or self.agent_config.get("llm_config", {})
-        
+
         if not llm_config:
             # Try to get config from environment
             from ..llm.factory import llm_config_from_env
             import os
             llm_config = llm_config_from_env(os.environ)
+
+        if not llm_config:
+            # The model selected in the harness (opencode.jsonc).
+            llm_config = self._load_harness_llm_config()
 
         if not llm_config:
             # Try repo-level se-llm-config.json (single file to change model for all agents)
@@ -123,9 +135,41 @@ Return results as JSON with the following structure:
             # Fallback to dummy provider for testing (no API calls)
             from ..llm.factory import create_provider
             return create_provider("dummy", "dummy")
-        
+
         from ..llm.factory import create_provider_from_config
         return create_provider_from_config(llm_config)
+
+    def _load_harness_llm_config(self) -> Optional[Dict[str, Any]]:
+        """Translate the harness model selection into an LLM config dict.
+
+        ``resolve_agent_model`` returns ``None`` when nothing is selected, so
+        an unconfigured checkout keeps falling through to the dummy provider.
+        A selection without a provider part (a bare model alias) cannot be
+        turned into a provider config and is treated as unset.
+        """
+        try:
+            from ..model_tui.config import resolve_agent_model
+
+            spec = resolve_agent_model(self.root, self.agent_name)
+        except Exception:
+            logger.debug(
+                "harness model selection unavailable for %s", self.agent_name,
+                exc_info=True,
+            )
+            return None
+        if not spec:
+            return None
+        provider, _, model = spec.partition("/")
+        if not model:
+            provider, model = "", provider
+        provider = provider.strip()
+        model = model.strip()
+        if not provider or not model:
+            logger.debug(
+                "harness model selection %r has no provider; ignoring it", spec
+            )
+            return None
+        return {"provider": provider, "model": model}
 
     def _load_repo_llm_config(self) -> Optional[Dict[str, Any]]:
         """Load the repo-level LLM config from its registered location.

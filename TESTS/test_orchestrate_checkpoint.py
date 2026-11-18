@@ -23,6 +23,29 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import support  # noqa: E402
 
+from se_core.agents.runner import AgentRunner  # noqa: E402
+
+
+_HARNESS_PATCH = None
+
+
+def setUpModule():
+    """Keep the checkout's own model selection out of these tests.
+
+    They exercise checkpoint/recovery behaviour, not model resolution; see
+    test_runner_model_precedence.py for the selection contract.
+    """
+    global _HARNESS_PATCH
+    _HARNESS_PATCH = mock.patch.object(
+        AgentRunner, "_load_harness_llm_config", return_value=None
+    )
+    _HARNESS_PATCH.start()
+
+
+def tearDownModule():
+    if _HARNESS_PATCH is not None:
+        _HARNESS_PATCH.stop()
+
 PROJECT_ID = "PRJ-TEST-001"
 WORKFLOW_ID = "WF-0001"
 

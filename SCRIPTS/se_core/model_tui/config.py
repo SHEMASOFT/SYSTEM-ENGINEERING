@@ -56,14 +56,21 @@ class AgentModelOverride:
 
 @dataclass
 class ModelConfig:
-    """Model configuration from opencode.jsonc."""
-    global_model: str = "anthropic/claude-sonnet-5-5"
+    """Model configuration from opencode.jsonc.
+
+    ``global_model`` is ``None`` when the document declares no ``model`` key.
+    That absence is deliberate: an unconfigured checkout must report that
+    nobody chose a model instead of claiming a fabricated default.
+    """
+    global_model: Optional[str] = None
     agent_overrides: dict[str, AgentModelOverride] = field(default_factory=dict)
 
     @classmethod
     def from_opencode_config(cls, config: dict) -> "ModelConfig":
-        """Parse model config from opencode.jsonc."""
-        global_model = config.get("model", "anthropic/claude-sonnet-5-5")
+        """Parse model config from opencode.jsonc (no model key -> None)."""
+        global_model = config.get("model")
+        if not isinstance(global_model, str) or not global_model.strip():
+            global_model = None
         agent_overrides = {}
 
         agents = config.get("agents", {})
@@ -87,8 +94,10 @@ class ModelConfig:
         return cls(global_model=global_model, agent_overrides=agent_overrides)
 
     def to_opencode_config(self) -> dict:
-        """Convert to opencode.jsonc format."""
-        config = {"model": self.global_model}
+        """Convert to opencode.jsonc format (an unset model writes no key)."""
+        config: dict = {}
+        if self.global_model:
+            config["model"] = self.global_model
         if self.agent_overrides:
             config["agents"] = {}
             for agent_name, override in self.agent_overrides.items():
@@ -161,7 +170,11 @@ def resolve_agent_model(project_root: Path, agent_name: str) -> Optional[str]:
 
 
 def load_model_config(project_root: Path) -> ModelConfig:
-    """Load model configuration from opencode.jsonc."""
+    """Load model configuration from opencode.jsonc.
+
+    A missing or unparseable file loads an *unset* configuration: the global
+    model stays ``None`` rather than inventing a model nobody selected.
+    """
     config_path = project_root / "opencode.jsonc"
     if not config_path.exists():
         # Try .opencode/opencode.jsonc
@@ -512,14 +525,50 @@ def _drop_empty_agents(text: str) -> str:
     return edits.apply()
 
 
-def _apply_sets(text: str, global_model: str, requested: dict) -> str:
-    """Set the global model and every requested agent override."""
+def _apply_sets(
+    text: str, global_model: Optional[str], requested: dict
+) -> str:
+    """Set every requested agent override and the global model when one is set.
+
+    ``global_model`` is ``None`` when no global model is configured: the
+    ``model`` key is then removed (or not created) instead of being written as
+    an explicit ``null``.
+    """
     document = _document(text)
     edits = _Edits(text)
     root_additions: list[tuple[str, object]] = []
 
+    agents_member = _single(document, "agents") if requested else None
+    agents_value = (
+        {name: {"model": model_dict} for name, model_dict in requested.items()}
+        if requested and agents_member is None
+        else None
+    )
+
     model_member = _single(document, "model")
-    if model_member is None:
+    if global_model is None:
+        if model_member is not None:
+            if agents_value is not None:
+                # The new agents object takes the model member's place, so the
+                # member (and its separator comma) stays valid without an
+                # intermediate deletion.
+                edits.replace(
+                    model_member.key_start,
+                    model_member.value_end,
+                    json.dumps("agents")
+                    + ": "
+                    + _render(
+                        agents_value,
+                        _line_indent(text, model_member.key_start),
+                        edits.unit,
+                    ),
+                )
+                agents_value = None
+            else:
+                _delete_member(
+                    edits, text, document, document.members.index(model_member)
+                )
+    elif model_member is None:
         root_additions.append(("model", global_model))
     else:
         edits.replace(
@@ -528,13 +577,9 @@ def _apply_sets(text: str, global_model: str, requested: dict) -> str:
             json.dumps(global_model, ensure_ascii=False),
         )
 
-    agents_member = _single(document, "agents") if requested else None
     if agents_member is None:
-        if requested:
-            root_additions.append((
-                "agents",
-                {name: {"model": model_dict} for name, model_dict in requested.items()},
-            ))
+        if agents_value is not None:
+            root_additions.append(("agents", agents_value))
         if root_additions:
             _append_members(edits, text, document, root_additions)
         return edits.apply()
@@ -584,7 +629,9 @@ def _apply_sets(text: str, global_model: str, requested: dict) -> str:
     return edits.apply()
 
 
-def _patch_jsonc(text: str, global_model: str, agent_overrides) -> str:
+def _patch_jsonc(
+    text: str, global_model: Optional[str], agent_overrides
+) -> str:
     """Return ``text`` with only the model keys rewritten."""
     requested, keep_names = _resolve_overrides(agent_overrides)
     text, removed = _remove_overrides(text, keep_names)
@@ -593,11 +640,17 @@ def _patch_jsonc(text: str, global_model: str, agent_overrides) -> str:
     return _apply_sets(text, global_model, requested)
 
 
-def _verify(text: str, original: dict, global_model: str, agent_overrides) -> None:
+def _verify(
+    text: str, original: dict, global_model: Optional[str], agent_overrides
+) -> None:
     """Fail closed unless the patch produced exactly the requested model state."""
     parsed = parse_jsonc(text)
     if parsed.get("model") != global_model:
-        raise _CannotPatch("global model was not written")
+        raise _CannotPatch(
+            "global model was not written"
+            if global_model is not None
+            else "an unset global model left a model key behind"
+        )
     for key, value in original.items():
         if key in ("model", "agents"):
             continue
@@ -643,24 +696,30 @@ def _without_model(entry: dict) -> dict:
     return {key: value for key, value in entry.items() if key != "model"}
 
 
-def _legacy_save(config_path: Path, global_model: str, agent_overrides) -> None:
+def _legacy_save(
+    config_path: Path, global_model: Optional[str], agent_overrides
+) -> bool:
     """Previous behaviour: parse the whole file and re-serialize it.
 
     Used only when the surgical path cannot prove it is safe.  An unparseable
-    file is left untouched (the old writer would have raised here).
+    file is left untouched (the old writer would have raised here).  Returns
+    True when the file was rewritten.
     """
     try:
         config = _parse_jsonc(config_path.read_bytes().decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
-        return
+        return False
     if not isinstance(config, dict):
-        return
+        return False
 
-    config["model"] = global_model
+    if global_model is None:
+        config.pop("model", None)
+    else:
+        config["model"] = global_model
     if agent_overrides:
         if not isinstance(config.get("agents"), dict):
             if config.get("agents") is not None:
-                return
+                return False
             config["agents"] = {}
         for agent_name, override in agent_overrides.items():
             model_dict = _override_dict(override)
@@ -673,11 +732,16 @@ def _legacy_save(config_path: Path, global_model: str, agent_overrides) -> None:
         config.pop("agents", None)
 
     config_path.write_bytes((json.dumps(config, indent=2) + "\n").encode("utf-8"))
+    return True
 
 
-def _write_new_config(config_path: Path, global_model: str, agent_overrides) -> None:
-    """Create a fresh config in the shape the previous writer produced."""
-    config = {"model": global_model}
+def _write_new_config(
+    config_path: Path, global_model: Optional[str], agent_overrides
+) -> None:
+    """Create a fresh config, omitting an unset model instead of writing null."""
+    config: dict = {}
+    if global_model:
+        config["model"] = global_model
     if agent_overrides:
         config["agents"] = {}
         for agent_name, override in agent_overrides.items():
@@ -691,16 +755,34 @@ def _write_new_config(config_path: Path, global_model: str, agent_overrides) -> 
 
 def save_model_config(
     project_root: Path,
-    global_model: str,
+    global_model: Optional[str],
     agent_overrides: dict,
-) -> None:
-    """Save model configuration to opencode.jsonc, surgically when possible."""
+) -> bool:
+    """Save model configuration to opencode.jsonc, surgically when possible.
+
+    ``global_model=None`` means "no global model is configured": the ``model``
+    key is removed or never created, while the agent overrides are still
+    written.  The file is never given a ``"model": null`` entry.
+
+    Returns True when the configuration was written, and False when there was
+    nothing to persist (no global model, no overrides and no config file) or
+    the file was already in the requested state.  Callers report the empty
+    case honestly instead of silently creating an empty selection.
+    """
+    if not global_model:
+        global_model = None
+    requested, _keep = _resolve_overrides(agent_overrides)
+
     config_path = project_root / "opencode.jsonc"
     if not config_path.exists():
         config_path = project_root / ".opencode" / "opencode.jsonc"
         if not config_path.exists():
-            _write_new_config(project_root / "opencode.jsonc", global_model, agent_overrides)
-            return
+            if global_model is None and not requested:
+                return False
+            _write_new_config(
+                project_root / "opencode.jsonc", global_model, agent_overrides
+            )
+            return True
 
     original_bytes = config_path.read_bytes()
     raw = original_bytes.decode("utf-8")
@@ -714,15 +796,15 @@ def save_model_config(
         patched = _patch_jsonc(normalized, global_model, agent_overrides)
         _verify(patched, original_config, global_model, agent_overrides)
     except (ValueError, TypeError, KeyError, IndexError):
-        _legacy_save(config_path, global_model, agent_overrides)
-        return
+        return _legacy_save(config_path, global_model, agent_overrides)
 
     payload = ("\ufeff" if has_bom else "") + patched
     if newline != "\n":
         payload = payload.replace("\n", newline)
     if payload.encode("utf-8") == original_bytes:
-        return
+        return False
     _write_text_preserving_newline(config_path, ("\ufeff" if has_bom else "") + patched, newline)
+    return True
 
 
 async def reload_opencode_config(project_root: Path) -> bool:
