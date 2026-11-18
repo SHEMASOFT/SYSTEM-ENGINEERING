@@ -46,17 +46,18 @@
   .chev{fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
 
   /* Cards carry only what can be read at 1000 px wide: a title and a state. */
-  .node{position:absolute;width:190px;height:126px;padding:18px 18px 16px;border-radius:15px;
+  .node{position:absolute;width:202px;height:152px;padding:19px 20px 17px;border-radius:16px;
     background:var(--card);border:1px solid var(--line);
     box-shadow:0 22px 48px -26px rgba(0,0,0,.95), inset 0 1px 0 rgba(255,255,255,.05);
     opacity:0;transform:translateY(16px);display:flex;flex-direction:column;justify-content:space-between}
-  .node::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:4px;background:var(--accent)}
-  .node .title{font-size:26px;font-weight:700;line-height:1.12;letter-spacing:-.5px}
-  .node .state{font-size:16px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px}
-  .node .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 11px var(--accent)}
+  .node::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:5px;border-radius:5px;background:var(--accent)}
+  .node .title{font-size:29px;font-weight:700;line-height:1.1;letter-spacing:-.6px}
+  .node .title .nb{white-space:nowrap}
+  .node .state{font-size:18px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:9px}
+  .node .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
 
-  .node.side{width:224px;height:104px;padding:16px 18px}
-  .node.side .title{font-size:21px}
+  .node.side{width:240px;height:116px;padding:18px 20px}
+  .node.side .title{font-size:24px}
   .chip{position:absolute;top:12px;right:12px;font-size:11px;font-weight:800;letter-spacing:1.5px;
     padding:3px 8px;border-radius:6px;color:var(--magenta);
     border:1px solid rgba(255,43,214,.6);background:rgba(255,43,214,.12)}
@@ -114,8 +115,8 @@
 
 <script>
 const T = 8.0;
-const W = 190, H = 126, GAP = 30, X0 = 75, Y_MAIN = 286;
-const SIDE_W = 224, SIDE_H = 104, Y_SIDE = 470;
+const W = 202, H = 152, GAP = 16, X0 = 74, Y_MAIN = 282;
+const SIDE_W = 240, SIDE_H = 112, Y_SIDE = 486;
 
 const CYAN = [0,229,255], MAGENTA = [255,43,214];
 const mix = (a,b,t) => `rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(',')})`;
@@ -125,7 +126,7 @@ const NODES = [
   {id:'orch',  title:'Orchestrator',      state:'implemented', color:'#22D3EE', at:2.52},
   {id:'route', title:'Native / internal', state:'implemented', color:'#22D3EE', at:2.89},
   {id:'model', title:'LLM provider',      state:'on config',   color:'#3B82F6', at:3.26},
-  {id:'gates', title:'Gates G0–G8',       state:'implemented', color:'#22D3EE', at:3.63},
+  {id:'gates', title:'Gates <span class="nb">G0–G8</span>', state:'implemented', color:'#22D3EE', at:3.63},
   {id:'ckpt',  title:'Checkpoint',        state:'implemented', color:'#22D3EE', at:4.00},
   {id:'mem',   title:'Memory',            state:'advisory',    color:'#3B82F6', at:4.55, side:true},
   {id:'trace', title:'Trace',             state:'read-only',   color:'#22D3EE', at:4.80, side:true, badge:'NEW'},
