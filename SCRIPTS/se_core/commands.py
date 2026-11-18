@@ -8057,7 +8057,7 @@ def cmd_shema_main(args) -> int:
 def cmd_shema_model(args) -> int:
     """`se shema-ai model` — Model configuration."""
     # TUI mode (default)
-    if getattr(args, "tui", True) and not any([getattr(args, "list", False), getattr(args, "set", None), getattr(args, "unset", None), getattr(args, "providers", False), getattr(args, "global_model", None)]):
+    if getattr(args, "tui", True) and not any([getattr(args, "list", False), getattr(args, "set", None), getattr(args, "unset", None), getattr(args, "providers", False), getattr(args, "global_model", None), getattr(args, "all", False)]):
         from .model_tui.app import run_model_tui
         return run_model_tui()
 
@@ -8068,11 +8068,32 @@ def cmd_shema_model(args) -> int:
     from .model_tui.config import load_model_config, save_model_config
     config = load_model_config(project_path)
 
+    # --all (optionally with --global-model): one model for every agent
+    if getattr(args, "all", False):
+        if getattr(args, "global_model", None):
+            config.global_model = args.global_model
+        if not config.global_model:
+            print("FAIL: --all needs a global model: pass --global-model provider/model")
+            return 1
+        cleared = len(config.agent_overrides)
+        config.agent_overrides = {}
+        save_model_config(project_path, config.global_model, config.agent_overrides)
+        print(f"Global model set to: {config.global_model}")
+        print(
+            f"Overrides cleared: {cleared} agent(s) now inherit the global model"
+            if cleared
+            else "No overrides to clear: every agent already inherits the global model"
+        )
+        return 0
+
     # --global-model
     if getattr(args, "global_model", None):
         config.global_model = args.global_model
         save_model_config(project_path, config.global_model, config.agent_overrides)
         print(f"Global model set to: {config.global_model}")
+        kept = len(config.agent_overrides)
+        if kept:
+            print(f"Note: {kept} agent override(s) still take precedence; `--all` clears them")
         return 0
 
     # --set AGENT MODEL
