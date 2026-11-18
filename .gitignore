@@ -64,7 +64,9 @@ PROJECTS/*
 # Generated runtime adapters for other runtimes (regenerate via `se adapter ...`)
 .claude/
 .codex/
+.dsh/
 /AGENTS.md
+/AGENTS.local.md
 /CLAUDE.md
 /.mcp.json
 

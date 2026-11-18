@@ -3758,6 +3758,8 @@ def _report_adapter(title: str, result: dict, dry_run: bool) -> int:
     changed = [f for f in result["files"] if f["action"] != "unchanged"]
     print(title)
     print(f"{'Would write' if dry_run else 'Wrote'} {len(changed)} file(s) to {result['output']}")
+    if result.get("adapters"):
+        print(f"Adapters: {', '.join(result['adapters'])}")
     print(f"Status: {result['status']}")
     return 0
 
@@ -3778,6 +3780,15 @@ def cmd_adapter_codex(args) -> int:
     output = Path(args.output) if getattr(args, "output", None) else root
     dry_run = bool(getattr(args, "dry_run", False))
     return _report_adapter("Codex Adapter", runtimes.generate_codex(root, output, dry_run), dry_run)
+
+
+def cmd_adapter_deepseek(args) -> int:
+    from . import runtimes
+
+    root = repo_root()
+    output = Path(args.output) if getattr(args, "output", None) else root
+    dry_run = bool(getattr(args, "dry_run", False))
+    return _report_adapter("DeepSeek Harness Adapter", runtimes.generate_deepseek(root, output, dry_run), dry_run)
 
 
 def cmd_adapter_all(args) -> int:

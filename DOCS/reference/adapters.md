@@ -12,20 +12,21 @@ absolute host paths.
 | **OpenCode** | `se adapter opencode` | `.opencode/agents/`, `commands/`, `skills/`, `mcp/`, `AGENTS.md`, `adapter-manifest.json` | IMPLEMENTED (audited by `se doctor`) |
 | **Claude Code** | `se adapter claude-code` | `.claude/agents/`, `.claude/commands/`, `.claude/skills/`, `.mcp.json`, `CLAUDE.md` | IMPLEMENTED |
 | **Codex** | `se adapter codex` | `.codex/config.toml`, `.codex/agents/<role>.toml`, `.codex/prompts/`, `AGENTS.md` | IMPLEMENTED (config is a fragment: see below) |
-| all | `se adapter all` | both of the above at one output root | IMPLEMENTED |
+| **DeepSeek Harness** | `se adapter deepseek` | `.dsh/se.patch.yml`, `.dsh/skills/<id>/SKILL.md`, `AGENTS.local.md` | IMPLEMENTED (patch is an overlay: see below) |
+| all | `se adapter all` | every adapter above at one output root | IMPLEMENTED |
 
 `--output <dir>` (default: the repository root) and `--dry-run` apply to every
 adapter.
 
 ## Mapping
 
-| Canonical | OpenCode | Claude Code | Codex |
-|---|---|---|---|
-| agent (`AGENTS/*/agent.json`) | `.opencode/agents/<role>.md` (`mode`) | `.claude/agents/<role>.md` (`name`, `description`) | `[agents.<role>]` + `.codex/agents/<role>.toml` (`developer_instructions`) |
-| command (`COMMANDS/commands.json`) | `.opencode/commands/<name>.md` | `.claude/commands/<name>.md` | `.codex/prompts/<name>.md` |
-| skill (`SKILLS/*/SKILL.md`) | `.opencode/skills/<id>/SKILL.md` | `.claude/skills/<id>/SKILL.md` (byte-identical) | — |
-| MCP (`TEMPLATES/mcp/*`) | `opencode.jsonc` → `mcp.servers` | `.mcp.json` → `mcpServers` | `[mcp_servers.<id>]` in `.codex/config.toml` |
-| instructions | `AGENTS.md` | `CLAUDE.md` | `AGENTS.md` |
+| Canonical | OpenCode | Claude Code | Codex | DeepSeek Harness |
+|---|---|---|---|---|
+| agent (`AGENTS/*/agent.json`) | `.opencode/agents/<role>.md` (`mode`) | `.claude/agents/<role>.md` (`name`, `description`) | `[agents.<role>]` + `.codex/agents/<role>.toml` (`developer_instructions`) | `@deepseek-ai/dsh-agent-preset` row in `.dsh/se.patch.yml` (persona prefix) |
+| command (`COMMANDS/commands.json`) | `.opencode/commands/<name>.md` | `.claude/commands/<name>.md` | `.codex/prompts/<name>.md` | — (DSH commands are plugin registrations, not files) |
+| skill (`SKILLS/*/SKILL.md`) | `.opencode/skills/<id>/SKILL.md` | `.claude/skills/<id>/SKILL.md` (byte-identical) | — | `.dsh/skills/<id>/SKILL.md` |
+| MCP (`TEMPLATES/mcp/*`) | `opencode.jsonc` → `mcp.servers` | `.mcp.json` → `mcpServers` | `[mcp_servers.<id>]` in `.codex/config.toml` | listed in `AGENTS.local.md`; DSH mounts servers on the profile's `mcp-manager` row |
+| instructions | `AGENTS.md` | `CLAUDE.md` | `AGENTS.md` | `AGENTS.local.md` |
 
 Runtime differences that the adapter must respect:
 
@@ -36,6 +37,16 @@ Runtime differences that the adapter must respect:
   `.codex/config.toml` is a **fragment** to merge (or pass with `--config`); agent
   roles are declared under `[agents.<role>]` and point at a per-role TOML with
   `developer_instructions`. Codex has no skill loader, so skills are not adapted.
+- **DeepSeek Harness** discovers project instructions from `AGENTS.md`/`CLAUDE.md`
+  plus their `.local.md` overlays, and skills from `<projectRoot>/.dsh/skills`; the
+  `.local.md` name keeps this output from replacing the `AGENTS.md` the Codex
+  adapter writes. Agent presets are Cordis rows, never a scanned directory, so
+  `.dsh/se.patch.yml` is an **overlay**: apply it with
+  `dsh --patch .dsh/se.patch.yml` (or append it to the profile patch). A preset
+  declares identity, tools and prompt but no model route, so each role's resolved
+  model is recorded in the overlay, and it is applied through the
+  `agent-default-model` deployment default only when every role resolves to the
+  same `provider/model`.
 
 ## Selection
 
