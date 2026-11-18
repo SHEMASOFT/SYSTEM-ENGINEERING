@@ -196,7 +196,21 @@ Keys are read from the environment variable named in `provider_options.api_key_e
 `.codex/agents/<role>.toml`. A model that already contains `/` is used verbatim,
 otherwise the provider is prepended. Aliases: `free` → `openrouter`, `local` → `ollama`.
 
-> There is no CLI command to set this yet: edit the contract and re-run the adapter.
+> **Two layers, and the harness is the one that runs.** `se adapter ...` renders what
+> the contract declares into the generated agent files. What the runtime actually
+> executes is its own configuration, and `se shema-ai model` writes that one — either
+> the interactive selector or, non-interactively:
+>
+> ```bash
+> se shema-ai model --list                                    # current assignments
+> se shema-ai model --set reviewer anthropic/claude-3-5-haiku-latest
+> se shema-ai model --all --global-model openai/gpt-4o        # one model for everyone
+> se shema-ai model --unset reviewer
+> ```
+>
+> `--all` sets the global model **and clears every override**, which is what "the same
+> model for all subagents" means. The save is surgical: only the `model` keys are
+> rewritten, so comments and formatting of the runtime configuration survive.
 
 SE never stores provider credentials. Authenticate the runtime once:
 
