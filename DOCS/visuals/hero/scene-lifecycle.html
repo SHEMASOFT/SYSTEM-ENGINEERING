@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SYSTEM ENGINEERING — lifecycle</title>
+<style>
+  :root{
+    --bg:#05070E; --ink:#E9F2FF; --muted:#8FA6C4;
+    --cyan:#00E5FF; --magenta:#FF2BD6; --blue:#3B82F6;
+    --card:rgba(11,18,34,.92); --line:rgba(120,160,210,.19);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1440px;height:810px;overflow:hidden;background:var(--bg)}
+  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink)}
+  #stage{position:relative;width:1440px;height:810px;overflow:hidden}
+
+  .glow{position:absolute;border-radius:50%;filter:blur(100px);opacity:0}
+  .glow.a{width:760px;height:760px;left:-220px;top:-320px;background:radial-gradient(circle,rgba(0,229,255,.30),transparent 64%)}
+  .glow.b{width:900px;height:900px;right:-320px;bottom:-440px;background:radial-gradient(circle,rgba(255,43,214,.26),transparent 64%)}
+  .grid{position:absolute;inset:0;opacity:0;
+    background-image:linear-gradient(to right,rgba(120,170,230,.05) 1px,transparent 1px),
+                     linear-gradient(to bottom,rgba(120,170,230,.05) 1px,transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse at 50% 40%,#000 36%,transparent 80%)}
+
+  header{position:absolute;left:72px;top:48px;right:72px}
+  .kicker{font-size:13px;letter-spacing:5px;font-weight:700;color:var(--cyan);opacity:0;text-transform:uppercase}
+  h1{margin-top:12px;font-size:44px;line-height:1.06;font-weight:800;letter-spacing:-1.2px;opacity:0;
+    background:linear-gradient(93deg,#FFFFFF 6%,#D6ECFF 44%,#F5C9EF 92%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin-top:10px;font-size:18px;color:var(--muted);opacity:0}
+
+  #rail{position:absolute;left:118px;top:236px;width:3px;border-radius:3px;
+    background:linear-gradient(180deg,rgba(0,229,255,.6),rgba(255,43,214,.6));
+    transform-origin:top;transform:scaleY(0);opacity:.75}
+  .dotflow{position:absolute;left:113px;width:13px;height:13px;border-radius:50%;
+    background:#BFF4FF;box-shadow:0 0 16px 4px rgba(0,229,255,.5);opacity:0}
+
+  .state{position:absolute;left:150px;display:flex;align-items:center;gap:16px;opacity:0;transform:translateX(-10px)}
+  .state .name{font-size:27px;font-weight:700;letter-spacing:-.4px;width:250px}
+  .state .gates{display:flex;gap:8px}
+  .g{font-size:14px;font-weight:800;letter-spacing:1px;padding:4px 10px;border-radius:7px;
+    color:var(--magenta);border:1px solid rgba(255,43,214,.5);background:rgba(255,43,214,.10)}
+  .state .note{font-size:16px;color:var(--muted);max-width:520px}
+
+  .node-dot{position:absolute;left:110px;width:15px;height:15px;border-radius:50%;
+    background:var(--bg);border:3px solid var(--cyan);opacity:0}
+  .node-dot.mid{border-color:#7FD9EE}
+  .node-dot.end{border-color:var(--magenta)}
+
+  footer{position:absolute;left:72px;right:72px;bottom:36px;display:flex;justify-content:space-between;
+    font-size:15px;color:var(--muted);opacity:0}
+  footer b{color:#CFE9FF;font-weight:600}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow a" id="glowA"></div>
+  <div class="glow b" id="glowB"></div>
+  <div class="grid" id="grid"></div>
+
+  <header>
+    <div class="kicker" id="kicker">Lifecycle · gated by design</div>
+    <h1 id="title">Nine states, every transition gated</h1>
+    <div class="sub" id="sub">A project cannot skip a gate: the transition stops and names the condition that failed.</div>
+  </header>
+
+  <div id="rail"></div>
+
+  <footer id="footer">
+    <div><b>G0–G8</b> · FAIL and WARN block, MANUAL needs a written attestation</div>
+    <div>github.com/<b>SHEMASOFT/SYSTEM-ENGINEERING</b></div>
+  </footer>
+</div>
+
+<script>
+const T = 8.0;
+const X = 150, Y0 = 244, STEP = 56;
+
+const STATES = [
+  {name:'DRAFT',        gates:[],       note:'registered, not explored yet',     at:1.35},
+  {name:'DISCOVERY',    gates:['G0'],   note:'context, constraints, unknowns',   at:1.60},
+  {name:'PLANNING',     gates:['G1'],   note:'requirements and plan',            at:1.85},
+  {name:'ACTIVE',       gates:['G2','G3'], note:'implementation in progress',    at:2.10},
+  {name:'VERIFICATION', gates:['G4'],   note:'verified against requirements',    at:2.35},
+  {name:'ACCEPTANCE',   gates:['G5'],   note:'owner reviews and accepts',        at:2.60},
+  {name:'RELEASED',     gates:['G6','G7'], note:'a release has been produced',   at:2.85},
+  {name:'OPERATING',    gates:['G8'],   note:'the released system is in use',    at:3.10},
+  {name:'ARCHIVED',     gates:[],       note:'closed and preserved',             at:3.35},
+];
+
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const easeOut=t=>1-Math.pow(1-clamp(t),3);
+const fade=(t,start,dur)=>clamp((t-start)/dur);
+
+STATES.forEach((s,i)=>{
+  const y = Y0 + i*STEP;
+
+  const dot=document.createElement('div');
+  dot.className='node-dot'+(i===0?'':(i===STATES.length-1?' end':' mid'));
+  dot.style.top=(y+9)+'px';
+  document.getElementById('stage').appendChild(dot);
+  s.dot=dot;
+
+  const el=document.createElement('div');
+  el.className='state';
+  el.style.top=y+'px';
+  el.innerHTML=`<span class="name">${s.name}</span>
+    <span class="gates">${s.gates.map(g=>`<span class="g">${g}</span>`).join('')}</span>
+    <span class="note">${s.note}</span>`;
+  document.getElementById('stage').appendChild(el);
+  s.el=el;
+});
+
+const dot=document.createElement('div');
+dot.className='dotflow';
+document.getElementById('stage').appendChild(dot);
+
+const RAIL_TOP=236, RAIL_BOTTOM=Y0+(STATES.length-1)*STEP+18;
+
+window.__render=function(t){
+  t=((t%T)+T)%T;
+
+  const bg=easeOut(fade(t,0,0.7));
+  document.getElementById('glowA').style.opacity=(0.95*bg).toFixed(3);
+  document.getElementById('glowB').style.opacity=(0.95*bg).toFixed(3);
+  document.getElementById('grid').style.opacity=(0.9*bg).toFixed(3);
+
+  const k=easeOut(fade(t,0.2,0.5));
+  const ki=document.getElementById('kicker');
+  ki.style.opacity=k.toFixed(3); ki.style.transform=`translateY(${(1-k)*10}px)`;
+
+  const ti=easeOut(fade(t,0.35,0.7));
+  const title=document.getElementById('title');
+  title.style.opacity=ti.toFixed(3); title.style.transform=`translateY(${(1-ti)*20}px)`;
+
+  const si=easeOut(fade(t,0.7,0.6));
+  const sub=document.getElementById('sub');
+  sub.style.opacity=si.toFixed(3); sub.style.transform=`translateY(${(1-si)*10}px)`;
+
+  const rail=document.getElementById('rail');
+  rail.style.height=(RAIL_BOTTOM-RAIL_TOP)+'px';
+  rail.style.transform=`scaleY(${easeOut(fade(t,1.1,1.2)).toFixed(3)})`;
+
+  STATES.forEach(s=>{
+    const p=easeOut(fade(t,s.at,0.45));
+    s.el.style.opacity=p.toFixed(3);
+    s.el.style.transform=`translateX(${(1-p)*-10}px)`;
+    s.dot.style.opacity=p.toFixed(3);
+  });
+
+  const appear=fade(t,1.5,0.4);
+  if (appear>0){
+    const pos=((t*0.16)%1);
+    dot.style.top=(RAIL_TOP+pos*(RAIL_BOTTOM-RAIL_TOP))+'px';
+    dot.style.opacity=(0.85*appear).toFixed(3);
+  } else { dot.style.opacity='0'; }
+
+  const fo=easeOut(fade(t,5.2,0.5));
+  const footer=document.getElementById('footer');
+  footer.style.opacity=fo.toFixed(3);
+  footer.style.transform=`translateY(${(1-fo)*10}px)`;
+
+  document.getElementById('stage').style.opacity=(1-clamp((t-7.4)/0.55)).toFixed(3);
+};
+window.__render(0);
+</script>
+</body>
+</html>

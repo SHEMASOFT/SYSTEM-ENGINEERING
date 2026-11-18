@@ -108,6 +108,14 @@ receipts instead of claims.
 Design principles: **simple · modular · traceable · verifiable · extensible ·
 domain-agnostic · human-controlled · tool-independent**.
 
+<div align="center">
+
+[![Delegation: one coordinator, many fresh contexts](DOCS/assets/delegation.gif)](DOCS/assets/delegation.mp4)
+
+<sub>The coordinator delegates to specialist subagents; each works in its own context and returns only its result.</sub>
+
+</div>
+
 ---
 
 ## How the pieces fit together
@@ -247,6 +255,14 @@ condition failed, manual conditions need a written human attestation
 `BLOCKED` is a condition, not a state: it is recorded with a reason and a
 resolution path. Some gate conditions are `[MANUAL]` — they require a human
 attestation with a written reason, and SE never auto-approves them.
+
+<div align="center">
+
+[![Lifecycle: nine states, every transition gated](DOCS/assets/lifecycle.gif)](DOCS/assets/lifecycle.mp4)
+
+<sub>Every transition is gated (G0–G8): FAIL and WARN block, MANUAL needs a written attestation.</sub>
+
+</div>
 
 ---
 
