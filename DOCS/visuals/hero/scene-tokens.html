@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SYSTEM ENGINEERING — token economy</title>
+<style>
+  :root{
+    --bg:#05070E; --ink:#E9F2FF; --muted:#8FA6C4;
+    --cyan:#00E5FF; --magenta:#FF2BD6; --blue:#3B82F6;
+    --card:rgba(11,18,34,.92); --line:rgba(120,160,210,.19);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1440px;height:810px;overflow:hidden;background:var(--bg)}
+  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink)}
+  #stage{position:relative;width:1440px;height:810px;overflow:hidden}
+
+  .glow{position:absolute;border-radius:50%;filter:blur(100px);opacity:0}
+  .glow.a{width:760px;height:760px;left:-220px;top:-320px;background:radial-gradient(circle,rgba(0,229,255,.28),transparent 64%)}
+  .glow.b{width:900px;height:900px;right:-320px;bottom:-440px;background:radial-gradient(circle,rgba(255,43,214,.26),transparent 64%)}
+  .grid{position:absolute;inset:0;opacity:0;
+    background-image:linear-gradient(to right,rgba(120,170,230,.05) 1px,transparent 1px),
+                     linear-gradient(to bottom,rgba(120,170,230,.05) 1px,transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse at 50% 38%,#000 36%,transparent 80%)}
+
+  header{position:absolute;left:72px;top:44px;right:72px}
+  .kicker{font-size:13px;letter-spacing:5px;font-weight:700;color:var(--cyan);opacity:0;text-transform:uppercase}
+  h1{margin-top:12px;font-size:42px;line-height:1.07;font-weight:800;letter-spacing:-1.2px;opacity:0;
+    background:linear-gradient(93deg,#FFFFFF 6%,#D6ECFF 44%,#F5C9EF 92%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin-top:10px;font-size:17px;color:var(--muted);opacity:0}
+
+  .lane{position:absolute;left:72px;right:72px;height:190px;border-radius:16px;
+    background:rgba(11,18,34,.72);border:1px solid var(--line);opacity:0;transform:translateY(14px)}
+  .lane .label{position:absolute;left:26px;top:16px;font-size:13px;letter-spacing:2.6px;font-weight:800;
+    text-transform:uppercase}
+  .lane.bad .label{color:var(--magenta)}
+  .lane.good .label{color:var(--cyan)}
+  .lane .note{position:absolute;left:26px;bottom:14px;font-size:16.5px;color:#CFE0F5}
+
+  .node{position:absolute;top:54px;width:150px;height:74px;border-radius:12px;
+    background:rgba(8,14,26,.95);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700}
+  .node.a{left:250px} .node.b{left:1080px}
+
+  .band{position:absolute;top:68px;left:424px;width:628px;height:46px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600}
+  .band.inline{background:rgba(255,43,214,.14);border:1px solid rgba(255,43,214,.55);color:#FFC9F4}
+  .chip{position:absolute;top:76px;left:720px;padding:8px 16px;border-radius:9px;
+    background:rgba(0,229,255,.13);border:1px solid rgba(0,229,255,.55);color:#BFF4FF;
+    font-family:"Cascadia Code",Consolas,monospace;font-size:16px;font-weight:600}
+  .disk{position:absolute;top:60px;left:440px;width:240px;height:82px;border-radius:12px;
+    border:1px dashed rgba(150,180,220,.4);background:rgba(10,16,28,.6);
+    display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--muted);
+    text-align:center;line-height:1.3}
+
+  footer{position:absolute;left:72px;right:72px;bottom:36px;display:flex;justify-content:space-between;
+    font-size:15px;color:var(--muted);opacity:0}
+  footer b{color:#CFE9FF;font-weight:600}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow a"></div>
+  <div class="glow b"></div>
+  <div class="grid" id="grid"></div>
+
+  <header>
+    <div class="kicker" id="kicker">Token economy · references over payloads</div>
+    <h1 id="title">The output stays in the project. Only its reference travels.</h1>
+    <div class="sub" id="sub">A large node output is persisted and referenced by id, so the next node receives a pointer instead of the whole thing.</div>
+  </header>
+
+  <div class="lane bad" id="lane1">
+    <div class="label">Inline</div>
+    <div class="node a">node A</div>
+    <div class="band inline">the whole output rides inside the next input</div>
+    <div class="node b">node B</div>
+    <div class="note">Context grows with every hop, and every hop pays for it again.</div>
+  </div>
+
+  <div class="lane good" id="lane2">
+    <div class="label">Reference</div>
+    <div class="node a">node A</div>
+    <div class="disk">output persisted<br>memories/MEM-####.json</div>
+    <div class="chip" id="chip">memory:MEM-0007</div>
+    <div class="node b">node B</div>
+    <div class="note">A short id travels; node B resolves it only when it needs the content.</div>
+  </div>
+
+  <footer id="footer">
+    <div>One record per memory · the index is rebuildable · memory is <b>advisory</b>, never a gate</div>
+    <div>github.com/<b>SHEMASOFT/SYSTEM-ENGINEERING</b></div>
+  </footer>
+</div>
+
+<script>
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const easeOut=t=>1-Math.pow(1-clamp(t),3);
+const fade=(t,s,d)=>clamp((t-s)/d);
+const T=8.0;
+
+window.__render=function(t){
+  t=((t%T)+T)%T;
+  const bg=easeOut(fade(t,0,0.7));
+  document.querySelector('.glow.a').style.opacity=(0.95*bg).toFixed(3);
+  document.querySelector('.glow.b').style.opacity=(0.95*bg).toFixed(3);
+  document.getElementById('grid').style.opacity=(0.9*bg).toFixed(3);
+
+  const k=easeOut(fade(t,0.2,0.5));
+  const ki=document.getElementById('kicker');
+  ki.style.opacity=k.toFixed(3); ki.style.transform=`translateY(${(1-k)*10}px)`;
+
+  const ti=easeOut(fade(t,0.35,0.7));
+  const title=document.getElementById('title');
+  title.style.opacity=ti.toFixed(3); title.style.transform=`translateY(${(1-ti)*20}px)`;
+
+  const si=easeOut(fade(t,0.7,0.6));
+  const sub=document.getElementById('sub');
+  sub.style.opacity=si.toFixed(3); sub.style.transform=`translateY(${(1-si)*10}px)`;
+
+  const l1=easeOut(fade(t,1.35,0.5));
+  const lane1=document.getElementById('lane1');
+  lane1.style.top='232px';
+  lane1.style.opacity=l1.toFixed(3);
+  lane1.style.transform=`translateY(${(1-l1)*14}px)`;
+
+  const l2=easeOut(fade(t,2.05,0.5));
+  const lane2=document.getElementById('lane2');
+  lane2.style.top='436px';
+  lane2.style.opacity=l2.toFixed(3);
+  lane2.style.transform=`translateY(${(1-l2)*14}px)`;
+
+  // the reference chip travels from the record to node B
+  const travel=easeOut(fade(t,3.0,1.4));
+  const chip=document.getElementById('chip');
+  chip.style.left=(720 + travel*160) + 'px';
+  chip.style.opacity=(0.95*Math.min(1, fade(t,2.9,0.4))).toFixed(3);
+
+  const fo=easeOut(fade(t,4.9,0.55));
+  const footer=document.getElementById('footer');
+  footer.style.opacity=fo.toFixed(3);
+  footer.style.transform=`translateY(${(1-fo)*10}px)`;
+
+  document.getElementById('stage').style.opacity=(1-clamp((t-7.4)/0.55)).toFixed(3);
+};
+window.__render(0);
+</script>
+</body>
+</html>

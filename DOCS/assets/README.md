@@ -13,6 +13,11 @@ preview. Everything here is **generated**, never edited by hand.
 | `delegation.gif` | ~1.4 MB, 900 px, 18 fps | "One coordinator, many fresh contexts" — used in the "Why SE" section |
 | `delegation.mp4` / `delegation-poster.png` | ~0.29 MB / 0.20 MB, 1440×810 | The same view as a clip and as a still |
 | `social-card.png` | ~0.15 MB, 1280×640 | The image for GitHub's social preview (Settings → Social preview) |
+| `token-economy.gif` | ~1.5 MB, 900 px, 18 fps | "The output stays in the project": inline vs reference, used in the memory section |
+| `token-economy.mp4` / `token-economy-poster.png` | ~0.35 MB / 0.15 MB, 1440×810 | The same view as a clip and as a still |
+| `modes.gif` | ~1.45 MB, 900 px, 18 fps | ODD → SDD → RDD, used in the work-modes section |
+| `modes.mp4` / `modes-poster.png` | ~0.34 MB / 0.16 MB, 1440×810 | The same view as a clip and as a still |
+| `installer-card.png` | ~0.16 MB, 1440×810 | The installer: one command and the browser UI, used in the install section |
 | `hero-vertical.mp4` | ~0.42 MB, 1080×1920, 8 s | Shorts, Reels and TikTok — same story, vertical cut |
 | `hero-vertical-poster.png` | ~0.25 MB, 1080×1920 | Cover image for the vertical platforms |
 | `social-60s.mp4` | ~1.95 MB, 1080×1920, 60 s | The full social clip: problem → coordinator → gates → memory → ODD/SDD/RDD → real `se doctor` → call to action |
@@ -26,6 +31,9 @@ python DOCS/visuals/hero/render.py all --format vertical    # hero: 9:16 for sho
 python DOCS/visuals/hero/render.py all --format lifecycle   # lifecycle view
 python DOCS/visuals/hero/render.py all --format delegation  # delegation view
 python DOCS/visuals/hero/render.py poster --format social   # 1280x640 social card
+python DOCS/visuals/hero/render.py all --format tokens      # token economy view
+python DOCS/visuals/hero/render.py all --format modes       # ODD/SDD/RDD view
+python DOCS/visuals/hero/render.py poster --format installer  # installer card
 python DOCS/visuals/social/render.py all                    # 60 s social clip
 ```
 

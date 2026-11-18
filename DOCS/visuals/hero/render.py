@@ -74,6 +74,33 @@ FORMATS = {
         "poster": "social-card.png",
         "poster_at": 1.6,
     },
+    "modes": {
+        "scene": HERE / "scene-modes.html",
+        "size": (1440, 810),
+        "video": "modes.mp4",
+        "gif": "modes.gif",
+        "gif_width": 900,
+        "poster": "modes-poster.png",
+        "poster_at": 6.2,
+    },
+    "tokens": {
+        "scene": HERE / "scene-tokens.html",
+        "size": (1440, 810),
+        "video": "token-economy.mp4",
+        "gif": "token-economy.gif",
+        "gif_width": 900,
+        "poster": "token-economy-poster.png",
+        "poster_at": 6.2,
+    },
+    "installer": {
+        "scene": HERE / "scene-installer.html",
+        "size": (1440, 810),
+        "video": None,
+        "gif": None,
+        "gif_width": None,
+        "poster": "installer-card.png",
+        "poster_at": 1.0,
+    },
 }
 
 DURATION = 8.0

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SYSTEM ENGINEERING — installer</title>
+<style>
+  :root{
+    --bg:#05070E; --ink:#E9F2FF; --muted:#8FA6C4;
+    --cyan:#00E5FF; --magenta:#FF2BD6; --blue:#3B82F6;
+    --card:rgba(11,18,34,.92); --line:rgba(120,160,210,.19);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1440px;height:810px;overflow:hidden;background:var(--bg)}
+  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink)}
+  #stage{position:relative;width:1440px;height:810px;overflow:hidden}
+
+  .glow{position:absolute;border-radius:50%;filter:blur(100px)}
+  .glow.a{width:760px;height:760px;left:-220px;top:-320px;background:radial-gradient(circle,rgba(0,229,255,.30),transparent 64%)}
+  .glow.b{width:900px;height:900px;right:-320px;bottom:-440px;background:radial-gradient(circle,rgba(255,43,214,.26),transparent 64%)}
+  .grid{position:absolute;inset:0;
+    background-image:linear-gradient(to right,rgba(120,170,230,.05) 1px,transparent 1px),
+                     linear-gradient(to bottom,rgba(120,170,230,.05) 1px,transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse at 40% 38%,#000 34%,transparent 80%)}
+
+  header{position:absolute;left:72px;top:52px;right:72px}
+  .kicker{font-size:13px;letter-spacing:5px;font-weight:700;color:var(--cyan);text-transform:uppercase}
+  h1{margin-top:12px;font-size:46px;line-height:1.06;font-weight:800;letter-spacing:-1.4px;
+    background:linear-gradient(93deg,#FFFFFF 6%,#D6ECFF 44%,#F5C9EF 92%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin-top:12px;font-size:18px;color:var(--muted)}
+
+  .term{position:absolute;left:72px;top:270px;width:820px;border-radius:14px;overflow:hidden;
+    background:#080D18;border:1px solid var(--line);box-shadow:0 24px 50px -28px #000}
+  .term .bar{display:flex;align-items:center;gap:8px;padding:12px 16px;background:rgba(255,255,255,.03);
+    border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .term pre{margin:0;padding:20px 22px;font-family:"Cascadia Code",Consolas,monospace;font-size:15px;
+    line-height:1.8;color:#D8E6F8;white-space:pre-wrap}
+  .term .c{color:#6F86A6}
+  .term .p{color:var(--magenta)}
+  .term .ok{color:var(--cyan)}
+
+  .panel{position:absolute;left:932px;top:270px;width:436px;border-radius:14px;background:var(--card);
+    border:1px solid var(--line);padding:22px 24px;box-shadow:0 24px 50px -28px #000}
+  .panel h2{font-size:15px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+  .tab{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(120,160,210,.12);
+    font-size:18px;font-weight:600}
+  .tab:last-child{border-bottom:none}
+  .tab .k{width:10px;height:10px;border-radius:50%;background:var(--cyan);box-shadow:0 0 9px var(--cyan)}
+  .tab small{display:block;font-size:13.5px;font-weight:500;color:var(--muted);margin-top:3px}
+
+  footer{position:absolute;left:72px;right:72px;bottom:40px;display:flex;justify-content:space-between;
+    font-size:15px;color:var(--muted)}
+  footer b{color:#CFE9FF;font-weight:600}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow a"></div>
+  <div class="glow b"></div>
+  <div class="grid"></div>
+
+  <header>
+    <div class="kicker">Install · one command</div>
+    <h1>Install in one command, or drive it from the browser</h1>
+    <div class="sub">The installer creates an isolated venv, registers the MCP servers and generates the runtime adapters.</div>
+  </header>
+
+  <div class="term">
+    <div class="bar">
+      <span class="dot" style="background:#FF2BD6"></span>
+      <span class="dot" style="background:#3B82F6"></span>
+      <span class="dot" style="background:#00E5FF"></span>
+      <span style="margin-left:10px">se — installer</span>
+    </div>
+    <pre><span class="c"># Windows</span>
+<span class="p">&gt;</span> powershell -ExecutionPolicy Bypass -File SE-INSTALLER\bootstrap.ps1 install --recommended
+<span class="c"># Linux / macOS</span>
+<span class="p">&gt;</span> bash SE-INSTALLER/install.sh install --recommended
+
+<span class="c"># plan first, or pick components interactively</span>
+<span class="p">&gt;</span> bootstrap.ps1 install --recommended --dry-run
+<span class="p">&gt;</span> bootstrap.ps1 tui</pre>
+  </div>
+
+  <div class="panel">
+    <h2>Browser UI</h2>
+    <div class="tab"><span class="k"></span><span>Install<small>pick components, watch each step</small></span></div>
+    <div class="tab"><span class="k" style="background:#E879F9;box-shadow:0 0 9px #E879F9"></span><span>Uninstall<small>remove what the installer added</small></span></div>
+    <div class="tab"><span class="k" style="background:#3B82F6;box-shadow:0 0 9px #3B82F6"></span><span>Adapter<small>regenerate the agent layer</small></span></div>
+    <div class="tab"><span class="k" style="background:#94A3B8;box-shadow:none"></span><span>Live log<small>what is happening, as it happens</small></span></div>
+  </div>
+
+  <footer>
+    <div>Not required: the minimal path is a clone plus <b>jsonschema</b>.</div>
+    <div>github.com/<b>SHEMASOFT/SYSTEM-ENGINEERING</b></div>
+  </footer>
+</div>
+<script>
+window.__render=function(){};
+window.__render(0);
+</script>
+</body>
+</html>

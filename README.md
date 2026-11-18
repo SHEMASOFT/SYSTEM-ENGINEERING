@@ -176,6 +176,14 @@ bash SE-INSTALLER/install.sh install --recommended
 
 Full path, components and uninstall: [`DOCS/reference/installation.md`](DOCS/reference/installation.md).
 
+<div align="center">
+
+![The installer: one command, or a browser UI with install, uninstall, adapter and live log](DOCS/assets/installer-card.png)
+
+<sub>Same installer, two fronts: the one-command bootstrap or the browser UI.</sub>
+
+</div>
+
 ---
 
 ## Configure a runtime (optional)
@@ -289,6 +297,14 @@ and an optional local reranker. Memory is **advisory**: no gate passes or fails
 because of it, and the auditable record stays in the project artifacts. Storage
 model and session-start convention: [`DOCS/reference/memory.md`](DOCS/reference/memory.md).
 
+<div align="center">
+
+[![Token economy: the output stays in the project, only its reference travels](DOCS/assets/token-economy.gif)](DOCS/assets/token-economy.mp4)
+
+<sub>A large output is persisted and referenced by id, so the next node receives a pointer instead of the payload.</sub>
+
+</div>
+
 **Work modes** — the agent picks the mode from the project, not from habit:
 `organic` (daily flow), `spec` (contract changes and large/high-risk work, needs an
 approved SDD) and `receipt` (a verdict bound to the exact change candidate, needs a
@@ -296,6 +312,14 @@ passing RDD). The rule is executable, not advice: it lives in
 [`CORE/policies/ceremony.json`](CORE/policies/ceremony.json), `se ceremony --project`
 shows the floor and `se validate --project` enforces it. See
 [`DOCS/reference/work-modes.md`](DOCS/reference/work-modes.md).
+
+<div align="center">
+
+[![Work modes: ODD, SDD and RDD, chosen by rule](DOCS/assets/modes.gif)](DOCS/assets/modes.mp4)
+
+<sub>Explore with an ODD, agree with an SDD, prove with an RDD — the project's scale and risk decide which one is required.</sub>
+
+</div>
 
 ---
 
