@@ -4,10 +4,20 @@ from __future__ import annotations
 
 import sys
 import argparse
+from pathlib import Path
 
 from .orchestrator import InstallerOrchestrator
 from .components import get_all_components, get_recommended_components
 from .models import InstallationPlan, OSType, InstallStatus
+
+
+def _repo_root() -> Path:
+    """The checkout that owns this installer.
+
+    ``opencode.jsonc`` (the SE model selection store) and ``SCRIPTS/se.py``
+    both live at this root, exactly as the ``se`` CLI computes it.
+    """
+    return Path(__file__).resolve().parents[2]
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -47,6 +57,28 @@ def create_parser() -> argparse.ArgumentParser:
     install_parser.add_argument(
         "--skip-verification", action="store_true",
         help="Skip post-install verification"
+    )
+    # Optional MODEL SELECTION step. It runs after a successful install: the
+    # selection is written to opencode.jsonc (the store `se shema-ai model`
+    # reads) and the generated runtime layers are refreshed. `--model` routes
+    # every agent through one model, `--model-agent` adds per-agent overrides,
+    # and `--no-model-step` opts out. Without either flag an interactive run
+    # asks; a non-interactive run configures nothing.
+    install_parser.add_argument(
+        "--model", metavar="PROVIDER/MODEL", default=None,
+        help="Set one model for every agent (provider/model) after a successful install"
+    )
+    install_parser.add_argument(
+        "--model-agent", dest="model_agent", action="append", default=None,
+        metavar="NAME=PROVIDER/MODEL",
+        help="Set a per-agent model after a successful install (repeatable)"
+    )
+    install_parser.add_argument(
+        "--no-model-step", dest="no_model_step", action="store_true",
+        help=(
+            "Skip the optional model selection step: configure no model and "
+            "leave the selection unset"
+        )
     )
     # Opt-in, and mutually exclusive so the intent is never ambiguous. Default is
     # off: the shortcut writes to the operator's Desktop.
@@ -93,6 +125,12 @@ def create_parser() -> argparse.ArgumentParser:
         dest="skip_mcp_registration",
         action="store_true",
         help="Do not register the selected MCPs in OpenCode after a successful install",
+    )
+    tui_parser.add_argument(
+        "--no-model-step",
+        dest="no_model_step",
+        action="store_true",
+        help="Do not offer the model selection step after a successful install",
     )
 
     # uninstall command
@@ -433,9 +471,73 @@ def _print_shortcut(data, out) -> None:
         print(f"  [FAIL] Acceso directo: {data.get('error') or 'no se pudo crear'}", file=out)
 
 
+def _stdin_is_interactive() -> bool:
+    """True when a person can answer a prompt on stdin."""
+    try:
+        return bool(sys.stdin) and bool(sys.stdin.isatty())
+    except Exception:
+        return False
+
+
+def _target_runtimes(args) -> list[str]:
+    """The runtimes to configure, tolerant of hand-built argument objects."""
+    value = getattr(args, "runtimes", None)
+    if isinstance(value, (list, tuple)):
+        return [item for item in value if isinstance(item, str)]
+    return ["opencode"]
+
+
+def _run_model_step(
+    request,
+    *,
+    project_root: Path,
+    runtimes: list[str],
+    dry_run: bool,
+    install_succeeded: bool,
+    json_mode: bool,
+):
+    """Run the optional model step and print its report.
+
+    Returns ``None`` when there is nothing to report, so an install that never
+    mentioned models (or used ``--no-model-step``) keeps its previous output and
+    JSON envelope. The step is best-effort by construction: whatever it collects
+    is printed here, and the install's own exit status is unaffected.
+    """
+    from . import model_step
+
+    if request.explicit_skip:
+        # --no-model-step: no plan, no output, no configuration.
+        return None
+    out = sys.stderr if json_mode else sys.stdout
+    if not install_succeeded:
+        if not request.enabled:
+            return None
+        report = model_step.not_run_report(request.selection)
+        for line in model_step.report_lines(report):
+            print(line, file=out)
+        return report
+
+    try:
+        report = model_step.run_model_step(
+            request,
+            project_root=project_root,
+            runtimes=runtimes,
+            dry_run=dry_run,
+            interactive=(not json_mode) and _stdin_is_interactive(),
+        )
+    except Exception as exc:  # noqa: BLE001 - the install result stands
+        report = model_step.failure_report(None, f"the model step failed: {exc}")
+    if report is None:
+        return None
+    for line in model_step.report_lines(report):
+        print(line, file=out)
+    return report
+
+
 def cmd_install(args) -> int:
     from .orchestrator import InstallerOrchestrator
     from .models import InstallationPlan
+    from . import model_step
     import json
     import sys
 
@@ -446,6 +548,17 @@ def cmd_install(args) -> int:
     # `is True`, not truthiness: an opt-in that writes to the operator's Desktop
     # has to be an explicit yes. Nothing else may switch it on by accident.
     plan.create_shortcuts = getattr(args, "shortcuts", False) is True
+
+    # The model step is planned up front (so a malformed flag fails before a
+    # long install) but only applied after the install succeeds.
+    project_root = _repo_root()
+    try:
+        model_request = model_step.request_from_args(
+            args, model_step.list_agents(project_root)
+        )
+    except model_step.ModelSelectionError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
 
     orchestrator = InstallerOrchestrator(plan)
 
@@ -494,6 +607,19 @@ def cmd_install(args) -> int:
 
     summary = orchestrator.get_summary()
 
+    # Install first, model second, adapters last: the selection is only worth
+    # writing once the layers it routes were actually installed.
+    model_report = _run_model_step(
+        model_request,
+        project_root=project_root,
+        runtimes=_target_runtimes(args),
+        dry_run=bool(args.dry_run),
+        install_succeeded=success,
+        json_mode=json_mode,
+    )
+    if model_report is not None:
+        summary["model"] = model_report
+
     if args.json:
         print(json.dumps(summary, indent=2, ensure_ascii=False))
     else:
@@ -511,6 +637,10 @@ def cmd_tui(args) -> int:
     from .tui import InstallerApp, register_mcps
 
     app = InstallerApp()
+    # `--no-model-step` also applies to the TUI: the dialog is opt-out there for
+    # operators who already chose their models outside the installer.
+    if getattr(args, "no_model_step", False) is True:
+        app.model_step_enabled = False
     app.run()
 
     if not app.installation_attempted:

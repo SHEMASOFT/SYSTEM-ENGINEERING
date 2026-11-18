@@ -10,21 +10,24 @@ from typing import Callable, Iterable, Optional
 from pathlib import Path
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
+from textual.containers import (
+    Container, Horizontal, Vertical, ScrollableContainer, VerticalScroll
+)
 from textual.widgets import (
     Header, Footer, Static, Button, Checkbox, Label, 
-    ProgressBar, Log, TabbedContent, TabPane, Select
+    ProgressBar, Log, TabbedContent, TabPane, Select, Input
 )
 from textual.widgets import Tree, Collapsible
 from textual.reactive import reactive
 from textual.message import Message
-from textual.screen import Screen
+from textual.screen import Screen, ModalScreen
 from textual.binding import Binding
 
 from .components import get_all_components, get_components_by_category
 from .models import InstallableComponent, InstallStatus, OSType, ComponentType
 from .orchestrator import InstallerOrchestrator
 from .state import InstallationState
+from . import model_step
 
 
 def register_mcps(
@@ -295,6 +298,123 @@ class ComponentDetailPanel(Static):
         self.update(content)
 
 
+class ModelModeScreen(ModalScreen):
+    """Ask how the models should be configured, after a successful install.
+
+    "Saltar" is a first-class answer: it dismisses with ``"skip"`` and the
+    caller writes nothing at all.
+    """
+
+    BINDINGS = [Binding("escape", "skip", "Saltar")]
+
+    def compose(self) -> ComposeResult:
+        with Container(classes="dialog"):
+            yield Static("## Seleccion de modelo (opcional)", classes="dialog-title")
+            yield Static(
+                "Elige un modelo para todos los agentes, uno por subagente, o\n"
+                "salta el paso. Saltar deja la seleccion sin configurar.",
+                classes="dialog-body",
+            )
+            yield Button(
+                "Mismo modelo para todos",
+                id="model-same",
+                variant="primary",
+            )
+            yield Button("Un modelo por subagente", id="model-per-agent")
+            yield Button("Saltar (no configurar)", id="model-skip")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        modes = {
+            "model-same": model_step.MODE_GLOBAL,
+            "model-per-agent": model_step.MODE_PER_AGENT,
+            "model-skip": "skip",
+        }
+        if event.button.id in modes:
+            self.dismiss(modes[event.button.id])
+
+    def action_skip(self) -> None:
+        self.dismiss("skip")
+
+
+class ModelInputScreen(ModalScreen):
+    """Collect the ``provider/model`` value(s) for the chosen mode."""
+
+    BINDINGS = [Binding("escape", "skip", "Saltar")]
+
+    def __init__(self, agents: Iterable[str], per_agent: bool = False):
+        super().__init__()
+        self.agents = list(agents)
+        self.per_agent = per_agent
+
+    def compose(self) -> ComposeResult:
+        with Container(classes="dialog"):
+            if self.per_agent:
+                title = "## Un modelo por subagente"
+                body = (
+                    "Escribe provider/model para cada agente. Vacio deja ese\n"
+                    "agente como estaba; no se inventa ninguno."
+                )
+            else:
+                title = "## Un modelo para todos"
+                body = (
+                    "Escribe provider/model. Vacio salta el paso: no se\n"
+                    "configura ningun modelo."
+                )
+            yield Static(title, classes="dialog-title")
+            yield Static(body, classes="dialog-body")
+            if self.per_agent:
+                with VerticalScroll(id="model-agents"):
+                    for name in self.agents:
+                        with Horizontal(classes="model-row"):
+                            yield Label(name, classes="model-agent")
+                            yield Input(
+                                placeholder="provider/model (vacio = sin cambio)",
+                                id=f"model-{name}",
+                            )
+            else:
+                yield Input(
+                    placeholder="provider/model", id="model-global-value"
+                )
+            yield Static("", id="model-error", classes="model-error")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Guardar", id="model-save", variant="primary")
+                yield Button("Saltar", id="model-skip")
+
+    def _read_selection(self):
+        """The selection typed into the form, or ``None`` to skip."""
+        if not self.per_agent:
+            raw = self.query_one("#model-global-value", Input).value.strip()
+            if not raw:
+                return None
+            return model_step.selection_for_all(raw, source="tui")
+        overrides = {}
+        for name in self.agents:
+            raw = self.query_one(f"#model-{name}", Input).value.strip()
+            if raw:
+                overrides[name] = raw
+        if not overrides:
+            return None
+        return model_step.selection_per_agent(overrides, source="tui")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        if event.button.id == "model-skip":
+            self.dismiss(None)
+            return
+        if event.button.id != "model-save":
+            return
+        try:
+            selection = self._read_selection()
+        except model_step.ModelSelectionError as exc:
+            self.query_one("#model-error", Static).update(str(exc))
+            return
+        self.dismiss(selection)
+
+    def action_skip(self) -> None:
+        self.dismiss(None)
+
+
 class InstallerApp(App):
     """Main SE Installer TUI Application."""
     
@@ -368,6 +488,28 @@ class InstallerApp(App):
     .pending { color: yellow; }
     .installing { color: cyan; }
     .skipped { color: gray; }
+
+    ModelModeScreen, ModelInputScreen {
+        align: center middle;
+    }
+
+    .dialog {
+        width: 90;
+        max-width: 95%;
+        height: auto;
+        max-height: 90%;
+        border: solid $primary;
+        background: $surface;
+        padding: 1 2;
+    }
+
+    .dialog-title { text-style: bold; }
+    .dialog-body { margin-bottom: 1; }
+    .dialog-buttons { height: auto; margin-top: 1; }
+    #model-agents { height: auto; max-height: 24; }
+    .model-row { height: auto; }
+    .model-agent { width: 26; }
+    .model-error { color: red; }
     """
     
     def __init__(self, *args, **kwargs):
@@ -382,6 +524,10 @@ class InstallerApp(App):
         self.install_succeeded = False
         self.install_was_dry_run = False
         self.installed_mcp_ids: list[str] = []
+        # Optional post-install model step. It is opt-out with
+        # `se-installer tui --no-model-step` and never affects the install result.
+        self.model_step_enabled = True
+        self.model_report: Optional[dict] = None
     
     def compose(self) -> ComposeResult:
         yield Header()
@@ -577,9 +723,56 @@ class InstallerApp(App):
             self.notify(f"Instalación completada: {summary['success']}/{summary['total']} OK", severity="success")
         else:
             self.notify(f"Instalación completada con errores: {summary['failed']} fallaron", severity="error")
-        
+
+        # Install first; only then offer to route the agents. A dry run plans
+        # the install only, so it must not write a model selection either.
+        if success and not self.install_was_dry_run:
+            await self._ask_model_step()
+
         self._refresh_tree_labels()
-    
+
+    async def _ask_model_step(self) -> None:
+        """Offer the optional model step. It never fails the installation."""
+        if not self.model_step_enabled:
+            return
+        log = self.query_one("#log-widget", LogWidget)
+        root = Path(__file__).resolve().parents[2]
+        try:
+            mode = await self.push_screen_wait(ModelModeScreen())
+            if mode in (None, "skip"):
+                selection = model_step.skipped_selection(
+                    reason="skipped in the prompt", source="tui"
+                )
+            else:
+                selection = await self.push_screen_wait(
+                    ModelInputScreen(
+                        model_step.list_agents(root),
+                        per_agent=(mode == model_step.MODE_PER_AGENT),
+                    )
+                )
+                if selection is None:
+                    selection = model_step.skipped_selection(
+                        reason="skipped in the prompt", source="tui"
+                    )
+            runtimes = (
+                list(self.orchestrator.plan.target_runtimes)
+                if self.orchestrator
+                else ["opencode"]
+            )
+            report = model_step.apply_selection(
+                root, selection, runtimes=runtimes
+            )
+        except Exception as exc:  # noqa: BLE001 - the install result stands
+            log.add_entry("ERROR", f"Paso de modelo omitido: {exc}")
+            return
+
+        self.model_report = report
+        level = "SUCCESS" if report.get("status") == "configured" else "INFO"
+        for line in model_step.report_lines(report):
+            log.add_entry(level, line.strip())
+        if report.get("status") == "configured":
+            self.notify("Seleccion de modelo guardada", severity="success")
+
     def _on_progress(self, event: str, data: dict) -> None:
         self.call_from_thread(self._handle_progress, event, data)
     

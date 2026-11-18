@@ -304,6 +304,14 @@ How to run it — one command, browser UI, TUI controls — is in
 | `se-installer status --json` | verifies the installations |
 | `se-installer doctor --json` | health checks |
 
+The optional model step runs after a successful install: `--model provider/model`
+sets one model for every agent, `--model-agent NAME=provider/model` (repeatable)
+sets per-agent overrides, and an interactive run with neither flag asks. The
+selection is written through `save_model_config` into `opencode.jsonc` and the
+selected runtimes are refreshed with `se adapter <runtime>`, so Codex, Claude Code
+and DeepSeek pick it up via `_model_for_agent`. `--no-model-step` skips the step
+entirely; skipping writes nothing, so the selection stays `(not configured)`.
+
 ---
 
 ## Desktop shortcut (opt-in)

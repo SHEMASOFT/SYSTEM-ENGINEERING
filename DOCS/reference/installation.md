@@ -40,6 +40,11 @@ bash SE-INSTALLER/install.sh install --recommended
 - `tui` opens the interactive selector: `Space` select, `A` recommended set,
   `Enter` install, `D` dry-run, `R` refresh, `Q` quit.
 - `--skip-mcp-registration` opts out of writing the MCP servers into the config.
+- After a successful install the installer offers an optional model step:
+  `--model provider/model` sets one model for every agent, `--model-agent
+  NAME=provider/model` sets it per agent, `--no-model-step` skips it, and an
+  interactive run with neither flag asks. Skipping leaves the selection unset —
+  the installer never picks a model for you.
 - If the installer had to install Node or OpenCode, open a **new terminal** so the
   updated `PATH` is loaded, then run `opencode auth login` once.
 
