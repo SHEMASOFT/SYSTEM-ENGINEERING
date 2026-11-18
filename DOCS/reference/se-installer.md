@@ -280,55 +280,33 @@ mcps = rcg.get_mcp_selection_menu("opencode")
 
 ---
 
-## CLI Usage
+## Running the installer
 
-```bash
-# Install recommended components (SE Core, Console, Context7, Filesystem, Node, OpenCode)
-se-installer install --recommended
+How to run it — one command, browser UI, TUI controls — is in
+[`installation.md`](installation.md) §1–2. This page documents what the installer
+*is*. The commands, for reference:
 
-# Install specific components
-se-installer install -c se_core se_console context7 filesystem opencode
-
-# Install all components
-se-installer install --all
-
-# Dry run (plan only)
-se-installer install --dry-run --recommended --json
-
-# Also create the SE Console desktop shortcut (opt-in; one shortcut, start only)
-se-installer install --recommended --shortcuts
-
-# List all components
-se-installer list --json
-
-# List only installed
-se-installer list --installed
-
-# Check status (verifies installations)
-se-installer status --json
-
-# Health checks
-se-installer doctor --json
-
-# Interactive TUI
-se-installer tui
-```
-
-### Target Runtimes
-```bash
-se-installer install --recommended --runtimes opencode codex claude_code
-```
+| Command | What it does |
+|---|---|
+| `se-installer install --recommended` | SE Core, Console, Context7, Filesystem, Node, OpenCode |
+| `se-installer install -c se_core se_console …` | a specific component set |
+| `se-installer install --all` | every component |
+| `se-installer install --recommended --runtimes opencode codex claude_code` | also configure those runtimes |
+| `se-installer install --dry-run --json` | plan only |
+| `se-installer list [--installed] --json` | the catalog, or what is present |
+| `se-installer status --json` | verifies the installations |
+| `se-installer doctor --json` | health checks |
 
 ---
 
-## Console Desktop Shortcut (opt-in)
+## Desktop shortcut (opt-in)
 
 `se-installer install --shortcuts` creates **one** desktop shortcut that starts the SE
-Console. `--no-shortcuts` is the default and writes nothing to anybody's Desktop. The TUI
-asks the same question with one checkbox.
+Console. `--no-shortcuts` is the default and writes nothing to anybody's Desktop; the
+TUI asks the same question with one checkbox.
 
-- **One shortcut, start only** (DESIGN-5C D3). The console stops itself once nothing is
-  watching it, so a Stop shortcut would have nothing to do.
+- **One shortcut, start only.** The console stops itself once nothing is watching it,
+  so a Stop shortcut would have nothing to do.
 - **Created only when `se_console` is part of the installation, and only after that
   installation succeeds.** A shortcut to a console that was never installed — or to an
   install that failed — breaks silently on the operator's Desktop weeks later.
@@ -340,46 +318,29 @@ asks the same question with one checkbox.
 | macOS | `SE Console.command` | `SE-CONSOLE/scripts/Start SE Console.command` |
 | Linux | `SE Console.desktop` | `SE-CONSOLE/scripts/dev_console.py start` |
 
-Windows is asked where the Desktop is (`[Environment]::GetFolderPath('Desktop')`) instead
-of assuming `%USERPROFILE%\Desktop`, because OneDrive relocates it. Linux marks the
-`.desktop` file trusted through `gio` where available. macOS gets a wrapper `.command`
-rather than a symlink: the console's launcher begins with `cd "$(dirname "$0")"`, which
-through a Desktop symlink would resolve to the Desktop instead of the console.
+Windows asks the OS where the Desktop is (`[Environment]::GetFolderPath('Desktop')`)
+instead of assuming `%USERPROFILE%\Desktop`, because OneDrive relocates it. Linux marks
+the `.desktop` file trusted through `gio` where available. macOS gets a wrapper
+`.command` rather than a symlink: the console launcher begins with
+`cd "$(dirname "$0")"`, which through a Desktop symlink would resolve to the Desktop.
 
 ---
 
 ## TUI
 
-Launch it through the bootstrap, which creates the installer venv:
+The Textual interface adds, over the CLI:
 
-```powershell
-# Windows
-powershell -ExecutionPolicy Bypass -File SE-INSTALLER\bootstrap.ps1 tui
-```
-
-```bash
-# Linux / macOS
-bash SE-INSTALLER/install.sh tui
-```
-
-Inside an activated installer venv, `se-installer tui` does the same. Controls:
-`Space` selects, `A` selects the recommended set, `Enter` installs, `D` toggles
-dry-run, `R` refreshes and `Q` quits.
-
-After a successful install, the TUI registers the selected MCPs that have a
-template in `TEMPLATES/mcp` through the repository's `se install`. Pass
-`--skip-mcp-registration` to opt out. The bootstrap forwards that switch to the
-TUI, so `bootstrap.ps1 tui --skip-mcp-registration` and
-`install.sh tui --skip-mcp-registration` work as expected.
-
-The Textual TUI provides:
-- Collapsible tree by category (Core, Memory, Documentation, File Operations, Browser, Web Scraping, Code Intelligence, Runtime)
-- Checkbox selection with dependency auto-resolution
-- Desktop shortcut opt-in (one checkbox: *Crear acceso directo en el Escritorio (SE Console)*)
-- Model selection per agent (shows free/paid, capabilities, cost)
+- a collapsible tree by category (Core, Memory, Documentation, File Operations,
+  Browser, Web Scraping, Code Intelligence, Runtime)
+- checkbox selection with dependency auto-resolution
+- desktop-shortcut opt-in (one checkbox)
+- model selection per agent (free/paid, capabilities, cost)
 - MCP selection per runtime
-- Real-time progress bar during installation
-- Log panel with detailed output
+- a real-time progress bar and a detailed log panel
+
+After a successful install it registers the selected MCPs that have a template in
+`TEMPLATES/mcp` through the repository's `se install`; `--skip-mcp-registration` opts
+out, and the bootstrap forwards that switch.
 
 ---
 
