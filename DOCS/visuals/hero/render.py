@@ -34,7 +34,7 @@ FORMATS = {
         "size": (1440, 810),
         "video": "hero.mp4",
         "gif": "hero.gif",
-        "gif_width": 880,
+        "gif_width": 1000,
         "poster": "hero-poster.png",
         "poster_at": 6.9,
     },
