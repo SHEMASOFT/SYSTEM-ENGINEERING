@@ -211,6 +211,12 @@ otherwise the provider is prepended. Aliases: `free` â†’ `openrouter`, `local` â
 > `--all` sets the global model **and clears every override**, which is what "the same
 > model for all subagents" means. The save is surgical: only the `model` keys are
 > rewritten, so comments and formatting of the runtime configuration survive.
+>
+> The selection also reaches the generated layers: `se adapter claude-code`, `codex`
+> and `opencode` resolve each agent's model from the contract first and from this
+> selection second, so one choice propagates to every harness after `se adapter all`.
+> A harness that cannot run the chosen provider omits the line instead of writing a
+> model it cannot honour (Claude Code only takes Anthropic ids).
 
 SE never stores provider credentials. Authenticate the runtime once:
 

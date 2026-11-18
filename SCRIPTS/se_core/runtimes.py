@@ -119,6 +119,44 @@ def _command_body(command: dict) -> str:
 # --------------------------------------------------------------------------- #
 
 
+def _model_for_agent(root: Path, agent: dict) -> str | None:
+    """Resolve the model one agent should run with, as ``provider/model``.
+
+    The agent contract wins when it declares one; otherwise the harness-level
+    selection (the same one `se shema-ai model` writes) applies. There is no
+    invented fallback: an unconfigured model stays unset.
+    """
+    contract = agent.get("llm_config") or {}
+    if contract.get("model"):
+        provider = str(contract.get("provider") or "").strip()
+        model = str(contract["model"]).strip()
+        return f"{provider}/{model}" if provider and "/" not in model else model
+
+    try:
+        from .model_tui.config import resolve_agent_model
+
+        return resolve_agent_model(Path(root), agent.get("name") or "")
+    except Exception:
+        return None
+
+
+def _claude_code_model(spec: str | None) -> str | None:
+    """Map a ``provider/model`` spec to what Claude Code accepts.
+
+    Claude Code runs Anthropic models only; the value it takes is the model id
+    (or an alias such as ``sonnet``). A spec for another provider is not a
+    Claude Code model and is therefore not written into the agent file.
+    """
+    if not spec:
+        return None
+    provider, _, model_id = spec.partition("/")
+    if not model_id:
+        provider, model_id = "", provider
+    if provider and provider.lower() not in {"anthropic", "claude"}:
+        return None
+    return model_id or None
+
+
 def render_claude_code(root: Path) -> dict[str, str]:
     """Render the Claude Code layer (``.claude/`` + ``.mcp.json`` + CLAUDE.md)."""
     root = Path(root)
@@ -128,7 +166,11 @@ def render_claude_code(root: Path) -> dict[str, str]:
 
     for agent in sorted(agents, key=lambda a: a["name"]):
         description = (agent.get("description") or agent.get("purpose") or "").strip()
-        front = f"---\nname: {agent['name']}\ndescription: {_yaml(description)}\n---\n\n"
+        front = f"---\nname: {agent['name']}\ndescription: {_yaml(description)}\n"
+        model_id = _claude_code_model(_model_for_agent(root, agent))
+        if model_id:
+            front += f"model: {_yaml(model_id)}\n"
+        front += "---\n\n"
         files[f".claude/agents/{agent['name']}.md"] = front + _agent_body(agent)
 
     for command in sorted(commands, key=lambda c: c["name"]):
@@ -211,9 +253,16 @@ def render_codex(root: Path) -> dict[str, str]:
 
     for agent in sorted(agents, key=lambda a: a["name"]):
         role_lines = []
-        llm = agent.get("llm_config") or {}
-        if llm.get("model"):
-            role_lines.append(f"model = {_toml_string(str(llm['model']))}")
+        spec = _model_for_agent(root, agent)
+        if spec:
+            provider, _, model_id = spec.partition("/")
+            if not model_id:
+                provider, model_id = "", provider
+            role_lines.append(f"model = {_toml_string(model_id)}")
+            if provider:
+                role_lines.append(
+                    f"# model spec: {spec} (from the SE model selection; Codex reads the id)"
+                )
         role_lines.append('developer_instructions = """')
         role_lines.append(_agent_body(agent).rstrip())
         role_lines.append('"""')

@@ -126,6 +126,40 @@ def _parse_jsonc(content: str) -> dict:
     return json.loads(cleaned)
 
 
+def resolve_agent_model(project_root: Path, agent_name: str) -> Optional[str]:
+    """The model the harness will run one agent with, or None when unset.
+
+    Unlike :func:`load_model_config`, this never invents a default: an absent
+    ``model`` key resolves to ``None`` instead of a fabricated model id. The
+    per-agent override wins; otherwise the global ``model`` applies.
+    """
+    config_path = Path(project_root) / "opencode.jsonc"
+    if not config_path.exists():
+        config_path = Path(project_root) / ".opencode" / "opencode.jsonc"
+        if not config_path.exists():
+            return None
+
+    try:
+        parsed = _parse_jsonc(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    agents = parsed.get("agents")
+    if isinstance(agents, dict):
+        entry = agents.get(agent_name)
+        if isinstance(entry, dict):
+            value = entry.get("model")
+            if isinstance(value, dict) and value.get("model"):
+                provider = value.get("providerID")
+                model = str(value["model"])
+                return f"{provider}/{model}" if provider else model
+            if isinstance(value, str) and value:
+                return value
+
+    global_model = parsed.get("model")
+    return global_model if isinstance(global_model, str) and global_model else None
+
+
 def load_model_config(project_root: Path) -> ModelConfig:
     """Load model configuration from opencode.jsonc."""
     config_path = project_root / "opencode.jsonc"
