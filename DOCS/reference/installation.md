@@ -1,7 +1,7 @@
 # Installation — SYSTEM ENGINEERING
 
 SYSTEM ENGINEERING (SE) is **portable and self-contained**. It does not require
-`gentle-ai`, a specific runtime, a specific harness, or a specific model. This guide
+`repo externo`, a specific runtime, a specific harness, or a specific model. This guide
 describes how to obtain SE on a clean machine and get it running, and how to add
 optional capabilities.
 
