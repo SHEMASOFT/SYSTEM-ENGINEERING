@@ -317,6 +317,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_codex.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
     p_codex.set_defaults(func=commands.cmd_adapter_codex)
 
+    p_deepseek = p_adapter_sub.add_parser(
+        "deepseek", help="Generate DeepSeek Harness assets (.dsh/ + AGENTS.local.md)"
+    )
+    p_deepseek.add_argument("--output", default=None, help="Output directory (default: repo root)")
+    p_deepseek.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
+    p_deepseek.set_defaults(func=commands.cmd_adapter_deepseek)
+
     p_adapter_all = p_adapter_sub.add_parser("all", help="Generate every runtime adapter")
     p_adapter_all.add_argument("--output", default=None, help="Output directory (default: repo root)")
     p_adapter_all.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
