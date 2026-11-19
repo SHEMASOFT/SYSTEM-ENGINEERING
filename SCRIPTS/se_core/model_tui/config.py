@@ -39,13 +39,18 @@ class AgentModelOverride:
 @dataclass
 class ModelConfig:
     """Model configuration from opencode.jsonc."""
-    global_model: str = "anthropic/claude-sonnet-5-5"
+    global_model: Optional[str] = None
     agent_overrides: dict[str, AgentModelOverride] = field(default_factory=dict)
 
     @classmethod
     def from_opencode_config(cls, config: dict) -> "ModelConfig":
         """Parse model config from opencode.jsonc."""
-        global_model = config.get("model", "anthropic/claude-sonnet-5-5")
+        global_model = config.get("model")
+        # If provider is also specified at top level, combine them
+        provider = config.get("provider")
+        if provider and global_model and isinstance(global_model, str) and "/" not in global_model:
+            global_model = f"{provider}/{global_model}"
+
         agent_overrides = {}
 
         agents = config.get("agents", {})
@@ -53,8 +58,10 @@ class ModelConfig:
             if isinstance(agent_config, dict) and "model" in agent_config:
                 model_config = agent_config["model"]
                 if isinstance(model_config, dict):
+                    # Handle both providerID (from opencode) and provider (our format)
+                    provider = model_config.get("providerID") or model_config.get("provider")
                     agent_overrides[agent_name] = AgentModelOverride(
-                        provider=model_config.get("providerID"),
+                        provider=model_config.get("providerID") or model_config.get("provider"),
                         model=model_config.get("model"),
                         variant=model_config.get("variant"),
                     )
@@ -125,11 +132,43 @@ def load_model_config(project_root: Path) -> ModelConfig:
         return ModelConfig()
 
 
-def save_model_config(
-    project_root: Path,
-    global_model: str,
-    agent_overrides: dict,
-) -> None:
+def load_model_config(project_root: Path) -> ModelConfig:
+    """Load model configuration from opencode.jsonc."""
+    config_path = project_root / "opencode.jsonc"
+    if not config_path.exists():
+        # Try .opencode/opencode.jsonc
+        config_path = project_root / ".opencode" / "opencode.jsonc"
+        if not config_path.exists():
+            return ModelConfig()
+
+    try:
+        content = config_path.read_text(encoding="utf-8")
+        config = _parse_jsonc(content)
+        return ModelConfig.from_opencode_config(config)
+    except Exception:
+        return ModelConfig()
+
+
+def resolve_agent_model(project_root: Path, agent_name: str) -> str | None:
+    """Resolve the model for a specific agent from the project's opencode.jsonc.
+
+    Returns the model string in "provider/model" format, or None if not configured.
+    """
+    config = load_model_config(project_root)
+
+    # Check per-agent override first
+    if agent_name and agent_name in config.agent_overrides:
+        override = config.agent_overrides[agent_name]
+        if override.provider and override.model:
+            return f"{override.provider}/{override.model}"
+        if override.model:
+            return override.model
+
+    # Fall back to global model
+    if config.global_model:
+        return config.global_model
+
+    return None
     """Save model configuration to opencode.jsonc."""
     config_path = project_root / "opencode.jsonc"
     if not config_path.exists():
