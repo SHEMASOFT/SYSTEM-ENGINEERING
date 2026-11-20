@@ -1531,18 +1531,20 @@
       var gst = (gate && gate.status) || "UNKNOWN";
       var to = nt.to;
       var gates = (nt.gates || []).join(", ");
-      if (gst === "FAIL" || gst === "BLOCKED") {
-        return "<strong>" + t("attention.blocked_hint") + "</strong> " +
-               fmt(t("attention.blocked_hint_detail"), { to: to, gates: gates });
-      }
-      if (gst === "WARN" || gst === "WARNING" || gst === "MANUAL") {
-        return "<strong>" + t("attention.warning_hint") + "</strong> " +
-               fmt(t("attention.warning_hint_detail"), { to: to, gates: gates });
-      }
-      if (gst === "PASS") {
-        return "<strong>" + t("attention.ready_hint") + "</strong> " +
-               fmt(t("attention.ready_hint_detail"), { to: to });
-      }
+      var es = {
+        blocked: "<strong>Bloqueado</strong> El proyecto no puede avanzar hacia <strong>" + to + "</strong> hasta resolver el gate <strong>" + gates + "</strong>. Vea la pestaña Atención para ver los pasos.",
+        warning: "<strong>Revisar antes de avanzar</strong> El gate <strong>" + gates + "</strong> tiene condiciones pendientes. Revíselas en Atención antes de avanzar hacia <strong>" + to + "</strong>.",
+        ready: "<strong>Listo para avanzar</strong> El gate <strong>" + gates + "</strong> ya pasa. El proyecto puede avanzar hacia <strong>" + to + "</strong>."
+      };
+      var en = {
+        blocked: "<strong>Blocked</strong> The project cannot advance to <strong>" + to + "</strong> until gate <strong>" + gates + "</strong> is resolved. See Attention for the steps.",
+        warning: "<strong>Review before advancing</strong> Gate <strong>" + gates + "</strong> has pending conditions. Review them in Attention before advancing to <strong>" + to + "</strong>.",
+        ready: "<strong>Ready to advance</strong> Gate <strong>" + gates + "</strong> already passes. The project can advance to <strong>" + to + "</strong>."
+      };
+      var dict = currentLang === "en" ? en : es;
+      if (gst === "FAIL" || gst === "BLOCKED") return dict.blocked;
+      if (gst === "WARN" || gst === "WARNING" || gst === "MANUAL") return dict.warning;
+      if (gst === "PASS") return dict.ready;
       return null;
     }
   }
@@ -1910,9 +1912,18 @@
   // Plain-language explanation of what an attention item means and what to do.
   function attentionExplain(i) {
     var sev = i.severity;
-    if (sev === "BLOCKED") return t("attention.blocked_explain");
-    if (sev === "WARNING") return t("attention.warning_explain");
-    return t("attention.info_explain");
+    var es = {
+      BLOCKED: "Este elemento está bloqueado. No se puede avanzar hasta resolverlo.",
+      WARNING: "Este elemento tiene una advertencia. Revíselo pronto; no detiene el proyecto por sí solo.",
+      INFO: "Información para revisar."
+    };
+    var en = {
+      BLOCKED: "This item is blocked. It cannot be advanced until resolved.",
+      WARNING: "This item has a warning. Review it soon; it does not block the project by itself.",
+      INFO: "Information to review."
+    };
+    var dict = currentLang === "en" ? en : es;
+    return dict[sev] || dict.INFO;
   }
 
   // Drawer with steps to follow for an attention item.
@@ -1920,19 +1931,19 @@
     var kids = [];
     kids.push(el("h3", { class: "drawer-sub", text: item.title }));
     kids.push(el("p", { class: "prose", text: item.detail || "" }));
-    kids.push(el("h3", { class: "drawer-sub", text: t("attention.steps_to_follow") }));
+    kids.push(el("h3", { class: "drawer-sub", text: currentLang === "en" ? "Steps to follow" : "Pasos a seguir" }));
     var steps = attentionSteps(item);
     if (steps.length) {
       kids.push(el("ol", { class: "list" }, steps.map(function (s) {
         return el("li", { class: "list-item" }, [el("div", { class: "li-main", text: s })]);
       })));
     } else {
-      kids.push(el("p", { class: "muted", text: t("attention.no_steps") }));
+      kids.push(el("p", { class: "muted", text: currentLang === "en" ? "No specific steps defined yet." : "No hay pasos específicos definidos todavía." }));
     }
-    kids.push(el("h3", { class: "drawer-sub", text: t("attention.where_it_belongs") }));
+    kids.push(el("h3", { class: "drawer-sub", text: currentLang === "en" ? "Where it belongs" : "A qué pertenece" }));
     kids.push(el("p", { class: "prose", text: (item.area || "—") + " · " + (item.evidence || "sin evidencia") }));
     if (item.actions && item.actions.length) {
-      kids.push(el("h3", { class: "drawer-sub", text: t("attention.actions_available") }));
+      kids.push(el("h3", { class: "drawer-sub", text: currentLang === "en" ? "Actions available" : "Acciones disponibles" }));
       item.actions.forEach(function (aid) {
         kids.push(el("button", {
           type: "button", class: "btn btn-small", text: labelForAction(aid),
@@ -1945,7 +1956,7 @@
         kids.push(document.createTextNode(" "));
       });
     }
-    openDrawer(t("attention.view_details"), el("div", {}, kids), null);
+    openDrawer(currentLang === "en" ? "View details" : "Ver detalles", el("div", {}, kids), null);
   }
 
   // Suggested steps for an attention item, based on its content.
@@ -1954,30 +1965,35 @@
     var detail = (item.detail || "").toLowerCase();
     var title = (item.title || "").toLowerCase();
     var area = (item.area || "").toLowerCase();
-    if (detail.includes("receipt") || title.includes("receipt")) {
-      steps.push(t("attention.step_receipt"));
-    }
-    if (detail.includes("artifact") || title.includes("artifact")) {
-      steps.push(t("attention.step_artifact"));
-    }
-    if (detail.includes("gate") || area.includes("gate")) {
-      steps.push(t("attention.step_gate"));
-    }
-    if (detail.includes("evidence") || title.includes("evidence")) {
-      steps.push(t("attention.step_evidence"));
-    }
-    if (detail.includes("acceptance") || title.includes("acceptance")) {
-      steps.push(t("attention.step_acceptance"));
-    }
-    if (detail.includes("release") || title.includes("release")) {
-      steps.push(t("attention.step_release"));
-    }
-    if (detail.includes("operations") || detail.includes("operations.md")) {
-      steps.push(t("attention.step_operations"));
-    }
-    if (steps.length === 0) {
-      steps.push(t("attention.step_generic"));
-    }
+    var es = {
+      receipt: "Registre la evidencia de ejecución (receipt) de la tarea.",
+      artifact: "Revise y corrija el archivo del artefacto indicado.",
+      gate: "Revise las condiciones del gate y resuelva las que fallen.",
+      evidence: "Aporte la evidencia faltante para el registro indicado.",
+      acceptance: "Complete la evidencia de aceptación de usuario (UAT).",
+      release: "Publique el release y vincúlelo a la evidencia.",
+      operations: "Cree el documento de operaciones (docs/operations.md).",
+      generic: "Revise el detalle del elemento y resuelva lo que corresponda."
+    };
+    var en = {
+      receipt: "Register the execution evidence (receipt) for the task.",
+      artifact: "Review and fix the indicated artifact file.",
+      gate: "Review the gate conditions and resolve the failing ones.",
+      evidence: "Provide the missing evidence for the indicated record.",
+      acceptance: "Complete the user acceptance evidence (UAT).",
+      release: "Publish the release and link it to the evidence.",
+      operations: "Create the operations document (docs/operations.md).",
+      generic: "Review the item detail and resolve what applies."
+    };
+    var dict = currentLang === "en" ? en : es;
+    if (detail.includes("receipt") || title.includes("receipt")) steps.push(dict.receipt);
+    if (detail.includes("artifact") || title.includes("artifact")) steps.push(dict.artifact);
+    if (detail.includes("gate") || area.includes("gate")) steps.push(dict.gate);
+    if (detail.includes("evidence") || title.includes("evidence")) steps.push(dict.evidence);
+    if (detail.includes("acceptance") || title.includes("acceptance")) steps.push(dict.acceptance);
+    if (detail.includes("release") || title.includes("release")) steps.push(dict.release);
+    if (detail.includes("operations") || detail.includes("operations.md")) steps.push(dict.operations);
+    if (steps.length === 0) steps.push(dict.generic);
     return steps;
   }
 
