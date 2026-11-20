@@ -331,6 +331,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_pi.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
     p_pi.set_defaults(func=commands.cmd_adapter_pi)
 
+    p_hermes = p_adapter_sub.add_parser(
+        "hermes", help="Generate Hermes assets (settings.json + AGENTS.md + .hermes/ + skills)"
+    )
+    p_hermes.add_argument("--output", default=None, help="Output directory (default: repo root)")
+    p_hermes.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
+    p_hermes.set_defaults(func=commands.cmd_adapter_hermes)
+
     p_adapter_all = p_adapter_sub.add_parser("all", help="Generate every runtime adapter")
     p_adapter_all.add_argument("--output", default=None, help="Output directory (default: repo root)")
     p_adapter_all.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
