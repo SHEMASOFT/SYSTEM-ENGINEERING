@@ -235,9 +235,307 @@
       noConditions: "El motor no reporta condiciones para este gate.",
       gateHelper: "Cada condición proviene de se gate; la consola no la recalcula ni la promedia.",
       gateNotEvaluated: "Este es el gate tal como lo define el framework. Su veredicto (condiciones y conflictos) es por proyecto: se consulta desde un proyecto gestionado.",
-      recordHelper: "Mismo registro canónico y traza AUTO-02 que la vista del proyecto; lectura GET-only."
+      recordHelper: "Mismo registro canónico y traza AUTO-02 que la vista del proyecto; lectura GET-only.",
+      blocked_hint: "Bloqueado",
+      blocked_hint_detail: "El proyecto no puede avanzar hacia {to} hasta resolver el gate {gates}. Vea Atención para ver los pasos a seguir.",
+      warning_hint: "Revisar antes de avanzar",
+      warning_hint_detail: "El gate {gates} tiene condiciones pendientes. Revíalas en Atención antes de avanzar hacia {to}.",
+      ready_hint: "Listo para avanzar",
+      ready_hint_detail: "El gate {gates} ya pasa. El proyecto puede avanzar hacia {to}.",
+      what_happens: "Qué pasa",
+      what_to_do: "Qué hacer",
+      view_details: "Ver detalles",
+      steps_to_follow: "Pasos a seguir",
+      blocked_explain: "Este elemento está bloqueado. No se puede avanzar hasta resolverlo.",
+      warning_explain: "Este elemento tiene una advertencia. Revíselo pronto; no detiene el proyecto por sí solo.",
+      info_explain: "Información para revisar.",
+      no_steps: "No hay pasos específicos definidos todavía.",
+      where_it_belongs: "A qué pertenece",
+      actions_available: "Acciones disponibles",
+      step_receipt: "Registre la evidencia de ejecución (receipt) de la tarea.",
+      step_artifact: "Revise y corrija el archivo del artefacto indicado.",
+      step_gate: "Revise las condiciones del gate y resuelva las que fallen.",
+      step_evidence: "Aporte la evidencia faltante para el registro indicado.",
+      step_acceptance: "Complete la evidencia de aceptación de usuario (UAT).",
+      step_release: "Publique el release y vincúlelo a la evidencia.",
+      step_operations: "Cree el documento de operaciones (docs/operations.md).",
+      step_generic: "Revise el detalle del elemento y resuelva lo que corresponda."
     }
   };
+
+  // ------------------------------------------------------------- i18n
+  // Every user-facing string lives here, keyed by language. UI.es is populated
+  // by copying UI (above); UI.en carries the English wording. Change language
+  // with the header selector; the choice persists in localStorage.
+  var LANG_ES = JSON.parse(JSON.stringify(UI));
+  var LANG_EN = {
+    outage: {
+      tag: "ENGINE DOWN",
+      title: "The system engine cannot run: ",
+      unknownReason: "reason unknown",
+      sub: "All governance verdicts show UNKNOWN. Nothing is calculated or inferred: the console does not replace the engine."
+    },
+    identity: {
+      title: "System identity",
+      sub: "What SYSTEM-ENGINEERING is",
+      name: "name",
+      version: "version",
+      status: "status",
+      description: "description",
+      schemaVersion: "schema_version",
+      models: "canonical models",
+      sourceNote: "Canonical source: SYSTEM.json, VERSION, MASTER SYSTEM/MANIFEST.json"
+    },
+    health: {
+      title: "System health",
+      sub: "se doctor verdict, not recalculated",
+      checkNote: "each check is listed below, as-is",
+      explain: "How many system checks pass (PASS), warn (WARN) or fail (FAIL). Shows whether the engineering system needs attention.",
+      evidenceNote: "Where each datum comes from: measured directly (OBSERVED), calculated (DERIVED) or unavailable (UNKNOWN).",
+      focusTitle: "Checks needing attention"
+    },
+    healthCmd: {
+      title: "Engine health (CMD-0016)",
+      sub: "se health · engine envelope",
+      declared: "declared",
+      implemented: "implemented",
+      invocable: "invokable now",
+      mutates: "writes canonical",
+      note: "note",
+      helper: "`declared` comes from COMMANDS/commands.json; `invokable now` includes a real engine probe. They are shown separately on purpose."
+    },
+    capabilities: {
+      title: "Capabilities",
+      sub: "se capabilities",
+      state: "state",
+      available: "available",
+      providers: "providers",
+      explain: "What the engineering system knows how to do: the capabilities available to check and advance work.",
+      callout: "The capability is a property of the provider, not a field of the project: the console does not overlay it onto the lifecycle."
+    },
+    inventory: {
+      title: "Contract inventory",
+      sub: "declared by se vs observed by the console",
+      item: "item",
+      declared: "se declares",
+      observed: "console observes",
+      state: "state"
+    },
+    lifecycle: {
+      title: "Lifecycle and gates",
+      sub: "Framework definition (CORE/)",
+      statesLabel: "stages: ",
+      explain: "The stages a project passes through; a gate is a checkpoint that must open to advance."
+    },
+    components: {
+      agentsTitle: "Components: agents and skills",
+      agentsCount: "agents",
+      skillsCount: "skills",
+      id: "id",
+      role: "role / description",
+      source: "source",
+      skillsTitle: "Skills",
+      policiesTitle: "Components: policies and domains",
+      policiesCount: "policies",
+      domainsCount: "domains",
+      policiesHeading: "Policies",
+      domainsHeading: "Domains",
+      commandsHeading: "se commands"
+    },
+    projects: {
+      title: "Projects",
+      explain: "Registered projects and their health. Each card shows where the project stands and whether it is managed.",
+      managedCount: "managed",
+      unmanagedCount: "unmanaged",
+      location: "in PROJECTS/",
+      honesty: "A project without PROJECT.json is declared UNMANAGED; its state is never invented.",
+      lifecycle: "lifecycle: ",
+      unmanagedExplain: "Unmanaged project: it is not monitored or advanced through gates. It is shown as-is, with no invented state.",
+      gateOk: "Gate {gate} is PASS: the project can advance.",
+      gateOkTo: "Gate {gate} is PASS: the project can advance toward {to}.",
+      gateWarn: "Gate {gate} is {status}: needs review before advancing.",
+      gateWarnTo: "Gate {gate} is {status}: needs review before advancing toward {to}.",
+      gateFail: "Gate {gate} is {status}: the project cannot advance until it is resolved.",
+      gateFailTo: "Gate {gate} is {status}: the project cannot advance toward {to} until it is resolved.",
+      gateUnknown: "The project state could not be determined (UNKNOWN): the engine returned no verdict.",
+      countsPass: "All {pass} evaluated gates pass (PASS): the project has no known blocks.",
+      countsWarn: "No gate fails, but {warn} have conditions pending a human decision (MANUAL).",
+      countsFail: "There are {fail} failing gates (FAIL) and {warn} pending (MANUAL): the project has registered blocks.",
+      countsUnknown: "Could not evaluate {unknown} gates (UNKNOWN): their state cannot be inferred."
+    },
+    detail: {
+      unmanagedStrong: "This directory is not a SYSTEM-ENGINEERING managed project",
+      unmanagedExplain: "Unmanaged project: it is not monitored or advanced through gates. It is shown as-is, with no invented state.",
+      unmanagedConflicts: "Conflicts reported by the engine",
+      unmanagedReadonly: "SE-CONSOLE does not create a PROJECT.json or infer a state for this directory: the console is read-only.",
+      owner: "owner: ",
+      gateMatrixTitle: "Gate matrix G0–G8",
+      gateMatrixSub: "Each verdict comes from se gate; it is not recalculated",
+      gateManualNote: "MANUAL shows as WARNING: a condition pending human judgment is not a PASS.",
+      lifecycleTitle: "Lifecycle",
+      lifecycleSub: "se context",
+      lcState: "state",
+      lcNext: "next transition",
+      lcDeclared: "declared transitions",
+      lcMigrations: "migrations",
+      nextExplain: "The next step that unblocks project advancement: the state it can reach and which gates it must clear.",
+      nextFail: "To advance to {to}, you must first resolve what fails: {conds}.",
+      nextManual: "To advance to {to}, a human decision (MANUAL) is missing: {conds}.",
+      nextClearOne: "Gate {gates} already passes (PASS): the project can advance to {to}.",
+      nextClearMany: "Gates {gates} already pass (PASS): the project can advance to {to}.",
+      nextUnknown: "To advance to {to} you must clear gates {gates}; their detail could not be evaluated (UNKNOWN).",
+      nextNone: "No transition is declared from the current state; nothing can be indicated to unblock it.",
+      healthTitle: "Project health",
+      healthSub: "se health · CMD-0016 (engine envelope)",
+      healthState: "state",
+      healthPresent: "health (presentation)",
+      healthAvailable: "available",
+      healthReason: "reason",
+      healthHelper: "The engine is the authority; the console does not re-order or re-score this envelope.",
+      healthRawLabel: "view raw se.health envelope",
+      healthNoEnvelope: "Envelope unavailable (UNKNOWN). No synthetic one is produced.",
+      manifestTitle: "PROJECT.json",
+      manifestSub: "Canonical manifest",
+      manifestSchema: "schema valid",
+      discoveryTitle: "Discovery",
+      discoverySub: "DISCOVERY record (no state field)",
+      discoveryNoSummary: "no summary",
+      discoveryFindings: "findings",
+      discoveryUnknowns: "unknowns",
+      discoveryAssumptions: "assumptions",
+      discoveryConstraints: "constraints",
+      discoveryRisks: "risks",
+      discoveryReviewed: "reviewed by",
+      discoveryHelper: "The DISCOVERY record carries no gate state; therefore it shows UNKNOWN and nothing is inferred."
+    },
+    records: {
+      title: "Records by type",
+      sub: "Transcription + validation against SCHEMAS/",
+      colType: "type",
+      colDisk: "on disk",
+      colReview: "se review",
+      colInvalid: "schema invalid",
+      explain: "The project's pieces of work (objectives, requirements, tasks) and their integrity: how many there are and whether they respect the schema.",
+      helper: "'on disk' counts files; 'se review' counts records by type per the engine. They differ when non-standard type records exist (e.g. REQ with type UNKNOWN/ASSUMPTION). They are not averaged.",
+      itemSuffix: " item(s)",
+      linksTitle: "Incoming links",
+      linksNone: "No incoming links: UNKNOWN or none — nothing is inferred.",
+      explorerTitle: "Explore records",
+      explorerSub: "GET /api/record · read-only",
+      traceLabel: "view AUTO-02 trace (se context --scope trace --focus)",
+      cardSub: "canonical record + AUTO-02 trace",
+      explorerHelper: "Shows the canonical record as-is and the trace the engine reconstructs with AUTO-02 (se context --scope trace --focus). Reads are GET-only; the only write path is the authenticated, allow-listed POST to /api/action, which delegates to se (the console never writes SE state)."
+    },
+    trace: {
+      title: "Traceability and integrity",
+      sub: "se review",
+      gaps: "Gaps",
+      links: "Link notes"
+    },
+    context: {
+      title: "AUTO-02 context (se context)",
+      sub: "context reconstruction",
+      deepTitle: "scope deep (no focus)",
+      deepHelper: "AUTO-02 is focus-driven: without --focus, scope>=work legitimately returns an empty work set.",
+      deepNote: "This is SE behavior, not a data gap."
+    },
+    audit: {
+      title: "Change log (mutation log)",
+      entries: "entries (read-only)",
+      colSeq: "#",
+      colRecord: "record",
+      colField: "field",
+      colValue: "value",
+      empty: "no change records",
+      helper: "Normalization: comma-separated ids are interpreted as a list; the raw value is preserved for audit."
+    },
+    attention: {
+      title: "Attention required · Actions",
+      projectTitle: "Attention required in this project · Actions",
+      intro: "Consolidates FAIL gates, MANUAL conditions, se review gaps and records that fail schema. Severity orders attention; it does not replace an engine verdict.",
+      orderNote: "the order is attention priority, not a governance verdict",
+      severity: "severity",
+      area: "area",
+      detail: "detail",
+      evidence: "evidence",
+      actions: "Actions",
+      empty: "no items needing attention",
+      total: "total"
+    },
+    action: {
+      checkpoint: "Register progress",
+      close: "Close execution"
+    },
+    drawer: {
+      close: "Close detail",
+      gateTitle: "Gate detail",
+      recordTitle: "Record detail",
+      openGate: "View gate detail",
+      openRecord: "View record detail",
+      gateId: "gate",
+      gateName: "name",
+      gateFlow: "transition",
+      gateVerdict: "Verdict",
+      gateStatus: "state",
+      gateHealth: "health",
+      gateConditions: "Conditions",
+      gateConflicts: "Engine conflicts",
+      noConditions: "The engine reports no conditions for this gate.",
+      gateHelper: "Each condition comes from se gate; the console does not recalculate or average it.",
+      gateNotEvaluated: "This is the gate as defined by the framework. Its verdict (conditions and conflicts) is per-project: it is queried from a managed project.",
+      recordHelper: "Same canonical record and AUTO-02 trace as the project view; GET-only reading.",
+      blocked_hint: "Blocked",
+      blocked_hint_detail: "The project cannot advance to {to} until gate {gates} is resolved. See Attention for the steps to follow.",
+      warning_hint: "Review before advancing",
+      warning_hint_detail: "Gate {gates} has pending conditions. Review them in Attention before advancing to {to}.",
+      ready_hint: "Ready to advance",
+      ready_hint_detail: "Gate {gates} already passes. The project can advance to {to}.",
+      what_happens: "What happens",
+      what_to_do: "What to do",
+      view_details: "View details",
+      steps_to_follow: "Steps to follow",
+      blocked_explain: "This item is blocked. It cannot be advanced until resolved.",
+      warning_explain: "This item has a warning. Review it soon; it does not block the project by itself.",
+      info_explain: "Information to review.",
+      no_steps: "No specific steps defined yet.",
+      where_it_belongs: "Where it belongs",
+      actions_available: "Actions available",
+      step_receipt: "Register the execution evidence (receipt) for the task.",
+      step_artifact: "Review and fix the indicated artifact file.",
+      step_gate: "Review the gate conditions and resolve the failing ones.",
+      step_evidence: "Provide the missing evidence for the indicated record.",
+      step_acceptance: "Complete the user acceptance evidence (UAT).",
+      step_release: "Publish the release and link it to the evidence.",
+      step_operations: "Create the operations document (docs/operations.md).",
+      step_generic: "Review the item detail and resolve what applies."
+    }
+  };
+
+  var currentLang = "es";
+  function t(path) {
+    var langObj = currentLang === "en" ? LANG_EN : LANG_ES;
+    var parts = path.split(".");
+    var cur = langObj;
+    for (var i = 0; i < parts.length; i++) {
+      if (!cur || typeof cur !== "object") return path;
+      cur = cur[parts[i]];
+    }
+    return cur === undefined ? path : cur;
+  }
+  function setLang(code) {
+    currentLang = code;
+    document.documentElement.setAttribute("lang", code);
+    try { localStorage.setItem("se-console-lang", code); } catch (e) {}
+    go(state.view);
+  }
+
+  function initLang() {
+    var saved = null;
+    try { saved = localStorage.getItem("se-console-lang"); } catch (e) {}
+    if (saved === "en") setLang("en");
+    var sel = document.getElementById("sel-lang");
+    if (sel) sel.value = currentLang;
+  }
 
   // ---------------------------------------------------------------- utils
   function el(tag, attrs, kids) {
@@ -340,8 +638,8 @@
   }
 
   function labelForAction(id) {
-    if (id === "run.checkpoint") return UI.action.checkpoint;
-    if (id === "run.close") return UI.action.close;
+    if (id === "run.checkpoint") return t("action.checkpoint");
+    if (id === "run.close") return t("action.close");
     return id;
   }
 
@@ -603,7 +901,7 @@
     Object.keys(val || {}).forEach(function (k) {
       var v = val[k];
       var shown = (v && typeof v === "object")
-        ? (Array.isArray(v) ? (v.length ? v.length + UI.records.itemSuffix : "[]") : JSON.stringify(v))
+        ? (Array.isArray(v) ? (v.length ? v.length + t("records.itemSuffix") : "[]") : JSON.stringify(v))
         : String(v);
       if (shown === "" || shown === "undefined" || shown === "null") shown = "UNKNOWN";
       rows.push([k, shown]);
@@ -613,11 +911,11 @@
     var links = (d.inbound_links || {}).value;
     if (Array.isArray(links) && links.length) {
       kids.push(el("h3", { class: "panel-title", style: "font-size:13px;margin:14px 0 8px",
-        text: UI.records.linksTitle + " (" + links.length + ")" }));
+        text: t("records.linksTitle") + " (" + links.length + ")" }));
       kids.push(bullets(links));
     } else {
       kids.push(el("p", { class: "muted", style: "font-size:12px",
-        text: UI.records.linksNone }));
+        text: t("records.linksNone") }));
     }
 
     var trace = (d.trace || d.context || {}).value;
@@ -625,9 +923,9 @@
       epTag(facts.epistemic || "UNKNOWN", facts.source || "unknown"),
       epTag("OBSERVED", "GET /api/record")
     ]));
-    if (trace) kids.push(raw(trace, UI.records.traceLabel));
+    if (trace) kids.push(raw(trace, t("records.traceLabel")));
 
-    return panel(type + " · " + id, UI.records.cardSub, kids, "tight");
+    return panel(type + " · " + id, t("records.cardSub"), kids, "tight");
   }
 
   // ---------------------------------------------------------------- drawer
@@ -645,7 +943,7 @@
     var title = el("h2", { class: "drawer-title", id: "drawer-title" });
     var closeBtn = el("button", {
       type: "button", class: "btn btn-icon drawer-close",
-      "aria-label": UI.drawer.close, title: UI.drawer.close,
+      "aria-label": t("drawer.close"), title: t("drawer.close"),
       onclick: function () { closeDrawer(); }
     }, el("span", { "aria-hidden": "true", text: "✕" }));
     var body = el("div", { class: "drawer-body", id: "drawer-body" });
@@ -743,51 +1041,51 @@
      on the overview, which carries no per-project verdict. */
   function gateDetailNode(gt, evaluated) {
     var kids = [kv([
-      [UI.drawer.gateId, el("span", { class: "mono", text: gt.id || "—" })],
-      [UI.drawer.gateName, gt.name || "—"],
-      [UI.drawer.gateFlow, el("span", { class: "mono",
+      [t("drawer.gateId"), el("span", { class: "mono", text: gt.id || "—" })],
+      [t("drawer.gateName"), gt.name || "—"],
+      [t("drawer.gateFlow"), el("span", { class: "mono",
         text: (gt.from_state || "?") + " → " + (gt.to_state || "?") })]
     ])];
 
     if (!evaluated) {
       kids.push(el("p", { class: "muted", style: "font-size:12px;margin-top:10px",
-        text: UI.drawer.gateNotEvaluated }));
+        text: t("drawer.gateNotEvaluated") }));
       return el("div", {}, kids);
     }
 
     var gstatus = get("status.value", gt);
     var eStatus = get("envelope_status.value", gt);
-    kids.push(el("h3", { class: "drawer-sub", text: UI.drawer.gateVerdict }));
+    kids.push(el("h3", { class: "drawer-sub", text: t("drawer.gateVerdict") }));
     kids.push(kv([
-      [UI.drawer.gateStatus, gstatus ? statusChip(gstatus)
+      [t("drawer.gateStatus"), gstatus ? statusChip(gstatus)
         : (eStatus ? el("span", { class: "status-chip status-UNKNOWN", text: eStatus + " · no evaluable" })
                    : statusChip("UNKNOWN"))],
-      [UI.drawer.gateHealth, healthChip(gt.health || "UNKNOWN")]
+      [t("drawer.gateHealth"), healthChip(gt.health || "UNKNOWN")]
     ]));
 
     var conds = (gt.conditions && gt.conditions.value) || [];
-    kids.push(el("h3", { class: "drawer-sub", text: UI.drawer.gateConditions + " (" + conds.length + ")" }));
+    kids.push(el("h3", { class: "drawer-sub", text: t("drawer.gateConditions") + " (" + conds.length + ")" }));
     kids.push(conds.length ? el("ul", { class: "list" }, conds.map(conditionNode))
-                           : el("p", { class: "muted", text: UI.drawer.noConditions }));
+                           : el("p", { class: "muted", text: t("drawer.noConditions") }));
 
     var conflicts = (gt.envelope_conflicts && gt.envelope_conflicts.value) || [];
     if (conflicts.length) {
-      kids.push(el("h3", { class: "drawer-sub", text: UI.drawer.gateConflicts }));
+      kids.push(el("h3", { class: "drawer-sub", text: t("drawer.gateConflicts") }));
       kids.push(bullets(conflicts));
     }
     kids.push(el("p", { class: "muted", style: "font-size:12px;margin-top:10px",
-      text: UI.drawer.gateHelper }));
+      text: t("drawer.gateHelper") }));
     return el("div", {}, kids);
   }
 
   function openGateDrawer(gt, evaluated, trigger) {
-    openDrawer(UI.drawer.gateTitle + " · " + (gt.id || ""), gateDetailNode(gt, evaluated), trigger);
+    openDrawer(t("drawer.gateTitle") + " · " + (gt.id || ""), gateDetailNode(gt, evaluated), trigger);
   }
 
   function openRecordDrawer(type, relPath, recs, trigger) {
-    openDrawer(UI.drawer.recordTitle + " · " + type, el("div", { class: "drawer-explorer" }, [
+    openDrawer(t("drawer.recordTitle") + " · " + type, el("div", { class: "drawer-explorer" }, [
       recordExplorer(relPath, recs, type),
-      el("p", { class: "muted", style: "font-size:12px;margin-top:10px", text: UI.drawer.recordHelper })
+      el("p", { class: "muted", style: "font-size:12px;margin-top:10px", text: t("drawer.recordHelper") })
     ]), trigger);
   }
 
@@ -834,10 +1132,10 @@
       if (eng && eng.operational === false) {
         g.appendChild(el("div", { class: "col-12" }, [
           el("div", { class: "banner banner-BLOCKED", role: "status" }, [
-            el("span", { class: "banner-tag", text: UI.outage.tag }),
+            el("span", { class: "banner-tag", text: t("outage.tag") }),
             el("div", {}, [
-              el("div", { class: "banner-title", text: UI.outage.title + (eng.reason || UI.outage.unknownReason) }),
-              el("div", { class: "banner-sub", text: UI.outage.sub })
+              el("div", { class: "banner-title", text: t("outage.title") + (eng.reason || t("outage.unknownReason")) }),
+              el("div", { class: "banner-sub", text: t("outage.sub") })
             ])
           ])
         ]));
@@ -845,24 +1143,24 @@
 
       // --- identity ---------------------------------------------------
       var idRows = [
-        [UI.identity.name, val("identity.name", sys)],
-        [UI.identity.version, val("identity.version", sys)],
-        [UI.identity.status, val("identity.status", sys)],
-        [UI.identity.description, el("p", { class: "prose", text: (fact("identity.description", sys).value) || "" })],
-        [UI.identity.schemaVersion, val("identity.schema_version", sys)]
+        [t("identity.name"), val("identity.name", sys)],
+        [t("identity.version"), val("identity.version", sys)],
+        [t("identity.status"), val("identity.status", sys)],
+        [t("identity.description"), el("p", { class: "prose", text: (fact("identity.description", sys).value) || "" })],
+        [t("identity.schemaVersion"), val("identity.schema_version", sys)]
       ];
       var models = (fact("identity.models", sys).value) || {};
       if (Object.keys(models).length) {
-        idRows.push([UI.identity.models, el("div", { class: "tag-row" },
+        idRows.push([t("identity.models"), el("div", { class: "tag-row" },
           Object.keys(models).map(function (k) {
             return el("span", { class: "count-pill", title: k, text: models[k] });
           }))]);
       }
       g.appendChild(el("div", { class: "col-6" }, [
-        panel(UI.identity.title, UI.identity.sub, [
+        panel(t("identity.title"), t("identity.sub"), [
           kv(idRows),
           el("p", { class: "muted", style: "margin-top:12px;font-size:12px" },
-            UI.identity.sourceNote)
+            t("identity.sourceNote"))
         ])
       ]));
 
@@ -875,7 +1173,7 @@
           el("p", { class: "mono", text: (h.summary && h.summary.value) || "—" }),
           el("div", { class: "tag-row", style: "margin-top:6px" }, [
             epTag("OBSERVED", "se doctor"),
-            el("span", { class: "muted", style: "font-size:12px", text: UI.health.checkNote })
+            el("span", { class: "muted", style: "font-size:12px", text: t("health.checkNote") })
           ])
         ])
       ]);
@@ -887,11 +1185,11 @@
       var failing = (h.failing_checks && h.failing_checks.value) || [];
       var warning = (h.warning_checks && h.warning_checks.value) || [];
       g.appendChild(el("div", { class: "col-6" }, [
-        panel(UI.health.title, UI.health.sub, [
+        panel(t("health.title"), t("health.sub"), [
           hero, stats,
-          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: UI.health.explain }),
-          el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: UI.health.evidenceNote }),
-          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: UI.health.focusTitle }),
+          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: t("health.explain") }),
+          el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: t("health.evidenceNote") }),
+          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: t("health.focusTitle") }),
           list(warning.concat(failing), function (c) {
             return el("li", { class: "list-item" }, [
               el("div", { class: "li-main" }, [
@@ -912,24 +1210,24 @@
       var hc = sys.health_command || {};
       if (hc.command_id) {
         g.appendChild(el("div", { class: "col-4" }, [
-          panel(UI.healthCmd.title, UI.healthCmd.sub, [
+          panel(t("healthCmd.title"), t("healthCmd.sub"), [
             kv([
-              [UI.healthCmd.declared, (hc.declared || {}).value === true
+              [t("healthCmd.declared"), (hc.declared || {}).value === true
                 ? el("span", { class: "tag tag-OBSERVED", text: "si" })
                 : el("span", { class: "tag tag-UNKNOWN", text: "no" })],
-              [UI.healthCmd.implemented, (hc.implemented || {}).value === true
+              [t("healthCmd.implemented"), (hc.implemented || {}).value === true
                 ? el("span", { class: "tag tag-OBSERVED", text: "si" })
                 : el("span", { class: "tag tag-UNKNOWN", text: "no" })],
-              [UI.healthCmd.invocable, (hc.invocable || {}).value === true
+              [t("healthCmd.invocable"), (hc.invocable || {}).value === true
                 ? el("span", { class: "tag tag-OBSERVED", text: "si" })
                 : el("span", { class: "tag tag-UNKNOWN", text: "no" })],
-              [UI.healthCmd.mutates, hc.mutates && hc.mutates.value === false
+              [t("healthCmd.mutates"), hc.mutates && hc.mutates.value === false
                 ? el("span", { class: "tag tag-OBSERVED", text: "no (mutates=false)" })
                 : el("span", { class: "tag tag-UNKNOWN", text: "UNKNOWN" })],
-              [UI.healthCmd.note, (hc.note || {}).value || "—"]
+              [t("healthCmd.note"), (hc.note || {}).value || "—"]
             ]),
             el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-              text: UI.healthCmd.helper })
+              text: t("healthCmd.helper") })
           ], "tight")
         ]));
       }
@@ -939,11 +1237,11 @@
       var byAvail = (caps.by_availability && caps.by_availability.value) || {};
       var prov = (caps.providers && caps.providers.value) || [];
       g.appendChild(el("div", { class: "col-4" }, [
-        panel(UI.capabilities.title, UI.capabilities.sub, [
+        panel(t("capabilities.title"), t("capabilities.sub"), [
           kv([
-            [UI.capabilities.state, val("capabilities.health", caps)],
-            [UI.capabilities.available, val("capabilities.available_count", caps)],
-            [UI.capabilities.providers, el("span", { class: "count-pill", text: String(prov.length) })]
+            [t("capabilities.state"), val("capabilities.health", caps)],
+            [t("capabilities.available"), val("capabilities.available_count", caps)],
+            [t("capabilities.providers"), el("span", { class: "count-pill", text: String(prov.length) })]
           ]),
           el("div", { class: "tag-row", style: "margin-top:12px" },
             Object.keys(byAvail).map(function (k) {
@@ -952,7 +1250,7 @@
                 text: k + ": " + byAvail[k]
               });
             })),
-          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: UI.capabilities.explain }),
+          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: t("capabilities.explain") }),
           list(prov, function (p) {
             var d = el("li", { class: "list-item" }, [
               el("div", { class: "li-main" }, [
@@ -964,7 +1262,7 @@
             return d;
           }),
           el("div", { class: "callout", style: "margin-top:12px" },
-            UI.capabilities.callout)
+            t("capabilities.callout"))
         ])
       ]));
 
@@ -972,12 +1270,12 @@
       var inv = sys.inventory || {};
       var rows = (inv.alignment && inv.alignment.value) || [];
       g.appendChild(el("div", { class: "col-4" }, [
-        panel(UI.inventory.title, UI.inventory.sub, [
+        panel(t("inventory.title"), t("inventory.sub"), [
           el("div", { class: "table-wrap" }, [
             el("table", { class: "table" }, [
               el("thead", {}, [el("tr", {}, [
-                el("th", { text: UI.inventory.item }), el("th", { text: UI.inventory.declared }),
-                el("th", { text: UI.inventory.observed }), el("th", { text: UI.inventory.state })
+                el("th", { text: t("inventory.item") }), el("th", { text: t("inventory.declared") }),
+                el("th", { text: t("inventory.observed") }), el("th", { text: t("inventory.state") })
               ])]),
               el("tbody", {}, rows.map(function (r) {
                 return el("tr", {}, [
@@ -998,9 +1296,9 @@
       var states = (sys.lifecycle_framework && sys.lifecycle_framework.states && sys.lifecycle_framework.states.value) || [];
       var gates = (sys.lifecycle_framework && sys.lifecycle_framework.gates && sys.lifecycle_framework.gates.value) || [];
       g.appendChild(el("div", { class: "col-4" }, [
-        panel(UI.lifecycle.title, UI.lifecycle.sub, [
+        panel(t("lifecycle.title"), t("lifecycle.sub"), [
           el("p", { class: "mono muted", style: "font-size:12px;margin-bottom:8px",
-                    text: UI.lifecycle.statesLabel + (Array.isArray(states) ? states.join(" -> ") : String(states)) }),
+                    text: t("lifecycle.statesLabel") + (Array.isArray(states) ? states.join(" -> ") : String(states)) }),
           el("div", { class: "gate-grid", style: "grid-template-columns:repeat(2,1fr)" },
             gates.map(function (gt) {
               var card = el("div", { class: "gate gate-UNKNOWN" }, [
@@ -1010,10 +1308,10 @@
               ]);
               return clickable(card, function () {
                 openGateDrawer(gt, false, card);
-              }, UI.drawer.openGate + " " + gt.id);
+              }, t("drawer.openGate") + " " + gt.id);
             })),
           el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-                    text: UI.lifecycle.explain })
+                    text: t("lifecycle.explain") })
         ])
       ]));
 
@@ -1023,12 +1321,12 @@
       var policies = (sys.policies && sys.policies.value) || [];
       var domains = (sys.domains && sys.domains.value) || [];
       g.appendChild(el("div", { class: "col-6" }, [
-        panel(UI.components.agentsTitle,
-          agents.length + " " + UI.components.agentsCount + " · " + skills.length + " " + UI.components.skillsCount, [
+        panel(t("components.agentsTitle"),
+          agents.length + " " + t("components.agentsCount") + " · " + skills.length + " " + t("components.skillsCount"), [
           el("div", { class: "table-wrap" }, [
             el("table", { class: "table" }, [
               el("thead", {}, [el("tr", {}, [
-                el("th", { text: UI.components.id }), el("th", { text: UI.components.role }), el("th", { text: UI.components.source })
+                el("th", { text: t("components.id") }), el("th", { text: t("components.role") }), el("th", { text: t("components.source") })
               ])]),
               el("tbody", {}, agents.map(function (a) {
                 return el("tr", {}, [
@@ -1039,23 +1337,23 @@
               }))
             ])
           ]),
-          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: UI.components.skillsTitle }),
+          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: t("components.skillsTitle") }),
           bullets(skills.map(function (s) { return s.id + (s.description ? " — " + s.description : ""); }))
         ], "tight")
       ]));
 
       g.appendChild(el("div", { class: "col-6" }, [
-        panel(UI.components.policiesTitle,
-          policies.length + " " + UI.components.policiesCount + " · " + domains.length + " " + UI.components.domainsCount, [
-          el("h3", { class: "panel-title", style: "margin-bottom:8px;font-size:13px", text: UI.components.policiesHeading }),
+        panel(t("components.policiesTitle"),
+          policies.length + " " + t("components.policiesCount") + " · " + domains.length + " " + t("components.domainsCount"), [
+          el("h3", { class: "panel-title", style: "margin-bottom:8px;font-size:13px", text: t("components.policiesHeading") }),
           el("div", { class: "tag-row" }, policies.map(function (p) {
             return el("span", { class: "count-pill", title: p.source, text: p.id });
           })),
-          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: UI.components.domainsHeading }),
+          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: t("components.domainsHeading") }),
           el("div", { class: "tag-row" }, domains.map(function (d) {
             return el("span", { class: "count-pill", title: d.source, text: d.id });
           })),
-          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: UI.components.commandsHeading }),
+          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: t("components.commandsHeading") }),
           el("div", { class: "tag-row" }, ((sys.command_surface && sys.command_surface.available.value) || [])
             .map(function (c) { return el("span", { class: "count-pill", text: c }); }))
         ], "tight")
@@ -1105,23 +1403,23 @@
     var id = (gate && gate.id) || "";
     var g = String(st).toUpperCase();
     var tpl;
-    if (g === "PASS" || g === "OK") tpl = to ? UI.projects.gateOkTo : UI.projects.gateOk;
+    if (g === "PASS" || g === "OK") tpl = to ? t("projects.gateOkTo") : t("projects.gateOk");
     else if (g === "FAIL" || g === "BLOCKED" || g === "ERROR" || g === "CRITICAL") {
-      tpl = to ? UI.projects.gateFailTo : UI.projects.gateFail;
+      tpl = to ? t("projects.gateFailTo") : t("projects.gateFail");
     } else if (g === "WARN" || g === "WARNING" || g === "MANUAL" || g === "SKIP") {
-      tpl = to ? UI.projects.gateWarnTo : UI.projects.gateWarn;
-    } else return UI.projects.gateUnknown;
-    if (!id) return UI.projects.gateUnknown;
+      tpl = to ? t("projects.gateWarnTo") : t("projects.gateWarn");
+    } else return t("projects.gateUnknown");
+    if (!id) return t("projects.gateUnknown");
     return fmt(tpl, { gate: id, status: st, to: to });
   }
 
   // One-line summary from the whole-matrix outcome counts (detail hero).
   function countsSentence(counts) {
-    if (!counts.total) return UI.projects.gateUnknown;
-    if (counts.fail > 0) return fmt(UI.projects.countsFail, counts);
-    if (counts.warn > 0) return fmt(UI.projects.countsWarn, counts);
-    if (counts.unknown > 0) return fmt(UI.projects.countsUnknown, counts);
-    return fmt(UI.projects.countsPass, counts);
+    if (!counts.total) return t("projects.gateUnknown");
+    if (counts.fail > 0) return fmt(t("projects.countsFail"), counts);
+    if (counts.warn > 0) return fmt(t("projects.countsWarn"), counts);
+    if (counts.unknown > 0) return fmt(t("projects.countsUnknown"), counts);
+    return fmt(t("projects.countsPass"), counts);
   }
 
   // Chips row + one plain sentence, shared by the list card and the hero.
@@ -1145,7 +1443,7 @@
   // panel). Reuses the already-fetched gate matrix: only conditions the engine
   // itself marked FAIL or MANUAL on the transition's own gates are named.
   function nextTransitionSentence(nt, gates) {
-    if (!nt || !nt.to) return UI.detail.nextNone;
+    if (!nt || !nt.to) return t("detail.nextNone");
     var ids = nt.gates || [];
     var byId = {};
     (gates || []).forEach(function (g) { if (g && g.id) byId[g.id] = g; });
@@ -1161,14 +1459,14 @@
       });
     });
     var to = nt.to;
-    if (fails.length) return fmt(UI.detail.nextFail, { to: to, conds: fails.join(", ") });
-    if (manuals.length) return fmt(UI.detail.nextManual, { to: to, conds: manuals.join(", ") });
+    if (fails.length) return fmt(t("detail.nextFail"), { to: to, conds: fails.join(", ") });
+    if (manuals.length) return fmt(t("detail.nextManual"), { to: to, conds: manuals.join(", ") });
     if (seen === ids.length && ids.length) {
       return ids.length === 1
-        ? fmt(UI.detail.nextClearOne, { gates: ids[0], to: to })
-        : fmt(UI.detail.nextClearMany, { gates: ids.join(", "), to: to });
+        ? fmt(t("detail.nextClearOne"), { gates: ids[0], to: to })
+        : fmt(t("detail.nextClearMany"), { gates: ids.join(", "), to: to });
     }
-    return fmt(UI.detail.nextUnknown, { gates: ids.join(", "), to: to });
+    return fmt(t("detail.nextUnknown"), { gates: ids.join(", "), to: to });
   }
 
   // ------------------------------------------------------- screen: projects
@@ -1176,32 +1474,15 @@
     return api("/api/projects").then(function (pj) {
       state.projects = pj;
       var wrap = el("div");
-      wrap.appendChild(el("h2", { class: "section-title", text: UI.projects.title }));
+      wrap.appendChild(el("h2", { class: "section-title", text: t("projects.title") }));
       wrap.appendChild(el("p", { class: "muted", style: "font-size:12px;margin-bottom:4px",
-        text: UI.projects.explain }));
+        text: t("projects.explain") }));
       wrap.appendChild(el("p", { class: "muted", style: "font-size:12px;margin-bottom:16px",
-        text: pj.managed + " " + UI.projects.managedCount + " · " + pj.unmanaged + " " +
-              UI.projects.unmanagedCount + " " + UI.projects.location + " " + UI.projects.honesty }));
+        text: pj.managed + " " + t("projects.managedCount") + " · " + pj.unmanaged + " " +
+              t("projects.unmanagedCount") + " " + t("projects.location") + " " + t("projects.honesty") }));
 
       var grid = el("div", { class: "proj-grid" });
       (pj.projects || []).forEach(function (p) {
-        var summary = el("div", { class: "proj-summary" });
-        var chips = el("div", { class: "counts" });
-        if (p.management === "MANAGED") {
-          chips.appendChild(el("span", { class: "count-pill", text: UI.projects.lifecycle + (((p.lifecycle || {}).value) || "UNKNOWN") }));
-          var gate = ((p.gate || {}).value) || {};
-          var gst = gate.status || "UNKNOWN";
-          chips.appendChild(outcomeChip(gst, gate.id ? gate.id + " " + gst : gst));
-          var nt = ((p.next_transition || {}).value);
-          summary.appendChild(chips);
-          summary.appendChild(el("p", { class: "proj-summary-line",
-            text: gateSentence(gate, nt && nt.to) }));
-        } else {
-          chips.appendChild(el("span", { class: "tag tag-UNKNOWN", text: "UNMANAGED" }));
-          summary.appendChild(chips);
-          summary.appendChild(el("p", { class: "proj-summary-line",
-            text: UI.projects.unmanagedExplain }));
-        }
         var card = el("button", {
           type: "button", class: "proj-card", "data-rel": p.rel_path,
           onclick: function () { openProject(p.rel_path); }
@@ -1214,13 +1495,56 @@
             p.management === "MANAGED" ? healthChip(p.health) : el("span", { class: "tag tag-UNKNOWN", text: "UNKNOWN" })
           ]),
           p.reason ? el("p", { class: "muted", style: "font-size:12px", text: p.reason }) : null,
-          summary
+          el("div", { class: "proj-summary" }, projectCardBody(p))
         ]);
         grid.appendChild(card);
       });
       wrap.appendChild(grid);
       return wrap;
     });
+
+    // Build the body of a project card: chips + plain-language summary + next step hint.
+    function projectCardBody(p) {
+      var chips = el("div", { class: "counts" });
+      var lines = [];
+      if (p.management === "MANAGED") {
+        chips.appendChild(el("span", { class: "count-pill", text: t("projects.lifecycle") + (((p.lifecycle || {}).value) || "UNKNOWN") }));
+        var gate = ((p.gate || {}).value) || {};
+        var gst = gate.status || "UNKNOWN";
+        chips.appendChild(outcomeChip(gst, gate.id ? gate.id + " " + gst : gst));
+        var nt = ((p.next_transition || {}).value);
+        lines.push(el("p", { class: "proj-summary-line",
+          text: gateSentence(gate, nt && nt.to) }));
+        // Next step in plain language
+        var nextHtml = nextStepHint(nt, gate);
+        if (nextHtml) lines.push(el("p", { class: "proj-next-step", style: "font-size:12px;color:var(--muted);margin-top:6px", html: nextHtml }));
+      } else {
+        chips.appendChild(el("span", { class: "tag tag-UNKNOWN", text: "UNMANAGED" }));
+        lines.push(el("p", { class: "proj-summary-line", text: t("projects.unmanagedExplain") }));
+      }
+      return el("div", {}, [chips].concat(lines));
+    }
+
+    // Plain-language "what to do next" hint for a project card.
+    function nextStepHint(nt, gate) {
+      if (!nt || !nt.to) return null;
+      var gst = (gate && gate.status) || "UNKNOWN";
+      var to = nt.to;
+      var gates = (nt.gates || []).join(", ");
+      if (gst === "FAIL" || gst === "BLOCKED") {
+        return "<strong>" + t("attention.blocked_hint") + "</strong> " +
+               fmt(t("attention.blocked_hint_detail"), { to: to, gates: gates });
+      }
+      if (gst === "WARN" || gst === "WARNING" || gst === "MANUAL") {
+        return "<strong>" + t("attention.warning_hint") + "</strong> " +
+               fmt(t("attention.warning_hint_detail"), { to: to, gates: gates });
+      }
+      if (gst === "PASS") {
+        return "<strong>" + t("attention.ready_hint") + "</strong> " +
+               fmt(t("attention.ready_hint_detail"), { to: to });
+      }
+      return null;
+    }
   }
 
   function openProject(rel) {
@@ -1241,7 +1565,7 @@
   function renderProjectDetail(d) {
     var wrap = el("div");
     wrap.appendChild(el("div", { class: "breadcrumb" }, [
-      el("button", { type: "button", class: "crumb-btn", text: UI.projects.title, onclick: function () { go("projects"); } }),
+      el("button", { type: "button", class: "crumb-btn", text: t("projects.title"), onclick: function () { go("projects"); } }),
       el("span", { class: "muted", text: "/" }),
       el("span", { class: "mono", text: d.rel_path })
     ]));
@@ -1255,20 +1579,20 @@
         el("div", { class: "panel-head", style: "background:var(--H-BLOCKED-bg)" }, [
           el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [
             el("span", { class: "status-chip status-FAIL", text: mgmt }),
-            el("strong", { text: UI.detail.unmanagedStrong })
+            el("strong", { text: t("detail.unmanagedStrong") })
           ])
         ]),
         el("div", { class: "panel-body" }, [
           el("p", { class: "prose", text: (d.management_reason || {}).value || "" }),
           el("p", { class: "prose", style: "margin-top:8px",
             text: "El motor se niega a evaluar gates y lifecycle sin PROJECT.json. Todo lo de abajo se muestra como UNKNOWN por honestidad, no porque falte información: la información que falta es precisamente el manifest del proyecto." }),
-          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: UI.detail.unmanagedExplain }),
+          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: t("detail.unmanagedExplain") }),
           conflicts.length ? el("div", { style: "margin-top:12px" }, [
-            el("h3", { class: "panel-title", style: "font-size:13px;margin-bottom:6px", text: UI.detail.unmanagedConflicts }),
+            el("h3", { class: "panel-title", style: "font-size:13px;margin-bottom:6px", text: t("detail.unmanagedConflicts") }),
             bullets(conflicts)
           ]) : null,
           el("p", { class: "muted", style: "margin-top:12px;font-size:12px",
-            text: UI.detail.unmanagedReadonly })
+            text: t("detail.unmanagedReadonly") })
         ])
       ]));
     }
@@ -1283,7 +1607,7 @@
         el("h2", { style: "font-size:20px", text: (ident.value && ident.value.name) || d.rel_path }),
         el("p", { class: "muted", style: "font-size:12px",
                   text: (ident.value && ident.value.project_id ? ident.value.project_id + " · " : "") +
-                        UI.detail.owner + ((ident.value && ident.value.owner) || "UNKNOWN") }),
+                        t("detail.owner") + ((ident.value && ident.value.owner) || "UNKNOWN") }),
         el("div", { class: "tag-row", style: "margin-top:6px" }, [epTag("OBSERVED", "se context")]),
         projectSummaryLine(gateSummaryChips(gcounts), countsSentence(gcounts))
       ])
@@ -1294,7 +1618,7 @@
     // --- gate matrix -------------------------------------------------
     var gates = (d.gates && d.gates.matrix && d.gates.matrix.value) || [];
     g.appendChild(el("div", { class: "col-12" }, [
-      panel(UI.detail.gateMatrixTitle, UI.detail.gateMatrixSub, [
+      panel(t("detail.gateMatrixTitle"), t("detail.gateMatrixSub"), [
         el("div", { class: "gate-grid" }, gates.map(function (gt) {
           var gstatus = (gt.status || {}).value;
           var eStatus = (gt.envelope_status || {}).value;
@@ -1320,28 +1644,28 @@
           ]);
           return clickable(card, function () {
             openGateDrawer(gt, true, card);
-          }, UI.drawer.openGate + " " + gt.id);
+          }, t("drawer.openGate") + " " + gt.id);
         })),
         el("p", { class: "muted", style: "margin-top:12px;font-size:12px",
-                  text: UI.detail.gateManualNote })
+                  text: t("detail.gateManualNote") })
       ])
     ]));
 
     // --- lifecycle + next transition ---------------------------------
     var nt = (lc.next_transition || {}).value;
     g.appendChild(el("div", { class: "col-4" }, [
-      panel(UI.detail.lifecycleTitle, UI.detail.lifecycleSub, [
+      panel(t("detail.lifecycleTitle"), t("detail.lifecycleSub"), [
         kv([
-          [UI.detail.lcState, val("lifecycle.state", d)],
-          [UI.detail.lcNext, nt && nt.to
+          [t("detail.lcState"), val("lifecycle.state", d)],
+          [t("detail.lcNext"), nt && nt.to
             ? el("span", {}, [document.createTextNode(nt.to + " vía " + (nt.gates || []).join(", ")), document.createTextNode(" "), epTag("OBSERVED", "se context")])
             : val("lifecycle.next_transition", d)],
-          [UI.detail.lcDeclared, (lc.declared_transitions.value || []).length],
-          [UI.detail.lcMigrations, (lc.migrations.value || []).length]
+          [t("detail.lcDeclared"), (lc.declared_transitions.value || []).length],
+          [t("detail.lcMigrations"), (lc.migrations.value || []).length]
         ]),
         el("p", { class: "prose", style: "margin-top:8px;font-size:13px",
                   text: nextTransitionSentence(nt, gates) }),
-        el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: UI.detail.nextExplain })
+        el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: t("detail.nextExplain") })
       ])
     ]));
 
@@ -1352,26 +1676,26 @@
     var sh = d.se_health || {};
     var shStatus = (sh.status || {}).value;
     g.appendChild(el("div", { class: "col-4" }, [
-      panel(UI.detail.healthTitle, UI.detail.healthSub, [
+      panel(t("detail.healthTitle"), t("detail.healthSub"), [
         kv([
-          [UI.detail.healthState, statusChip(shStatus || "UNKNOWN")],
-          [UI.detail.healthPresent, (sh.health || {}).value
+          [t("detail.healthState"), statusChip(shStatus || "UNKNOWN")],
+          [t("detail.healthPresent"), (sh.health || {}).value
             ? healthChip((sh.health || {}).value, (sh.health || {}).value)
             : el("span", { class: "tag tag-UNKNOWN", text: "UNKNOWN" })],
-          [UI.detail.healthAvailable, (sh.available || {}).value === true
+          [t("detail.healthAvailable"), (sh.available || {}).value === true
             ? el("span", { class: "tag tag-OBSERVED", text: "si" })
             : el("span", { class: "tag tag-UNKNOWN", text: "no" })],
-          [UI.detail.healthReason, (sh.reason || {}).value || "—"]
+          [t("detail.healthReason"), (sh.reason || {}).value || "—"]
         ]),
         el("div", { class: "tag-row", style: "margin-top:10px" }, [
           epTag("OBSERVED", "se health"),
           el("span", { class: "muted", style: "font-size:12px",
-            text: UI.detail.healthHelper })
+            text: t("detail.healthHelper") })
         ]),
         (sh.envelope || {}).value
-          ? raw(sh.envelope.value, UI.detail.healthRawLabel)
+          ? raw(sh.envelope.value, t("detail.healthRawLabel"))
           : el("p", { class: "muted", style: "font-size:12px",
-              text: UI.detail.healthNoEnvelope })
+              text: t("detail.healthNoEnvelope") })
       ], "tight")
     ]));
 
@@ -1379,9 +1703,9 @@
     var mf = d.manifest || {};
     var disc = d.discovery || {};
     g.appendChild(el("div", { class: "col-4" }, [
-      panel(UI.detail.manifestTitle, UI.detail.manifestSub, [
+      panel(t("detail.manifestTitle"), t("detail.manifestSub"), [
         kv([
-          [UI.detail.manifestSchema, mf.schema_valid ? (mf.schema_valid.value ? el("span", { class: "tag tag-DERIVED", text: "VALID" }) : el("span", { class: "tag tag-UNKNOWN", text: "INVALID" })) : val("manifest.schema_valid", d)],
+          [t("detail.manifestSchema"), mf.schema_valid ? (mf.schema_valid.value ? el("span", { class: "tag tag-DERIVED", text: "VALID" }) : el("span", { class: "tag tag-UNKNOWN", text: "INVALID" })) : val("manifest.schema_valid", d)],
           ["sha256", el("span", { class: "mono", text: ((mf.sha256 || {}).value || "—").slice(0, 24) })],
           ["project_id", ((mf.data || {}).value || {}).project_id || "—"],
           ["version", ((mf.data || {}).value || {}).version || "—"]
@@ -1395,29 +1719,29 @@
 
     var dcounts = (disc.counts || {}).value || {};
     g.appendChild(el("div", { class: "col-4" }, [
-      panel(UI.detail.discoveryTitle, UI.detail.discoverySub, [
+      panel(t("detail.discoveryTitle"), t("detail.discoverySub"), [
         el("p", { class: "prose", style: "font-size:13px;margin-bottom:10px",
-                  text: (disc.summary || {}).value || UI.detail.discoveryNoSummary }),
+                  text: (disc.summary || {}).value || t("detail.discoveryNoSummary") }),
         kv([
-          [UI.detail.discoveryFindings, dcounts.findings], [UI.detail.discoveryUnknowns, dcounts.unknowns],
-          [UI.detail.discoveryAssumptions, dcounts.assumptions], [UI.detail.discoveryConstraints, dcounts.constraints],
-          [UI.detail.discoveryRisks, dcounts.risks],
-          [UI.detail.discoveryReviewed, val("discovery.reviewed_by", d)]
+          [t("detail.discoveryFindings"), dcounts.findings], [t("detail.discoveryUnknowns"), dcounts.unknowns],
+          [t("detail.discoveryAssumptions"), dcounts.assumptions], [t("detail.discoveryConstraints"), dcounts.constraints],
+          [t("detail.discoveryRisks"), dcounts.risks],
+          [t("detail.discoveryReviewed"), val("discovery.reviewed_by", d)]
         ]),
         el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-                  text: UI.detail.discoveryHelper })
+                  text: t("detail.discoveryHelper") })
       ])
     ]));
 
     // --- records -----------------------------------------------------
     var recs = (d.records || {}).value || {};
     g.appendChild(el("div", { class: "col-6" }, [
-      panel(UI.records.title, UI.records.sub, [
+      panel(t("records.title"), t("records.sub"), [
         el("div", { class: "table-wrap" }, [
           el("table", { class: "table" }, [
             el("thead", {}, [el("tr", {}, [
-              el("th", { text: UI.records.colType }), el("th", { text: UI.records.colDisk }),
-              el("th", { text: UI.records.colReview }), el("th", { text: UI.records.colInvalid })
+              el("th", { text: t("records.colType") }), el("th", { text: t("records.colDisk") }),
+              el("th", { text: t("records.colReview") }), el("th", { text: t("records.colInvalid") })
             ])]),
             el("tbody", {}, Object.keys(recs).map(function (t) {
               var row = recs[t];
@@ -1432,21 +1756,21 @@
               ]);
               return clickable(tr, function () {
                 openRecordDrawer(t, d.rel_path, recs, tr);
-              }, UI.drawer.openRecord + " " + t);
+              }, t("drawer.openRecord") + " " + t);
             }))
           ])
         ]),
-        el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: UI.records.explain }),
-        el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: UI.records.helper })
+        el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: t("records.explain") }),
+        el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: t("records.helper") })
       ], "tight")
     ]));
 
     // --- record drill-down (GET /api/record, read-only) ------------------
     g.appendChild(el("div", { class: "col-12" }, [
-      panel(UI.records.explorerTitle, UI.records.explorerSub, [
+      panel(t("records.explorerTitle"), t("records.explorerSub"), [
         recordExplorer(d.rel_path, recs),
         el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-          text: UI.records.explorerHelper })
+          text: t("records.explorerHelper") })
       ], "tight")
     ]));
 
@@ -1454,7 +1778,7 @@
     var chain = (d.traceability.chain || {}).value || [];
     var integ = d.integrity || {};
     g.appendChild(el("div", { class: "col-6" }, [
-      panel(UI.trace.title, UI.trace.sub, [
+      panel(t("trace.title"), t("trace.sub"), [
         el("div", { class: "chain", style: "margin-bottom:14px" }, chain.map(function (c) {
           var n = (c.count || {}).value || 0;
           return el("div", { class: "chain-node" + (n === 0 ? " is-zero" : "") }, [
@@ -1462,9 +1786,9 @@
             el("div", { class: "chain-k", text: c.type })
           ]);
         })),
-        el("h3", { class: "panel-title", style: "font-size:13px;margin-bottom:8px", text: UI.trace.gaps }),
+        el("h3", { class: "panel-title", style: "font-size:13px;margin-bottom:8px", text: t("trace.gaps") }),
         bullets((integ.gaps || {}).value || []),
-        el("h3", { class: "panel-title", style: "font-size:13px;margin:12px 0 8px", text: UI.trace.links }),
+        el("h3", { class: "panel-title", style: "font-size:13px;margin:12px 0 8px", text: t("trace.links") }),
         bullets((integ.link_notes || {}).value || []),
         el("div", { class: "tag-row", style: "margin-top:12px" }, [
           statusChip((integ.review_status || {}).value),
@@ -1478,7 +1802,7 @@
     var idc = (cx.identity_scope || {}).value || {};
     var dpc = (cx.deep_scope || {}).value || {};
     g.appendChild(el("div", { class: "col-6" }, [
-      panel(UI.context.title, UI.context.sub, [
+      panel(t("context.title"), t("context.sub"), [
         kv([
           ["scope identity", statusChip(idc.status)],
           ["epistemic", (idc.epistemic || {}).state || "UNKNOWN"],
@@ -1486,13 +1810,13 @@
             ? idc.next_action.kind + (idc.next_action.target ? " -> " + idc.next_action.target : "")
             : "UNKNOWN"]
         ]),
-        el("h3", { class: "panel-title", style: "font-size:13px;margin:14px 0 8px", text: UI.context.deepTitle }),
+        el("h3", { class: "panel-title", style: "font-size:13px;margin:14px 0 8px", text: t("context.deepTitle") }),
         el("p", { class: "muted", style: "font-size:12px;margin-bottom:8px",
-                  text: UI.context.deepHelper }),
+                  text: t("context.deepHelper") }),
         kv([["estado", statusChip(dpc.status)]].concat(
           Object.keys(dpc.counts || {}).map(function (k) { return [k, dpc.counts[k]]; }))),
         el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-                  text: UI.context.deepNote })
+                  text: t("context.deepNote") })
       ], "tight")
     ]));
 
@@ -1500,12 +1824,12 @@
     var ml = d.mutation_log || {};
     var entries = (ml.entries || {}).value || [];
     g.appendChild(el("div", { class: "col-6" }, [
-      panel(UI.audit.title, (entries.length || 0) + " " + UI.audit.entries, [
+      panel(t("audit.title"), (entries.length || 0) + " " + t("audit.entries"), [
         entries.length ? el("div", { class: "table-wrap", style: "max-height:280px;overflow-y:auto" }, [
           el("table", { class: "table" }, [
             el("thead", {}, [el("tr", {}, [
-              el("th", { text: UI.audit.colSeq }), el("th", { text: UI.audit.colRecord }),
-              el("th", { text: UI.audit.colField }), el("th", { text: UI.audit.colValue })
+              el("th", { text: t("audit.colSeq") }), el("th", { text: t("audit.colRecord") }),
+              el("th", { text: t("audit.colField") }), el("th", { text: t("audit.colValue") })
             ])]),
             el("tbody", {}, entries.slice(-40).map(function (e) {
               return el("tr", {}, [
@@ -1516,9 +1840,9 @@
               ]);
             }))
           ])
-        ]) : el("p", { class: "empty", text: UI.audit.empty }),
+        ]) : el("p", { class: "empty", text: t("audit.empty") }),
         el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-                  text: UI.audit.helper })
+                  text: t("audit.helper") })
       ], "tight")
     ]));
 
@@ -1526,10 +1850,10 @@
 
     // --- attention for this project -----------------------------------
     var att = d.attention || {};
-    wrap.appendChild(el("h2", { class: "section-title", text: UI.attention.projectTitle }));
+    wrap.appendChild(el("h2", { class: "section-title", text: t("attention.projectTitle") }));
     wrap.appendChild(el("p", { class: "muted", style: "margin-bottom:12px",
       text: (att.counts.BLOCKED || 0) + " BLOCKED · " + (att.counts.WARNING || 0) + " WARNING · " +
-            UI.attention.orderNote + "." }));
+            t("attention.orderNote") + "." }));
     wrap.appendChild(renderAttentionTable(att));
     return wrap;
   }
@@ -1537,11 +1861,12 @@
   // ------------------------------------------------------ screen: attention
   function renderAttentionTable(att) {
     var items = (att && att.items) || [];
-    if (!items.length) return el("p", { class: "empty", text: UI.attention.empty });
+    if (!items.length) return el("p", { class: "empty", text: t("attention.empty") });
     var t = el("table", { class: "table" }, [
       el("thead", {}, [el("tr", {}, [
-        el("th", { text: UI.attention.severity }), el("th", { text: UI.attention.area }),
-        el("th", { text: UI.attention.detail }), el("th", { text: UI.attention.evidence }), el("th", { text: UI.attention.actions })
+        el("th", { text: t("attention.severity") }), el("th", { text: t("attention.area") }),
+        el("th", { text: t("attention.what_happens") }), el("th", { text: t("attention.what_to_do") }),
+        el("th", { text: t("attention.evidence") }), el("th", { text: t("attention.actions") })
       ])]),
       el("tbody", {}, items.map(function (i) {
         var actionsTd = el("td");
@@ -1560,16 +1885,21 @@
         } else {
           actionsTd.appendChild(el("span", { class: "muted", text: "—" }));
         }
-        return el("tr", {}, [
+        // Plain-language explanation of what this item means
+        var explain = attentionExplain(i);
+        // Clickable row: opens a drawer with steps to follow
+        var row = el("tr", { class: "attn-row", "data-severity": i.severity }, [
           el("td", {}, [el("span", { class: "status-chip status-" + (i.severity === "BLOCKED" ? "FAIL" : "WARN"), text: i.severity })]),
           el("td", { class: "mono", text: i.area }),
           el("td", {}, [
             el("div", { class: "attn-title", text: i.title }),
             el("div", { class: "attn-detail", text: i.detail })
           ]),
+          el("td", {}, [el("div", { class: "attn-explain", text: explain })]),
           el("td", { class: "mono", text: i.evidence }),
           actionsTd
         ]);
+        return clickable(row, function () { openAttentionDrawer(i); }, t("attention.view_details"));
       }))
     ]);
     return el("div", { class: "panel" }, [el("div", { class: "panel-body tight" }, [
@@ -1577,13 +1907,87 @@
     ])]);
   }
 
+  // Plain-language explanation of what an attention item means and what to do.
+  function attentionExplain(i) {
+    var sev = i.severity;
+    if (sev === "BLOCKED") return t("attention.blocked_explain");
+    if (sev === "WARNING") return t("attention.warning_explain");
+    return t("attention.info_explain");
+  }
+
+  // Drawer with steps to follow for an attention item.
+  function openAttentionDrawer(item) {
+    var kids = [];
+    kids.push(el("h3", { class: "drawer-sub", text: item.title }));
+    kids.push(el("p", { class: "prose", text: item.detail || "" }));
+    kids.push(el("h3", { class: "drawer-sub", text: t("attention.steps_to_follow") }));
+    var steps = attentionSteps(item);
+    if (steps.length) {
+      kids.push(el("ol", { class: "list" }, steps.map(function (s) {
+        return el("li", { class: "list-item" }, [el("div", { class: "li-main", text: s })]);
+      })));
+    } else {
+      kids.push(el("p", { class: "muted", text: t("attention.no_steps") }));
+    }
+    kids.push(el("h3", { class: "drawer-sub", text: t("attention.where_it_belongs") }));
+    kids.push(el("p", { class: "prose", text: (item.area || "—") + " · " + (item.evidence || "sin evidencia") }));
+    if (item.actions && item.actions.length) {
+      kids.push(el("h3", { class: "drawer-sub", text: t("attention.actions_available") }));
+      item.actions.forEach(function (aid) {
+        kids.push(el("button", {
+          type: "button", class: "btn btn-small", text: labelForAction(aid),
+          onclick: function () {
+            closeDrawer();
+            var projRel = state.project || item._project;
+            executeAction(aid, item, projRel);
+          }
+        }));
+        kids.push(document.createTextNode(" "));
+      });
+    }
+    openDrawer(t("attention.view_details"), el("div", {}, kids), null);
+  }
+
+  // Suggested steps for an attention item, based on its content.
+  function attentionSteps(item) {
+    var steps = [];
+    var detail = (item.detail || "").toLowerCase();
+    var title = (item.title || "").toLowerCase();
+    var area = (item.area || "").toLowerCase();
+    if (detail.includes("receipt") || title.includes("receipt")) {
+      steps.push(t("attention.step_receipt"));
+    }
+    if (detail.includes("artifact") || title.includes("artifact")) {
+      steps.push(t("attention.step_artifact"));
+    }
+    if (detail.includes("gate") || area.includes("gate")) {
+      steps.push(t("attention.step_gate"));
+    }
+    if (detail.includes("evidence") || title.includes("evidence")) {
+      steps.push(t("attention.step_evidence"));
+    }
+    if (detail.includes("acceptance") || title.includes("acceptance")) {
+      steps.push(t("attention.step_acceptance"));
+    }
+    if (detail.includes("release") || title.includes("release")) {
+      steps.push(t("attention.step_release"));
+    }
+    if (detail.includes("operations") || detail.includes("operations.md")) {
+      steps.push(t("attention.step_operations"));
+    }
+    if (steps.length === 0) {
+      steps.push(t("attention.step_generic"));
+    }
+    return steps;
+  }
+
   function viewAttention() {
     return Promise.all([api("/api/system"), api("/api/projects")]).then(function (res) {
       renderHeader(res[0]);
       var wrap = el("div");
-      wrap.appendChild(el("h2", { class: "section-title", text: UI.attention.title }));
+      wrap.appendChild(el("h2", { class: "section-title", text: t("attention.title") }));
       wrap.appendChild(el("p", { class: "muted", style: "margin-bottom:16px",
-        text: UI.attention.intro }));
+        text: t("attention.intro") }));
       // aggregate per project
       var jobs = (res[1].projects || []).filter(function (p) { return p.management === "MANAGED"; })
         .map(function (p) {
@@ -1603,7 +2007,7 @@
         wrap.appendChild(el("div", { class: "stat-row", style: "margin-bottom:16px" }, [
           el("div", { class: "stat stat-fail" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "BLOCKED"; }).length }), el("div", { class: "stat-k", text: "BLOCKED" })]),
           el("div", { class: "stat stat-warn" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "WARNING"; }).length }), el("div", { class: "stat-k", text: "WARNING" })]),
-          el("div", { class: "stat" }, [el("div", { class: "stat-n", text: all.length }), el("div", { class: "stat-k", text: UI.attention.total })])
+          el("div", { class: "stat" }, [el("div", { class: "stat-n", text: all.length }), el("div", { class: "stat-k", text: t("attention.total") })])
         ]));
         wrap.appendChild(renderAttentionTable({ items: all }));
         return wrap;
@@ -1688,6 +2092,10 @@
     document.getElementById("sel-theme").addEventListener("change", function () {
       setTheme(this.value);
     });
+    document.getElementById("sel-lang").addEventListener("change", function () {
+      setLang(this.value);
+    });
+    initLang();
     var btn = document.getElementById("btn-refresh");
     btn.addEventListener("click", function () {
       btn.classList.add("is-busy");
