@@ -514,6 +514,21 @@ main:focus { outline: none; }
 .table tr:last-child td { border-bottom: 0; }
 .table-wrap { overflow-x: auto; }
 
+/* ---------- attention table column widths ---------- */
+.attn-table { table-layout: fixed; }
+.attn-table th:nth-child(1),
+.attn-table td:nth-child(1) { width: 10%; }  /* severidad */
+.attn-table th:nth-child(2),
+.attn-table td:nth-child(2) { width: 16%; }  /* área */
+.attn-table th:nth-child(3),
+.attn-table td:nth-child(3) { width: 30%; }  /* qué pasa */
+.attn-table th:nth-child(4),
+.attn-table td:nth-child(4) { width: 24%; }  /* qué hacer */
+.attn-table th:nth-child(5),
+.attn-table td:nth-child(5) { width: 12%; }  /* evidencia */
+.attn-table th:nth-child(6),
+.attn-table td:nth-child(6) { width: 8%; }   /* acciones */
+
 /* ---------- misc ---------- */
 .loading, .notice { padding: var(--sp-5); text-align: center; color: var(--ink-3); }
 .notice-error { color: var(--H-BLOCKED); background: var(--H-BLOCKED-bg);

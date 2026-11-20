@@ -1895,7 +1895,7 @@
   function renderAttentionTable(att) {
     var items = (att && att.items) || [];
     if (!items.length) return el("p", { class: "empty", text: __t("attention.empty") });
-    var tbl = el("table", { class: "table" }, [
+    var tbl = el("table", { class: "table attn-table" }, [
       el("thead", {}, [el("tr", {}, [
         el("th", { text: __t("attention.severity") }), el("th", { text: __t("attention.area") }),
         el("th", { text: __t("attention.what_happens") }), el("th", { text: __t("attention.what_to_do") }),
