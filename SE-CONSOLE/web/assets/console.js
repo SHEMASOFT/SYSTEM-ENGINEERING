@@ -1777,9 +1777,19 @@
                   ? el("span", { class: "tag tag-UNKNOWN", text: String(row.invalid_count) })
                   : el("span", { class: "tag tag-DERIVED", text: "0" })])
               ]);
-              return clickable(tr, function () {
+              tr.addEventListener("click", function () {
                 openRecordDrawer(t, d.rel_path, recs, tr);
-              }, __t("drawer.openRecord") + " " + t);
+              });
+              tr.setAttribute("aria-label", __t("drawer.openRecord") + " " + t);
+              tr.setAttribute("tabindex", "0");
+              tr.classList.add("is-clickable");
+              tr.addEventListener("keydown", function (e) {
+                if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                  e.preventDefault();
+                  openRecordDrawer(t, d.rel_path, recs, tr);
+                }
+              });
+              return tr;
             }))
           ])
         ]),
@@ -1922,7 +1932,18 @@
           el("td", { class: "mono", text: i.evidence }),
           actionsTd
         ]);
-        return clickable(row, function () { openAttentionDrawer(i); }, __t("attention.view_details"));
+        // Clickable row: opens a drawer with steps to follow
+        row.addEventListener("click", function () { openAttentionDrawer(i); });
+        row.setAttribute("aria-label", __t("attention.view_details"));
+        row.setAttribute("tabindex", "0");
+        row.classList.add("is-clickable");
+        row.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+            e.preventDefault();
+            openAttentionDrawer(i);
+          }
+        });
+        return row;
       }))
     ]);
     return el("div", { class: "panel" }, [el("div", { class: "panel-body tight" }, [
