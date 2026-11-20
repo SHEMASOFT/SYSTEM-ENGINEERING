@@ -212,11 +212,30 @@
       evidence: "evidencia",
       actions: "Acciones",
       empty: "sin elementos que requieran atención",
-      total: "total"
+      total: "total",
+      what_happens: "Qué pasa",
+      what_to_do: "Qué hacer",
+      view_details: "Ver detalles",
+      steps_to_follow: "Pasos a seguir",
+      blocked_explain: "Este elemento está bloqueado. No se puede avanzar hasta resolverlo.",
+      warning_explain: "Este elemento tiene una advertencia. Revíselo pronto; no detiene el proyecto por sí solo.",
+      info_explain: "Información para revisar.",
+      no_steps: "No hay pasos específicos definidos todavía.",
+      where_it_belongs: "A qué pertenece",
+      actions_available: "Acciones disponibles",
+      step_receipt: "Registre la evidencia de ejecución (receipt) de la tarea.",
+      step_artifact: "Revise y corrija el archivo del artefacto indicado.",
+      step_gate: "Revise las condiciones del gate y resuelva las que fallen.",
+      step_evidence: "Aporte la evidencia faltante para el registro indicado.",
+      step_acceptance: "Complete la evidencia de aceptación de usuario (UAT).",
+      step_release: "Publique el release y vincúlelo a la evidencia.",
+      step_operations: "Cree el documento de operaciones (docs/operations.md).",
+      step_generic: "Revise el detalle del elemento y resuelva lo que corresponda."
     },
     action: {
       checkpoint: "Registrar avance",
-      close: "Cerrar ejecución"
+      close: "Cerrar ejecución",
+      attest: "Attestar transición"
     },
     drawer: {
       close: "Cerrar detalle",
@@ -464,7 +483,8 @@
     },
     action: {
       checkpoint: "Register progress",
-      close: "Close execution"
+      close: "Close execution",
+      attest: "Attest transition"
     },
     drawer: {
       close: "Close detail",
@@ -640,6 +660,7 @@
   function labelForAction(id) {
     if (id === "run.checkpoint") return __t("action.checkpoint");
     if (id === "run.close") return __t("action.close");
+    if (id === "transition.attest") return __t("action.attest");
     return id;
   }
 
