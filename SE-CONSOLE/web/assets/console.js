@@ -512,7 +512,7 @@
   };
 
   var currentLang = "es";
-  function t(path) {
+  function __t(path) {
     var langObj = currentLang === "en" ? LANG_EN : LANG_ES;
     var parts = path.split(".");
     var cur = langObj;
@@ -609,12 +609,12 @@
   }
 
   function epTag(epistemic, source) {
-    var t = el("span", {
+    var tg = el("span", {
       class: "tag tag-" + (epistemic || "UNKNOWN"),
       text: epistemic || "UNKNOWN",
       title: source ? "fuente: " + source : "sin fuente declarada"
     });
-    return t;
+    return tg;
   }
 
   function healthChip(health, label) {
@@ -638,8 +638,8 @@
   }
 
   function labelForAction(id) {
-    if (id === "run.checkpoint") return t("action.checkpoint");
-    if (id === "run.close") return t("action.close");
+    if (id === "run.checkpoint") return __t("action.checkpoint");
+    if (id === "run.close") return __t("action.close");
     return id;
   }
 
@@ -901,7 +901,7 @@
     Object.keys(val || {}).forEach(function (k) {
       var v = val[k];
       var shown = (v && typeof v === "object")
-        ? (Array.isArray(v) ? (v.length ? v.length + t("records.itemSuffix") : "[]") : JSON.stringify(v))
+        ? (Array.isArray(v) ? (v.length ? v.length + __t("records.itemSuffix") : "[]") : JSON.stringify(v))
         : String(v);
       if (shown === "" || shown === "undefined" || shown === "null") shown = "UNKNOWN";
       rows.push([k, shown]);
@@ -911,11 +911,11 @@
     var links = (d.inbound_links || {}).value;
     if (Array.isArray(links) && links.length) {
       kids.push(el("h3", { class: "panel-title", style: "font-size:13px;margin:14px 0 8px",
-        text: t("records.linksTitle") + " (" + links.length + ")" }));
+        text: __t("records.linksTitle") + " (" + links.length + ")" }));
       kids.push(bullets(links));
     } else {
       kids.push(el("p", { class: "muted", style: "font-size:12px",
-        text: t("records.linksNone") }));
+        text: __t("records.linksNone") }));
     }
 
     var trace = (d.trace || d.context || {}).value;
@@ -923,9 +923,9 @@
       epTag(facts.epistemic || "UNKNOWN", facts.source || "unknown"),
       epTag("OBSERVED", "GET /api/record")
     ]));
-    if (trace) kids.push(raw(trace, t("records.traceLabel")));
+    if (trace) kids.push(raw(trace, __t("records.traceLabel")));
 
-    return panel(type + " · " + id, t("records.cardSub"), kids, "tight");
+    return panel(type + " · " + id, __t("records.cardSub"), kids, "tight");
   }
 
   // ---------------------------------------------------------------- drawer
@@ -943,7 +943,7 @@
     var title = el("h2", { class: "drawer-title", id: "drawer-title" });
     var closeBtn = el("button", {
       type: "button", class: "btn btn-icon drawer-close",
-      "aria-label": t("drawer.close"), title: t("drawer.close"),
+      "aria-label": __t("drawer.close"), title: __t("drawer.close"),
       onclick: function () { closeDrawer(); }
     }, el("span", { "aria-hidden": "true", text: "✕" }));
     var body = el("div", { class: "drawer-body", id: "drawer-body" });
@@ -1001,10 +1001,10 @@
       document.removeEventListener("keydown", drawerKeyHandler);
       drawerKeyHandler = null;
     }
-    var t = drawerTrigger;
+    var tt = drawerTrigger;
     drawerTrigger = null;
-    if (t && t.focus && document.contains(t)) {
-      try { t.focus(); } catch (e) {}
+    if (tt && tt.focus && document.contains(tt)) {
+      try { tt.focus(); } catch (e) {}
     }
   }
 
@@ -1041,51 +1041,51 @@
      on the overview, which carries no per-project verdict. */
   function gateDetailNode(gt, evaluated) {
     var kids = [kv([
-      [t("drawer.gateId"), el("span", { class: "mono", text: gt.id || "—" })],
-      [t("drawer.gateName"), gt.name || "—"],
-      [t("drawer.gateFlow"), el("span", { class: "mono",
+      [__t("drawer.gateId"), el("span", { class: "mono", text: gt.id || "—" })],
+      [__t("drawer.gateName"), gt.name || "—"],
+      [__t("drawer.gateFlow"), el("span", { class: "mono",
         text: (gt.from_state || "?") + " → " + (gt.to_state || "?") })]
     ])];
 
     if (!evaluated) {
       kids.push(el("p", { class: "muted", style: "font-size:12px;margin-top:10px",
-        text: t("drawer.gateNotEvaluated") }));
+        text: __t("drawer.gateNotEvaluated") }));
       return el("div", {}, kids);
     }
 
     var gstatus = get("status.value", gt);
     var eStatus = get("envelope_status.value", gt);
-    kids.push(el("h3", { class: "drawer-sub", text: t("drawer.gateVerdict") }));
+    kids.push(el("h3", { class: "drawer-sub", text: __t("drawer.gateVerdict") }));
     kids.push(kv([
-      [t("drawer.gateStatus"), gstatus ? statusChip(gstatus)
+      [__t("drawer.gateStatus"), gstatus ? statusChip(gstatus)
         : (eStatus ? el("span", { class: "status-chip status-UNKNOWN", text: eStatus + " · no evaluable" })
                    : statusChip("UNKNOWN"))],
-      [t("drawer.gateHealth"), healthChip(gt.health || "UNKNOWN")]
+      [__t("drawer.gateHealth"), healthChip(gt.health || "UNKNOWN")]
     ]));
 
     var conds = (gt.conditions && gt.conditions.value) || [];
-    kids.push(el("h3", { class: "drawer-sub", text: t("drawer.gateConditions") + " (" + conds.length + ")" }));
+    kids.push(el("h3", { class: "drawer-sub", text: __t("drawer.gateConditions") + " (" + conds.length + ")" }));
     kids.push(conds.length ? el("ul", { class: "list" }, conds.map(conditionNode))
-                           : el("p", { class: "muted", text: t("drawer.noConditions") }));
+                           : el("p", { class: "muted", text: __t("drawer.noConditions") }));
 
     var conflicts = (gt.envelope_conflicts && gt.envelope_conflicts.value) || [];
     if (conflicts.length) {
-      kids.push(el("h3", { class: "drawer-sub", text: t("drawer.gateConflicts") }));
+      kids.push(el("h3", { class: "drawer-sub", text: __t("drawer.gateConflicts") }));
       kids.push(bullets(conflicts));
     }
     kids.push(el("p", { class: "muted", style: "font-size:12px;margin-top:10px",
-      text: t("drawer.gateHelper") }));
+      text: __t("drawer.gateHelper") }));
     return el("div", {}, kids);
   }
 
   function openGateDrawer(gt, evaluated, trigger) {
-    openDrawer(t("drawer.gateTitle") + " · " + (gt.id || ""), gateDetailNode(gt, evaluated), trigger);
+    openDrawer(__t("drawer.gateTitle") + " · " + (gt.id || ""), gateDetailNode(gt, evaluated), trigger);
   }
 
   function openRecordDrawer(type, relPath, recs, trigger) {
-    openDrawer(t("drawer.recordTitle") + " · " + type, el("div", { class: "drawer-explorer" }, [
+    openDrawer(__t("drawer.recordTitle") + " · " + type, el("div", { class: "drawer-explorer" }, [
       recordExplorer(relPath, recs, type),
-      el("p", { class: "muted", style: "font-size:12px;margin-top:10px", text: t("drawer.recordHelper") })
+      el("p", { class: "muted", style: "font-size:12px;margin-top:10px", text: __t("drawer.recordHelper") })
     ]), trigger);
   }
 
@@ -1101,8 +1101,8 @@
     chip.setAttribute("title", "se doctor: " + ((h.se_status && h.se_status.value) || "UNKNOWN"));
 
     document.getElementById("ft-root").textContent = (sys && sys.se_root) || "—";
-    var t = (sys && sys.generated_at) || "";
-    document.getElementById("ft-time").textContent = t.replace("T", " ").replace("Z", " UTC");
+    var ts = (sys && sys.generated_at) || "";
+    document.getElementById("ft-time").textContent = ts.replace("T", " ").replace("Z", " UTC");
   }
 
   function renderFooterMeta() {
@@ -1132,10 +1132,10 @@
       if (eng && eng.operational === false) {
         g.appendChild(el("div", { class: "col-12" }, [
           el("div", { class: "banner banner-BLOCKED", role: "status" }, [
-            el("span", { class: "banner-tag", text: t("outage.tag") }),
+            el("span", { class: "banner-tag", text: __t("outage.tag") }),
             el("div", {}, [
-              el("div", { class: "banner-title", text: t("outage.title") + (eng.reason || t("outage.unknownReason")) }),
-              el("div", { class: "banner-sub", text: t("outage.sub") })
+              el("div", { class: "banner-title", text: __t("outage.title") + (eng.reason || __t("outage.unknownReason")) }),
+              el("div", { class: "banner-sub", text: __t("outage.sub") })
             ])
           ])
         ]));
@@ -1143,24 +1143,24 @@
 
       // --- identity ---------------------------------------------------
       var idRows = [
-        [t("identity.name"), val("identity.name", sys)],
-        [t("identity.version"), val("identity.version", sys)],
-        [t("identity.status"), val("identity.status", sys)],
-        [t("identity.description"), el("p", { class: "prose", text: (fact("identity.description", sys).value) || "" })],
-        [t("identity.schemaVersion"), val("identity.schema_version", sys)]
+        [__t("identity.name"), val("identity.name", sys)],
+        [__t("identity.version"), val("identity.version", sys)],
+        [__t("identity.status"), val("identity.status", sys)],
+        [__t("identity.description"), el("p", { class: "prose", text: (fact("identity.description", sys).value) || "" })],
+        [__t("identity.schemaVersion"), val("identity.schema_version", sys)]
       ];
       var models = (fact("identity.models", sys).value) || {};
       if (Object.keys(models).length) {
-        idRows.push([t("identity.models"), el("div", { class: "tag-row" },
+        idRows.push([__t("identity.models"), el("div", { class: "tag-row" },
           Object.keys(models).map(function (k) {
             return el("span", { class: "count-pill", title: k, text: models[k] });
           }))]);
       }
       g.appendChild(el("div", { class: "col-6" }, [
-        panel(t("identity.title"), t("identity.sub"), [
+        panel(__t("identity.title"), __t("identity.sub"), [
           kv(idRows),
           el("p", { class: "muted", style: "margin-top:12px;font-size:12px" },
-            t("identity.sourceNote"))
+            __t("identity.sourceNote"))
         ])
       ]));
 
@@ -1173,7 +1173,7 @@
           el("p", { class: "mono", text: (h.summary && h.summary.value) || "—" }),
           el("div", { class: "tag-row", style: "margin-top:6px" }, [
             epTag("OBSERVED", "se doctor"),
-            el("span", { class: "muted", style: "font-size:12px", text: t("health.checkNote") })
+            el("span", { class: "muted", style: "font-size:12px", text: __t("health.checkNote") })
           ])
         ])
       ]);
@@ -1185,11 +1185,11 @@
       var failing = (h.failing_checks && h.failing_checks.value) || [];
       var warning = (h.warning_checks && h.warning_checks.value) || [];
       g.appendChild(el("div", { class: "col-6" }, [
-        panel(t("health.title"), t("health.sub"), [
+        panel(__t("health.title"), __t("health.sub"), [
           hero, stats,
-          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: t("health.explain") }),
-          el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: t("health.evidenceNote") }),
-          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: t("health.focusTitle") }),
+          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: __t("health.explain") }),
+          el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: __t("health.evidenceNote") }),
+          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: __t("health.focusTitle") }),
           list(warning.concat(failing), function (c) {
             return el("li", { class: "list-item" }, [
               el("div", { class: "li-main" }, [
@@ -1210,24 +1210,24 @@
       var hc = sys.health_command || {};
       if (hc.command_id) {
         g.appendChild(el("div", { class: "col-4" }, [
-          panel(t("healthCmd.title"), t("healthCmd.sub"), [
+          panel(__t("healthCmd.title"), __t("healthCmd.sub"), [
             kv([
-              [t("healthCmd.declared"), (hc.declared || {}).value === true
+              [__t("healthCmd.declared"), (hc.declared || {}).value === true
                 ? el("span", { class: "tag tag-OBSERVED", text: "si" })
                 : el("span", { class: "tag tag-UNKNOWN", text: "no" })],
-              [t("healthCmd.implemented"), (hc.implemented || {}).value === true
+              [__t("healthCmd.implemented"), (hc.implemented || {}).value === true
                 ? el("span", { class: "tag tag-OBSERVED", text: "si" })
                 : el("span", { class: "tag tag-UNKNOWN", text: "no" })],
-              [t("healthCmd.invocable"), (hc.invocable || {}).value === true
+              [__t("healthCmd.invocable"), (hc.invocable || {}).value === true
                 ? el("span", { class: "tag tag-OBSERVED", text: "si" })
                 : el("span", { class: "tag tag-UNKNOWN", text: "no" })],
-              [t("healthCmd.mutates"), hc.mutates && hc.mutates.value === false
+              [__t("healthCmd.mutates"), hc.mutates && hc.mutates.value === false
                 ? el("span", { class: "tag tag-OBSERVED", text: "no (mutates=false)" })
                 : el("span", { class: "tag tag-UNKNOWN", text: "UNKNOWN" })],
-              [t("healthCmd.note"), (hc.note || {}).value || "—"]
+              [__t("healthCmd.note"), (hc.note || {}).value || "—"]
             ]),
             el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-              text: t("healthCmd.helper") })
+              text: __t("healthCmd.helper") })
           ], "tight")
         ]));
       }
@@ -1237,11 +1237,11 @@
       var byAvail = (caps.by_availability && caps.by_availability.value) || {};
       var prov = (caps.providers && caps.providers.value) || [];
       g.appendChild(el("div", { class: "col-4" }, [
-        panel(t("capabilities.title"), t("capabilities.sub"), [
+        panel(__t("capabilities.title"), __t("capabilities.sub"), [
           kv([
-            [t("capabilities.state"), val("capabilities.health", caps)],
-            [t("capabilities.available"), val("capabilities.available_count", caps)],
-            [t("capabilities.providers"), el("span", { class: "count-pill", text: String(prov.length) })]
+            [__t("capabilities.state"), val("capabilities.health", caps)],
+            [__t("capabilities.available"), val("capabilities.available_count", caps)],
+            [__t("capabilities.providers"), el("span", { class: "count-pill", text: String(prov.length) })]
           ]),
           el("div", { class: "tag-row", style: "margin-top:12px" },
             Object.keys(byAvail).map(function (k) {
@@ -1250,7 +1250,7 @@
                 text: k + ": " + byAvail[k]
               });
             })),
-          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: t("capabilities.explain") }),
+          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: __t("capabilities.explain") }),
           list(prov, function (p) {
             var d = el("li", { class: "list-item" }, [
               el("div", { class: "li-main" }, [
@@ -1262,7 +1262,7 @@
             return d;
           }),
           el("div", { class: "callout", style: "margin-top:12px" },
-            t("capabilities.callout"))
+            __t("capabilities.callout"))
         ])
       ]));
 
@@ -1270,12 +1270,12 @@
       var inv = sys.inventory || {};
       var rows = (inv.alignment && inv.alignment.value) || [];
       g.appendChild(el("div", { class: "col-4" }, [
-        panel(t("inventory.title"), t("inventory.sub"), [
+        panel(__t("inventory.title"), __t("inventory.sub"), [
           el("div", { class: "table-wrap" }, [
             el("table", { class: "table" }, [
               el("thead", {}, [el("tr", {}, [
-                el("th", { text: t("inventory.item") }), el("th", { text: t("inventory.declared") }),
-                el("th", { text: t("inventory.observed") }), el("th", { text: t("inventory.state") })
+                el("th", { text: __t("inventory.item") }), el("th", { text: __t("inventory.declared") }),
+                el("th", { text: __t("inventory.observed") }), el("th", { text: __t("inventory.state") })
               ])]),
               el("tbody", {}, rows.map(function (r) {
                 return el("tr", {}, [
@@ -1296,9 +1296,9 @@
       var states = (sys.lifecycle_framework && sys.lifecycle_framework.states && sys.lifecycle_framework.states.value) || [];
       var gates = (sys.lifecycle_framework && sys.lifecycle_framework.gates && sys.lifecycle_framework.gates.value) || [];
       g.appendChild(el("div", { class: "col-4" }, [
-        panel(t("lifecycle.title"), t("lifecycle.sub"), [
+        panel(__t("lifecycle.title"), __t("lifecycle.sub"), [
           el("p", { class: "mono muted", style: "font-size:12px;margin-bottom:8px",
-                    text: t("lifecycle.statesLabel") + (Array.isArray(states) ? states.join(" -> ") : String(states)) }),
+                    text: __t("lifecycle.statesLabel") + (Array.isArray(states) ? states.join(" -> ") : String(states)) }),
           el("div", { class: "gate-grid", style: "grid-template-columns:repeat(2,1fr)" },
             gates.map(function (gt) {
               var card = el("div", { class: "gate gate-UNKNOWN" }, [
@@ -1308,10 +1308,10 @@
               ]);
               return clickable(card, function () {
                 openGateDrawer(gt, false, card);
-              }, t("drawer.openGate") + " " + gt.id);
+              }, __t("drawer.openGate") + " " + gt.id);
             })),
           el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-                    text: t("lifecycle.explain") })
+                    text: __t("lifecycle.explain") })
         ])
       ]));
 
@@ -1321,12 +1321,12 @@
       var policies = (sys.policies && sys.policies.value) || [];
       var domains = (sys.domains && sys.domains.value) || [];
       g.appendChild(el("div", { class: "col-6" }, [
-        panel(t("components.agentsTitle"),
-          agents.length + " " + t("components.agentsCount") + " · " + skills.length + " " + t("components.skillsCount"), [
+        panel(__t("components.agentsTitle"),
+          agents.length + " " + __t("components.agentsCount") + " · " + skills.length + " " + __t("components.skillsCount"), [
           el("div", { class: "table-wrap" }, [
             el("table", { class: "table" }, [
               el("thead", {}, [el("tr", {}, [
-                el("th", { text: t("components.id") }), el("th", { text: t("components.role") }), el("th", { text: t("components.source") })
+                el("th", { text: __t("components.id") }), el("th", { text: __t("components.role") }), el("th", { text: __t("components.source") })
               ])]),
               el("tbody", {}, agents.map(function (a) {
                 return el("tr", {}, [
@@ -1337,23 +1337,23 @@
               }))
             ])
           ]),
-          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: t("components.skillsTitle") }),
+          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: __t("components.skillsTitle") }),
           bullets(skills.map(function (s) { return s.id + (s.description ? " — " + s.description : ""); }))
         ], "tight")
       ]));
 
       g.appendChild(el("div", { class: "col-6" }, [
-        panel(t("components.policiesTitle"),
-          policies.length + " " + t("components.policiesCount") + " · " + domains.length + " " + t("components.domainsCount"), [
-          el("h3", { class: "panel-title", style: "margin-bottom:8px;font-size:13px", text: t("components.policiesHeading") }),
+        panel(__t("components.policiesTitle"),
+          policies.length + " " + __t("components.policiesCount") + " · " + domains.length + " " + __t("components.domainsCount"), [
+          el("h3", { class: "panel-title", style: "margin-bottom:8px;font-size:13px", text: __t("components.policiesHeading") }),
           el("div", { class: "tag-row" }, policies.map(function (p) {
             return el("span", { class: "count-pill", title: p.source, text: p.id });
           })),
-          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: t("components.domainsHeading") }),
+          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: __t("components.domainsHeading") }),
           el("div", { class: "tag-row" }, domains.map(function (d) {
             return el("span", { class: "count-pill", title: d.source, text: d.id });
           })),
-          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: t("components.commandsHeading") }),
+          el("h3", { class: "panel-title", style: "margin:16px 0 8px;font-size:13px", text: __t("components.commandsHeading") }),
           el("div", { class: "tag-row" }, ((sys.command_surface && sys.command_surface.available.value) || [])
             .map(function (c) { return el("span", { class: "count-pill", text: c }); }))
         ], "tight")
@@ -1403,23 +1403,23 @@
     var id = (gate && gate.id) || "";
     var g = String(st).toUpperCase();
     var tpl;
-    if (g === "PASS" || g === "OK") tpl = to ? t("projects.gateOkTo") : t("projects.gateOk");
+    if (g === "PASS" || g === "OK") tpl = to ? __t("projects.gateOkTo") : __t("projects.gateOk");
     else if (g === "FAIL" || g === "BLOCKED" || g === "ERROR" || g === "CRITICAL") {
-      tpl = to ? t("projects.gateFailTo") : t("projects.gateFail");
+      tpl = to ? __t("projects.gateFailTo") : __t("projects.gateFail");
     } else if (g === "WARN" || g === "WARNING" || g === "MANUAL" || g === "SKIP") {
-      tpl = to ? t("projects.gateWarnTo") : t("projects.gateWarn");
-    } else return t("projects.gateUnknown");
-    if (!id) return t("projects.gateUnknown");
+      tpl = to ? __t("projects.gateWarnTo") : __t("projects.gateWarn");
+    } else return __t("projects.gateUnknown");
+    if (!id) return __t("projects.gateUnknown");
     return fmt(tpl, { gate: id, status: st, to: to });
   }
 
   // One-line summary from the whole-matrix outcome counts (detail hero).
   function countsSentence(counts) {
-    if (!counts.total) return t("projects.gateUnknown");
-    if (counts.fail > 0) return fmt(t("projects.countsFail"), counts);
-    if (counts.warn > 0) return fmt(t("projects.countsWarn"), counts);
-    if (counts.unknown > 0) return fmt(t("projects.countsUnknown"), counts);
-    return fmt(t("projects.countsPass"), counts);
+    if (!counts.total) return __t("projects.gateUnknown");
+    if (counts.fail > 0) return fmt(__t("projects.countsFail"), counts);
+    if (counts.warn > 0) return fmt(__t("projects.countsWarn"), counts);
+    if (counts.unknown > 0) return fmt(__t("projects.countsUnknown"), counts);
+    return fmt(__t("projects.countsPass"), counts);
   }
 
   // Chips row + one plain sentence, shared by the list card and the hero.
@@ -1443,7 +1443,7 @@
   // panel). Reuses the already-fetched gate matrix: only conditions the engine
   // itself marked FAIL or MANUAL on the transition's own gates are named.
   function nextTransitionSentence(nt, gates) {
-    if (!nt || !nt.to) return t("detail.nextNone");
+    if (!nt || !nt.to) return __t("detail.nextNone");
     var ids = nt.gates || [];
     var byId = {};
     (gates || []).forEach(function (g) { if (g && g.id) byId[g.id] = g; });
@@ -1459,14 +1459,14 @@
       });
     });
     var to = nt.to;
-    if (fails.length) return fmt(t("detail.nextFail"), { to: to, conds: fails.join(", ") });
-    if (manuals.length) return fmt(t("detail.nextManual"), { to: to, conds: manuals.join(", ") });
+    if (fails.length) return fmt(__t("detail.nextFail"), { to: to, conds: fails.join(", ") });
+    if (manuals.length) return fmt(__t("detail.nextManual"), { to: to, conds: manuals.join(", ") });
     if (seen === ids.length && ids.length) {
       return ids.length === 1
-        ? fmt(t("detail.nextClearOne"), { gates: ids[0], to: to })
-        : fmt(t("detail.nextClearMany"), { gates: ids.join(", "), to: to });
+        ? fmt(__t("detail.nextClearOne"), { gates: ids[0], to: to })
+        : fmt(__t("detail.nextClearMany"), { gates: ids.join(", "), to: to });
     }
-    return fmt(t("detail.nextUnknown"), { gates: ids.join(", "), to: to });
+    return fmt(__t("detail.nextUnknown"), { gates: ids.join(", "), to: to });
   }
 
   // ------------------------------------------------------- screen: projects
@@ -1474,12 +1474,12 @@
     return api("/api/projects").then(function (pj) {
       state.projects = pj;
       var wrap = el("div");
-      wrap.appendChild(el("h2", { class: "section-title", text: t("projects.title") }));
+      wrap.appendChild(el("h2", { class: "section-title", text: __t("projects.title") }));
       wrap.appendChild(el("p", { class: "muted", style: "font-size:12px;margin-bottom:4px",
-        text: t("projects.explain") }));
+        text: __t("projects.explain") }));
       wrap.appendChild(el("p", { class: "muted", style: "font-size:12px;margin-bottom:16px",
-        text: pj.managed + " " + t("projects.managedCount") + " · " + pj.unmanaged + " " +
-              t("projects.unmanagedCount") + " " + t("projects.location") + " " + t("projects.honesty") }));
+        text: pj.managed + " " + __t("projects.managedCount") + " · " + pj.unmanaged + " " +
+              __t("projects.unmanagedCount") + " " + __t("projects.location") + " " + __t("projects.honesty") }));
 
       var grid = el("div", { class: "proj-grid" });
       (pj.projects || []).forEach(function (p) {
@@ -1508,7 +1508,7 @@
       var chips = el("div", { class: "counts" });
       var lines = [];
       if (p.management === "MANAGED") {
-        chips.appendChild(el("span", { class: "count-pill", text: t("projects.lifecycle") + (((p.lifecycle || {}).value) || "UNKNOWN") }));
+        chips.appendChild(el("span", { class: "count-pill", text: __t("projects.lifecycle") + (((p.lifecycle || {}).value) || "UNKNOWN") }));
         var gate = ((p.gate || {}).value) || {};
         var gst = gate.status || "UNKNOWN";
         chips.appendChild(outcomeChip(gst, gate.id ? gate.id + " " + gst : gst));
@@ -1520,7 +1520,7 @@
         if (nextHtml) lines.push(el("p", { class: "proj-next-step", style: "font-size:12px;color:var(--muted);margin-top:6px", html: nextHtml }));
       } else {
         chips.appendChild(el("span", { class: "tag tag-UNKNOWN", text: "UNMANAGED" }));
-        lines.push(el("p", { class: "proj-summary-line", text: t("projects.unmanagedExplain") }));
+        lines.push(el("p", { class: "proj-summary-line", text: __t("projects.unmanagedExplain") }));
       }
       return el("div", {}, [chips].concat(lines));
     }
@@ -1567,7 +1567,7 @@
   function renderProjectDetail(d) {
     var wrap = el("div");
     wrap.appendChild(el("div", { class: "breadcrumb" }, [
-      el("button", { type: "button", class: "crumb-btn", text: t("projects.title"), onclick: function () { go("projects"); } }),
+      el("button", { type: "button", class: "crumb-btn", text: __t("projects.title"), onclick: function () { go("projects"); } }),
       el("span", { class: "muted", text: "/" }),
       el("span", { class: "mono", text: d.rel_path })
     ]));
@@ -1581,20 +1581,20 @@
         el("div", { class: "panel-head", style: "background:var(--H-BLOCKED-bg)" }, [
           el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [
             el("span", { class: "status-chip status-FAIL", text: mgmt }),
-            el("strong", { text: t("detail.unmanagedStrong") })
+            el("strong", { text: __t("detail.unmanagedStrong") })
           ])
         ]),
         el("div", { class: "panel-body" }, [
           el("p", { class: "prose", text: (d.management_reason || {}).value || "" }),
           el("p", { class: "prose", style: "margin-top:8px",
             text: "El motor se niega a evaluar gates y lifecycle sin PROJECT.json. Todo lo de abajo se muestra como UNKNOWN por honestidad, no porque falte información: la información que falta es precisamente el manifest del proyecto." }),
-          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: t("detail.unmanagedExplain") }),
+          el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: __t("detail.unmanagedExplain") }),
           conflicts.length ? el("div", { style: "margin-top:12px" }, [
-            el("h3", { class: "panel-title", style: "font-size:13px;margin-bottom:6px", text: t("detail.unmanagedConflicts") }),
+            el("h3", { class: "panel-title", style: "font-size:13px;margin-bottom:6px", text: __t("detail.unmanagedConflicts") }),
             bullets(conflicts)
           ]) : null,
           el("p", { class: "muted", style: "margin-top:12px;font-size:12px",
-            text: t("detail.unmanagedReadonly") })
+            text: __t("detail.unmanagedReadonly") })
         ])
       ]));
     }
@@ -1609,7 +1609,7 @@
         el("h2", { style: "font-size:20px", text: (ident.value && ident.value.name) || d.rel_path }),
         el("p", { class: "muted", style: "font-size:12px",
                   text: (ident.value && ident.value.project_id ? ident.value.project_id + " · " : "") +
-                        t("detail.owner") + ((ident.value && ident.value.owner) || "UNKNOWN") }),
+                        __t("detail.owner") + ((ident.value && ident.value.owner) || "UNKNOWN") }),
         el("div", { class: "tag-row", style: "margin-top:6px" }, [epTag("OBSERVED", "se context")]),
         projectSummaryLine(gateSummaryChips(gcounts), countsSentence(gcounts))
       ])
@@ -1620,7 +1620,7 @@
     // --- gate matrix -------------------------------------------------
     var gates = (d.gates && d.gates.matrix && d.gates.matrix.value) || [];
     g.appendChild(el("div", { class: "col-12" }, [
-      panel(t("detail.gateMatrixTitle"), t("detail.gateMatrixSub"), [
+      panel(__t("detail.gateMatrixTitle"), __t("detail.gateMatrixSub"), [
         el("div", { class: "gate-grid" }, gates.map(function (gt) {
           var gstatus = (gt.status || {}).value;
           var eStatus = (gt.envelope_status || {}).value;
@@ -1646,28 +1646,28 @@
           ]);
           return clickable(card, function () {
             openGateDrawer(gt, true, card);
-          }, t("drawer.openGate") + " " + gt.id);
+          }, __t("drawer.openGate") + " " + gt.id);
         })),
         el("p", { class: "muted", style: "margin-top:12px;font-size:12px",
-                  text: t("detail.gateManualNote") })
+                  text: __t("detail.gateManualNote") })
       ])
     ]));
 
     // --- lifecycle + next transition ---------------------------------
     var nt = (lc.next_transition || {}).value;
     g.appendChild(el("div", { class: "col-4" }, [
-      panel(t("detail.lifecycleTitle"), t("detail.lifecycleSub"), [
+      panel(__t("detail.lifecycleTitle"), __t("detail.lifecycleSub"), [
         kv([
-          [t("detail.lcState"), val("lifecycle.state", d)],
-          [t("detail.lcNext"), nt && nt.to
+          [__t("detail.lcState"), val("lifecycle.state", d)],
+          [__t("detail.lcNext"), nt && nt.to
             ? el("span", {}, [document.createTextNode(nt.to + " vía " + (nt.gates || []).join(", ")), document.createTextNode(" "), epTag("OBSERVED", "se context")])
             : val("lifecycle.next_transition", d)],
-          [t("detail.lcDeclared"), (lc.declared_transitions.value || []).length],
-          [t("detail.lcMigrations"), (lc.migrations.value || []).length]
+          [__t("detail.lcDeclared"), (lc.declared_transitions.value || []).length],
+          [__t("detail.lcMigrations"), (lc.migrations.value || []).length]
         ]),
         el("p", { class: "prose", style: "margin-top:8px;font-size:13px",
                   text: nextTransitionSentence(nt, gates) }),
-        el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: t("detail.nextExplain") })
+        el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: __t("detail.nextExplain") })
       ])
     ]));
 
@@ -1678,26 +1678,26 @@
     var sh = d.se_health || {};
     var shStatus = (sh.status || {}).value;
     g.appendChild(el("div", { class: "col-4" }, [
-      panel(t("detail.healthTitle"), t("detail.healthSub"), [
+      panel(__t("detail.healthTitle"), __t("detail.healthSub"), [
         kv([
-          [t("detail.healthState"), statusChip(shStatus || "UNKNOWN")],
-          [t("detail.healthPresent"), (sh.health || {}).value
+          [__t("detail.healthState"), statusChip(shStatus || "UNKNOWN")],
+          [__t("detail.healthPresent"), (sh.health || {}).value
             ? healthChip((sh.health || {}).value, (sh.health || {}).value)
             : el("span", { class: "tag tag-UNKNOWN", text: "UNKNOWN" })],
-          [t("detail.healthAvailable"), (sh.available || {}).value === true
+          [__t("detail.healthAvailable"), (sh.available || {}).value === true
             ? el("span", { class: "tag tag-OBSERVED", text: "si" })
             : el("span", { class: "tag tag-UNKNOWN", text: "no" })],
-          [t("detail.healthReason"), (sh.reason || {}).value || "—"]
+          [__t("detail.healthReason"), (sh.reason || {}).value || "—"]
         ]),
         el("div", { class: "tag-row", style: "margin-top:10px" }, [
           epTag("OBSERVED", "se health"),
           el("span", { class: "muted", style: "font-size:12px",
-            text: t("detail.healthHelper") })
+            text: __t("detail.healthHelper") })
         ]),
         (sh.envelope || {}).value
-          ? raw(sh.envelope.value, t("detail.healthRawLabel"))
+          ? raw(sh.envelope.value, __t("detail.healthRawLabel"))
           : el("p", { class: "muted", style: "font-size:12px",
-              text: t("detail.healthNoEnvelope") })
+              text: __t("detail.healthNoEnvelope") })
       ], "tight")
     ]));
 
@@ -1705,9 +1705,9 @@
     var mf = d.manifest || {};
     var disc = d.discovery || {};
     g.appendChild(el("div", { class: "col-4" }, [
-      panel(t("detail.manifestTitle"), t("detail.manifestSub"), [
+      panel(__t("detail.manifestTitle"), __t("detail.manifestSub"), [
         kv([
-          [t("detail.manifestSchema"), mf.schema_valid ? (mf.schema_valid.value ? el("span", { class: "tag tag-DERIVED", text: "VALID" }) : el("span", { class: "tag tag-UNKNOWN", text: "INVALID" })) : val("manifest.schema_valid", d)],
+          [__t("detail.manifestSchema"), mf.schema_valid ? (mf.schema_valid.value ? el("span", { class: "tag tag-DERIVED", text: "VALID" }) : el("span", { class: "tag tag-UNKNOWN", text: "INVALID" })) : val("manifest.schema_valid", d)],
           ["sha256", el("span", { class: "mono", text: ((mf.sha256 || {}).value || "—").slice(0, 24) })],
           ["project_id", ((mf.data || {}).value || {}).project_id || "—"],
           ["version", ((mf.data || {}).value || {}).version || "—"]
@@ -1721,29 +1721,29 @@
 
     var dcounts = (disc.counts || {}).value || {};
     g.appendChild(el("div", { class: "col-4" }, [
-      panel(t("detail.discoveryTitle"), t("detail.discoverySub"), [
+      panel(__t("detail.discoveryTitle"), __t("detail.discoverySub"), [
         el("p", { class: "prose", style: "font-size:13px;margin-bottom:10px",
-                  text: (disc.summary || {}).value || t("detail.discoveryNoSummary") }),
+                  text: (disc.summary || {}).value || __t("detail.discoveryNoSummary") }),
         kv([
-          [t("detail.discoveryFindings"), dcounts.findings], [t("detail.discoveryUnknowns"), dcounts.unknowns],
-          [t("detail.discoveryAssumptions"), dcounts.assumptions], [t("detail.discoveryConstraints"), dcounts.constraints],
-          [t("detail.discoveryRisks"), dcounts.risks],
-          [t("detail.discoveryReviewed"), val("discovery.reviewed_by", d)]
+          [__t("detail.discoveryFindings"), dcounts.findings], [__t("detail.discoveryUnknowns"), dcounts.unknowns],
+          [__t("detail.discoveryAssumptions"), dcounts.assumptions], [__t("detail.discoveryConstraints"), dcounts.constraints],
+          [__t("detail.discoveryRisks"), dcounts.risks],
+          [__t("detail.discoveryReviewed"), val("discovery.reviewed_by", d)]
         ]),
         el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-                  text: t("detail.discoveryHelper") })
+                  text: __t("detail.discoveryHelper") })
       ])
     ]));
 
     // --- records -----------------------------------------------------
     var recs = (d.records || {}).value || {};
     g.appendChild(el("div", { class: "col-6" }, [
-      panel(t("records.title"), t("records.sub"), [
+      panel(__t("records.title"), __t("records.sub"), [
         el("div", { class: "table-wrap" }, [
           el("table", { class: "table" }, [
             el("thead", {}, [el("tr", {}, [
-              el("th", { text: t("records.colType") }), el("th", { text: t("records.colDisk") }),
-              el("th", { text: t("records.colReview") }), el("th", { text: t("records.colInvalid") })
+              el("th", { text: __t("records.colType") }), el("th", { text: __t("records.colDisk") }),
+              el("th", { text: __t("records.colReview") }), el("th", { text: __t("records.colInvalid") })
             ])]),
             el("tbody", {}, Object.keys(recs).map(function (t) {
               var row = recs[t];
@@ -1758,21 +1758,21 @@
               ]);
               return clickable(tr, function () {
                 openRecordDrawer(t, d.rel_path, recs, tr);
-              }, t("drawer.openRecord") + " " + t);
+              }, __t("drawer.openRecord") + " " + t);
             }))
           ])
         ]),
-        el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: t("records.explain") }),
-        el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: t("records.helper") })
+        el("p", { class: "muted", style: "margin-top:10px;font-size:12px", text: __t("records.explain") }),
+        el("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: __t("records.helper") })
       ], "tight")
     ]));
 
     // --- record drill-down (GET /api/record, read-only) ------------------
     g.appendChild(el("div", { class: "col-12" }, [
-      panel(t("records.explorerTitle"), t("records.explorerSub"), [
+      panel(__t("records.explorerTitle"), __t("records.explorerSub"), [
         recordExplorer(d.rel_path, recs),
         el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-          text: t("records.explorerHelper") })
+          text: __t("records.explorerHelper") })
       ], "tight")
     ]));
 
@@ -1780,7 +1780,7 @@
     var chain = (d.traceability.chain || {}).value || [];
     var integ = d.integrity || {};
     g.appendChild(el("div", { class: "col-6" }, [
-      panel(t("trace.title"), t("trace.sub"), [
+      panel(__t("trace.title"), __t("trace.sub"), [
         el("div", { class: "chain", style: "margin-bottom:14px" }, chain.map(function (c) {
           var n = (c.count || {}).value || 0;
           return el("div", { class: "chain-node" + (n === 0 ? " is-zero" : "") }, [
@@ -1788,9 +1788,9 @@
             el("div", { class: "chain-k", text: c.type })
           ]);
         })),
-        el("h3", { class: "panel-title", style: "font-size:13px;margin-bottom:8px", text: t("trace.gaps") }),
+        el("h3", { class: "panel-title", style: "font-size:13px;margin-bottom:8px", text: __t("trace.gaps") }),
         bullets((integ.gaps || {}).value || []),
-        el("h3", { class: "panel-title", style: "font-size:13px;margin:12px 0 8px", text: t("trace.links") }),
+        el("h3", { class: "panel-title", style: "font-size:13px;margin:12px 0 8px", text: __t("trace.links") }),
         bullets((integ.link_notes || {}).value || []),
         el("div", { class: "tag-row", style: "margin-top:12px" }, [
           statusChip((integ.review_status || {}).value),
@@ -1804,7 +1804,7 @@
     var idc = (cx.identity_scope || {}).value || {};
     var dpc = (cx.deep_scope || {}).value || {};
     g.appendChild(el("div", { class: "col-6" }, [
-      panel(t("context.title"), t("context.sub"), [
+      panel(__t("context.title"), __t("context.sub"), [
         kv([
           ["scope identity", statusChip(idc.status)],
           ["epistemic", (idc.epistemic || {}).state || "UNKNOWN"],
@@ -1812,13 +1812,13 @@
             ? idc.next_action.kind + (idc.next_action.target ? " -> " + idc.next_action.target : "")
             : "UNKNOWN"]
         ]),
-        el("h3", { class: "panel-title", style: "font-size:13px;margin:14px 0 8px", text: t("context.deepTitle") }),
+        el("h3", { class: "panel-title", style: "font-size:13px;margin:14px 0 8px", text: __t("context.deepTitle") }),
         el("p", { class: "muted", style: "font-size:12px;margin-bottom:8px",
-                  text: t("context.deepHelper") }),
+                  text: __t("context.deepHelper") }),
         kv([["estado", statusChip(dpc.status)]].concat(
           Object.keys(dpc.counts || {}).map(function (k) { return [k, dpc.counts[k]]; }))),
         el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-                  text: t("context.deepNote") })
+                  text: __t("context.deepNote") })
       ], "tight")
     ]));
 
@@ -1826,12 +1826,12 @@
     var ml = d.mutation_log || {};
     var entries = (ml.entries || {}).value || [];
     g.appendChild(el("div", { class: "col-6" }, [
-      panel(t("audit.title"), (entries.length || 0) + " " + t("audit.entries"), [
+      panel(__t("audit.title"), (entries.length || 0) + " " + __t("audit.entries"), [
         entries.length ? el("div", { class: "table-wrap", style: "max-height:280px;overflow-y:auto" }, [
           el("table", { class: "table" }, [
             el("thead", {}, [el("tr", {}, [
-              el("th", { text: t("audit.colSeq") }), el("th", { text: t("audit.colRecord") }),
-              el("th", { text: t("audit.colField") }), el("th", { text: t("audit.colValue") })
+              el("th", { text: __t("audit.colSeq") }), el("th", { text: __t("audit.colRecord") }),
+              el("th", { text: __t("audit.colField") }), el("th", { text: __t("audit.colValue") })
             ])]),
             el("tbody", {}, entries.slice(-40).map(function (e) {
               return el("tr", {}, [
@@ -1842,9 +1842,9 @@
               ]);
             }))
           ])
-        ]) : el("p", { class: "empty", text: t("audit.empty") }),
+        ]) : el("p", { class: "empty", text: __t("audit.empty") }),
         el("p", { class: "muted", style: "margin-top:10px;font-size:12px",
-                  text: t("audit.helper") })
+                  text: __t("audit.helper") })
       ], "tight")
     ]));
 
@@ -1852,10 +1852,10 @@
 
     // --- attention for this project -----------------------------------
     var att = d.attention || {};
-    wrap.appendChild(el("h2", { class: "section-title", text: t("attention.projectTitle") }));
+    wrap.appendChild(el("h2", { class: "section-title", text: __t("attention.projectTitle") }));
     wrap.appendChild(el("p", { class: "muted", style: "margin-bottom:12px",
       text: (att.counts.BLOCKED || 0) + " BLOCKED · " + (att.counts.WARNING || 0) + " WARNING · " +
-            t("attention.orderNote") + "." }));
+            __t("attention.orderNote") + "." }));
     wrap.appendChild(renderAttentionTable(att));
     return wrap;
   }
@@ -1863,12 +1863,12 @@
   // ------------------------------------------------------ screen: attention
   function renderAttentionTable(att) {
     var items = (att && att.items) || [];
-    if (!items.length) return el("p", { class: "empty", text: t("attention.empty") });
-    var t = el("table", { class: "table" }, [
+    if (!items.length) return el("p", { class: "empty", text: __t("attention.empty") });
+    var tbl = el("table", { class: "table" }, [
       el("thead", {}, [el("tr", {}, [
-        el("th", { text: t("attention.severity") }), el("th", { text: t("attention.area") }),
-        el("th", { text: t("attention.what_happens") }), el("th", { text: t("attention.what_to_do") }),
-        el("th", { text: t("attention.evidence") }), el("th", { text: t("attention.actions") })
+        el("th", { text: __t("attention.severity") }), el("th", { text: __t("attention.area") }),
+        el("th", { text: __t("attention.what_happens") }), el("th", { text: __t("attention.what_to_do") }),
+        el("th", { text: __t("attention.evidence") }), el("th", { text: __t("attention.actions") })
       ])]),
       el("tbody", {}, items.map(function (i) {
         var actionsTd = el("td");
@@ -1901,11 +1901,11 @@
           el("td", { class: "mono", text: i.evidence }),
           actionsTd
         ]);
-        return clickable(row, function () { openAttentionDrawer(i); }, t("attention.view_details"));
+        return clickable(row, function () { openAttentionDrawer(i); }, __t("attention.view_details"));
       }))
     ]);
     return el("div", { class: "panel" }, [el("div", { class: "panel-body tight" }, [
-      el("div", { class: "table-wrap" }, [t])
+      el("div", { class: "table-wrap" }, [tbl])
     ])]);
   }
 
@@ -2001,9 +2001,9 @@
     return Promise.all([api("/api/system"), api("/api/projects")]).then(function (res) {
       renderHeader(res[0]);
       var wrap = el("div");
-      wrap.appendChild(el("h2", { class: "section-title", text: t("attention.title") }));
+      wrap.appendChild(el("h2", { class: "section-title", text: __t("attention.title") }));
       wrap.appendChild(el("p", { class: "muted", style: "margin-bottom:16px",
-        text: t("attention.intro") }));
+        text: __t("attention.intro") }));
       // aggregate per project
       var jobs = (res[1].projects || []).filter(function (p) { return p.management === "MANAGED"; })
         .map(function (p) {
@@ -2023,7 +2023,7 @@
         wrap.appendChild(el("div", { class: "stat-row", style: "margin-bottom:16px" }, [
           el("div", { class: "stat stat-fail" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "BLOCKED"; }).length }), el("div", { class: "stat-k", text: "BLOCKED" })]),
           el("div", { class: "stat stat-warn" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "WARNING"; }).length }), el("div", { class: "stat-k", text: "WARNING" })]),
-          el("div", { class: "stat" }, [el("div", { class: "stat-n", text: all.length }), el("div", { class: "stat-k", text: t("attention.total") })])
+          el("div", { class: "stat" }, [el("div", { class: "stat-n", text: all.length }), el("div", { class: "stat-k", text: __t("attention.total") })])
         ]));
         wrap.appendChild(renderAttentionTable({ items: all }));
         return wrap;
