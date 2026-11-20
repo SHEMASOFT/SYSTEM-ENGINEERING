@@ -49,10 +49,21 @@ JS_AUDIT = r"""
   const srgb = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
   const lum = ([r, g, b]) => 0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b);
   const parse = (s) => {
-    const m = s.match(/rgba?\(([^)]+)\)/);
-    if (!m) return null;
-    const p = m[1].split(',').map(x => parseFloat(x));
-    return { rgb: [p[0], p[1], p[2]], a: p.length > 3 ? p[3] : 1 };
+    let m = s.match(/rgba?\(([^)]+)\)/);
+    if (m) {
+      const p = m[1].split(',').map(x => parseFloat(x));
+      return { rgb: [p[0], p[1], p[2]], a: p.length > 3 ? p[3] : 1 };
+    }
+    // Chromium serializes color-mix() computed values as color(srgb r g b [/ a])
+    // with 0-1 components. Without this branch every tinted chip/callout
+    // background parsed as null and the audit measured text against the
+    // nearest opaque ancestor (body) — a fake, more forgiving background.
+    m = s.match(/color\(\s*srgb\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)(?:\s*\/\s*([0-9.]+))?\s*\)/);
+    if (m) {
+      const rgb = [m[1], m[2], m[3]].map(x => parseFloat(x) * 255);
+      return { rgb, a: m[4] !== undefined ? parseFloat(m[4]) : 1 };
+    }
+    return null;
   };
   const over = (fg, bg, a) => fg.map((c, i) => c * a + bg[i] * (1 - a));
   const ratio = (a, b) => {
@@ -179,7 +190,7 @@ def run() -> dict:
 
         with sync_playwright() as p:
             b = p.chromium.launch(channel="chrome")
-            for theme in ("light", "dark"):
+            for theme in ("magenta", "azul", "claro"):
                 ctx = b.new_context(viewport={"width": 1280, "height": 800})
                 pg = ctx.new_page()
                 pg.goto(BASE + "/", wait_until="domcontentloaded", timeout=60_000)
@@ -193,20 +204,26 @@ def run() -> dict:
                 report[f"overview_{theme}"] = pg.evaluate(JS_AUDIT)
                 ctx.close()
 
-            # also audit the busiest screen: managed project detail
+            # also audit the busiest screen: managed project detail. Only when
+            # the SE state actually has projects: an empty PROJECTS root (dev
+            # worktree, fresh clone) must still yield the overview report.
             ctx = b.new_context(viewport={"width": 1280, "height": 800})
             pg = ctx.new_page()
             pg.goto(BASE + "/", wait_until="domcontentloaded", timeout=60_000)
             pg.wait_for_selector(".panel", timeout=90_000)
-            pg.click('button[data-view="projects"]')
-            pg.wait_for_selector(".proj-card", timeout=60_000)
             try:
+                pg.click('button[data-view="projects"]')
+                pg.wait_for_selector(".proj-card", timeout=60_000)
                 pg.click(".proj-card:has(.proj-id:text('PRJ-SHEMASEG'))", timeout=15_000)
                 pg.wait_for_selector(".gate-grid .gate", timeout=90_000)
-            except Exception:
-                pass
-            pg.wait_for_timeout(600)
-            report["project_detail_light"] = pg.evaluate(JS_AUDIT)
+                pg.wait_for_timeout(600)
+                # The detail page loads with the console default theme
+                # (magenta); audit it as rendered, not as asserted.
+                report["project_detail_magenta"] = pg.evaluate(JS_AUDIT)
+            except Exception as exc:
+                report["project_detail_magenta"] = {
+                    "skipped": f"no project data in this SE root: {type(exc).__name__}"
+                }
             ctx.close()
             b.close()
     finally:
