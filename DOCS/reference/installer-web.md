@@ -150,18 +150,18 @@ El instalador web usa una paleta oscura tipo GitHub (`#0d1117` fondo, `#161b22` 
 
 | Aspecto | Instalador Web actual | SE-CONSOLE Design (referencia) | Coincide |
 |---------|----------------------|-------------------------------|----------|
-| **Tema por defecto** | Dark únicamente | Ambos (light por defecto, dark completo) | ❌ Parcial |
-| **Colores de salud** | Azul `#1f6feb` genérico | Tokens semánticos: HEALTHY `#4ade80`, WARNING `#fbbf24`, BLOCKED `#f87171`, UNKNOWN `#94a3b8` | ❌ No |
-| **Tipografía** | `-apple-system, Segoe UI, Roboto` (sans solo) | Mono para IDs/códigos + Sans para prosa | ❌ Parcial |
-| **Espaciado** | Ad-hoc | Escala `4/8/12/16/24/32` | ❌ No |
-| **Radius** | `6px` controles, `12px` cards | `6px` controles, `10px` paneles | ⚠️ Cercano |
-| **Elevación** | Border hairline + bg suave | `0 1px 2px` + hairline border | ⚠️ Cercano |
+| **Tema por defecto** | Ambos (light/dark con toggle) | Ambos (light por defecto, dark completo) | ✅ Sí |
+| **Theme toggle** | Sí (localStorage + prefers-color-scheme) | Sí (localStorage + prefers-color-scheme) | ✅ Sí |
+| **Colores de salud** | Tokens semánticos: HEALTHY, WARNING, BLOCKED, UNKNOWN | Tokens semánticos: HEALTHY, WARNING, BLOCKED, UNKNOWN | ✅ Sí |
+| **Tipografía** | Dual: Mono (IDs/códigos) + Sans (prosa) | Dual: Mono (IDs/códigos) + Sans (prosa) | ✅ Sí |
+| **Espaciado** | Escala `4/8/12/16/24/32` | Escala `4/8/12/16/24/32` | ✅ Sí |
+| **Radius** | `6px` controles, `10px` paneles | `6px` controles, `10px` paneles | ✅ Sí |
+| **Elevación** | `0 1px 2px` + hairline border | `0 1px 2px` + hairline border | ✅ Sí |
+| **Health chip global** | Badge de conexión WebSocket | Hero status con `se doctor` summary | ⚠️ Parcial |
 | **Provenance strip** | No | Persistente `OBSERVED`/`DERIVED`/`UNKNOWN` | ❌ No |
-| **Health chip global** | Badge de conexión WebSocket | Hero status con `se doctor` summary | ❌ No |
-| **Theme toggle** | No | Light/dark con `localStorage` + `prefers-color-scheme` | ❌ No |
 | **Responsive** | Grid 1fr 400px → 1fr en móvil | Multi-column desktop, single column mobile | ✅ Sí |
 
-**Conclusión:** El instalador web es funcional y usable, pero **no sigue el contrato de diseño de SE-CONSOLE**. Carece de tokens semánticos de salud, provenance epistémico, theme toggle, y tipografía dual (mono/sans). Si se busca alineación visual con el resto del ecosistema SE, se recomienda una pass de diseño aplicando los tokens de `SE-CONSOLE/docs/DESIGN.md`.
+**Conclusión:** El instalador web ahora sigue el contrato de diseño de SE-CONSOLE en la mayoría de aspectos: tema claro/oscuro con persistencia, tokens semánticos de salud, tipografía dual mono/sans, escala de espaciado, radius y elevación consistentes. Quedan dos diferencias menores: no tiene un "hero status" con `se doctor` en el header (solo estado de conexión WebSocket) y no incluye el strip de procedencia epistémica (`OBSERVED`/`DERIVED`/`UNKNOWN`), que es más propio del console de solo lectura que de un instalador transaccional.
 
 ---
 
