@@ -9,7 +9,7 @@
   "use strict";
 
   // ---------------------------------------------------------------- state
-  var state = { view: "overview", project: null, system: null, projects: null, attention: null };
+  var state = { view: "overview", project: null, system: null, projects: null, attention: null, memory: null };
   var root = document.getElementById("view-root");
 
   // ------------------------------------------------------------- ui / i18n
@@ -116,8 +116,27 @@
       countsPass: "Los {pass} gates evaluados pasan (PASS): el proyecto no tiene bloqueos conocidos.",
       countsWarn: "Ningún gate falla, pero {warn} tienen condiciones pendientes de decisión humana (MANUAL).",
       countsFail: "Hay {fail} gates que no pasan (FAIL) y {warn} con pendientes (MANUAL): el proyecto tiene bloqueos registrados.",
-      countsUnknown: "No se pudo evaluar {unknown} gates (UNKNOWN): su estado no se infiere."
-    },
+      countsUnknown: "No se pudo evaluar {unknown} gates (UNKNOWN): su estado no se infiere.",
+      memoryTitle: "Mi nota para este proyecto",
+      memorySub: "Guarda aquí qué estás haciendo, qué sigue y qué falta: lo que leas meses después al volver.",
+      currentFocusLabel: "Estás en:",
+      currentFocusPlaceholder: "Ej. Arreglando la UI del login y conectando el instalador...",
+      nextStepsLabel: "Qué sigue (en orden):",
+      addNextStep: "Añadir paso",
+      newStepPlaceholder: "Ej. Conectar API de autenticación con el backend",
+      notesLabel: "Notas (libre):",
+      addNote: "Añadir nota",
+      newNotePlaceholder: "Ej. El endpoint de login está en /api/auth/login",
+      doneStep: "Hecho",
+      deleteStep: "Borrar paso",
+      deleteNote: "Borrar nota",
+      updateNote: "Guardar nota"
+    
+      contextLabel: "Contexto general:",
+      contextPlaceholder: "Ej. Estoy trabajando en la UI y el instalador...",
+      noNextSteps: "Sin pasos siguientes definidos",
+      noNotes: "Sin notas",
+      noContext: "Sin contexto adicional",},
     detail: {
       unmanagedStrong: "Este directorio no es un proyecto gestionado por SYSTEM-ENGINEERING",
       unmanagedExplain: "Proyecto sin gestión: no se vigila ni avanza por gates. Solo se muestra tal cual, sin inventar su estado.",
@@ -380,7 +399,12 @@
       lifecycle: "lifecycle: ",
       unmanagedExplain: "Unmanaged project: it is not monitored or advanced through gates. It is shown as-is, with no invented state.",
       changeLogo: "Cambiar logo del proyecto",
-      gateOk: "Gate {gate} is PASS: the project can advance.",
+      gateOk: "Gate {gate
+      contextLabel: "Contexto general:",
+      contextPlaceholder: "Ej. Estoy trabajando en la UI y el instalador...",
+      noNextSteps: "Sin pasos siguientes definidos",
+      noNotes: "Sin notas",
+      noContext: "Sin contexto adicional",} is PASS: the project can advance.",
       gateOkTo: "Gate {gate} is PASS: the project can advance toward {to}.",
       gateWarn: "Gate {gate} is {status}: needs review before advancing.",
       gateWarnTo: "Gate {gate} is {status}: needs review before advancing toward {to}.",
@@ -390,7 +414,21 @@
       countsPass: "All {pass} evaluated gates pass (PASS): the project has no known blocks.",
       countsWarn: "No gate fails, but {warn} have conditions pending a human decision (MANUAL).",
       countsFail: "There are {fail} failing gates (FAIL) and {warn} pending (MANUAL): the project has registered blocks.",
-      countsUnknown: "Could not evaluate {unknown} gates (UNKNOWN): their state cannot be inferred."
+      countsUnknown: "Could not evaluate {unknown} gates (UNKNOWN): their state cannot be inferred.",
+      memoryTitle: "My note for this project",
+      memorySub: "Save here what you're doing, what's next, and what's missing: what you'll read months later when you return.",
+      currentFocusLabel: "You're on:",
+      currentFocusPlaceholder: "E.g. Fixing the login UI and connecting the installer...",
+      nextStepsLabel: "What's next (in order):",
+      addNextStep: "Add step",
+      newStepPlaceholder: "E.g. Connect authentication API to backend",
+      notesLabel: "Notes (free):",
+      addNote: "Add note",
+      newNotePlaceholder: "E.g. The login endpoint is at /api/auth/login",
+      doneStep: "Done",
+      deleteStep: "Delete step",
+      deleteNote: "Delete note",
+      updateNote: "Save note"
     },
     detail: {
       unmanagedStrong: "This directory is not a SYSTEM-ENGINEERING managed project",
@@ -1711,10 +1749,14 @@
     state.project = rel;
     root.innerHTML = "";
     root.appendChild(el("p", { class: "loading", text: "Consultando se gate, se review y se context…" }));
-    api("/api/project?rel_path=" + encodeURIComponent(rel)).then(function (d) {
-      state.projectData = d;
+    Promise.all([
+      api("/api/project?rel_path=" + encodeURIComponent(rel)),
+      api("/api/memory/project/auto?rel_path=" + encodeURIComponent(rel))
+    ]).then(function (res) {
+      state.projectData = res[0];
+      state.memory = res[1];
       root.innerHTML = "";
-      root.appendChild(renderProjectDetail(d));
+      root.appendChild(renderProjectDetail(res[0]));
     }).catch(function (e) {
       root.innerHTML = "";
       root.appendChild(el("p", { class: "notice notice-error", text: "No se pudo cargar " + rel + ": " + e.message }));
@@ -2024,7 +2066,72 @@
       text: (att.counts.BLOCKED || 0) + " BLOCKED · " + (att.counts.WARNING || 0) + " WARNING · " +
             __t("attention.orderNote") + "." }));
     wrap.appendChild(renderAttentionTable(att));
+
+    // --- memory: automatic project summary -----------------------------------
+    var mem = state.memory || {};
+    var memPanel = el("div", { class: "panel", style: "margin-top:24px;border-color:var(--accent)" }, [
+      el("div", { class: "panel-head", style: "background:var(--accent-bg)" }, [
+        el("div", { style: "display:flex;align-items:center;gap:var(--sp-2)" }, [
+          el("span", { class: "tag tag-DERIVED", text: "MEMORIA AUTOMÁTICA" }),
+          el("span", { class: "muted", style: "font-size:11px", text: "Generado desde estado del proyecto, sin entrada manual" })
+        ])
+      ]),
+      el("div", { class: "panel-body", style: "padding:var(--sp-3)" }, [
+        // Current focus
+        el("div", { style: "margin-bottom:12px" }, [
+          el("div", { class: "mem-label", style: "font-size:var(--fs-12);font-weight:600", text: __t("projects.currentFocusLabel") }),
+          el("p", { class: "prose", style: "font-size:var(--fs-13);margin:0", text: mem.current_focus || __t("projects.memoryNoFocus") })
+        ]),
+        // Next steps
+        el("div", { style: "margin-bottom:12px" }, [
+          el("div", { class: "mem-label", style: "font-size:var(--fs-12);font-weight:600", text: __t("projects.nextStepsLabel") }),
+          (mem.next_steps || []).length ? el("ol", { style: "margin:0;padding-left:var(--sp-3)" },
+            (mem.next_steps || []).map(function (s) {
+              return el("li", { style: "margin-bottom:4px;overflow-wrap:anywhere", style: "font-size:var(--fs-13)" },
+                el("span", { class: s.done ? "tag tag-DERIVED" : "tag tag-UNKNOWN", text: s.done ? __t("projects.doneStep") : __t("projects.pendingStep") }),
+                el("span", { style: "margin-left:6px" }, s.text)
+              );
+            }))
+          : el("p", { class: "muted", style: "font-size:var(--fs-13);font-style:italic", text: __t("projects.noNextSteps") })
+        ]),
+        // Notes
+        el("div", { style: "margin-bottom:12px" }, [
+          el("div", { class: "mem-label", style: "font-size:var(--fs-12);font-weight:600", text: __t("projects.notesLabel") }),
+          (mem.notes || []).length ? el("div", { style: "margin-bottom:0" },
+            (mem.notes || []).map(function (n) {
+              return el("p", { style: "font-size:var(--fs-13);margin-bottom:4px;overflow-wrap:anywhere", text: n.text });
+            })
+          ) : el("p", { class: "muted", style: "font-size:var(--fs-13);font-style:italic", text: __t("projects.noNotes") })
+        ]),
+        // Context
+        el("div", { style: "margin-top:12px" }, [
+          el("div", { class: "mem-label", style: "font-size:var(--fs-12);font-weight:600", text: __t("projects.contextLabel") }),
+          el("p", { class: "prose", style: "font-size:var(--fs-13);margin:0", text: mem.context || __t("projects.noContext") })
+        ])
+      ])
+    ]);
+    wrap.appendChild(memPanel);
+
     return wrap;
+  }
+
+  // ------------------------------------------------------ memory panel rendering
+  function renderMemory(mem) {
+    // Re-render just the memory section of the project detail view.
+    // We rebuild the whole memory block because it contains interactive
+    // inputs whose state must be preserved exactly as stored.
+    var wrap = document.getElementById("view-root");
+    if (!wrap) return;
+    // Find and replace the memory panel (col-6 with memory content)
+    // Simplest robust approach: re-render the whole project detail.
+    // The caller (openProject) will re-fetch data from the server anyway.
+    // For inline edits we just update local state and re-render this panel.
+    var memPanel = document.querySelector(".mem-focus, .mem-nextsteps, .mem-notes");
+    if (!memPanel) return;
+    // Re-render by calling openProject again which re-fetches from server
+    if (state.project) {
+      openProject(state.project);
+    }
   }
 
   // ------------------------------------------------------ screen: attention
