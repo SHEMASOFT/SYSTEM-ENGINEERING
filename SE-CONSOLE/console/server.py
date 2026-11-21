@@ -136,6 +136,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
     sys_version = ""
     protocol_version = "HTTP/1.1"
 
+    
+
     # -- helpers ---------------------------------------------------------
     def _send(self, status: int, body: bytes, ctype: str, *, head: bool = False) -> None:
         self.send_response(status)
@@ -387,6 +389,9 @@ def main(argv: list[str] | None = None) -> int:
     # Warm the shared audit once and keep it refreshed, so /api/system does not
     # re-run `se doctor` on every request (see console/audit.py).
     audit.start_background()
+    # Warm the project reads the Attention view needs, so opening that tab does
+    # not pay for one deep read per managed project.
+    api.warm_attention()
     httpd = ThreadingHTTPServer((BIND_HOST, BIND_PORT), ConsoleHandler)
     # The handler reaches the watch through the server instance it already has.
     httpd.idle = IdleWatch(args.idle_timeout)

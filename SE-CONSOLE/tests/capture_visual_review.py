@@ -6,10 +6,12 @@ unverified.
 
 What it produces
 ----------------
-1. Screenshots for every key surface x {light,dark} x {desktop,tablet,375}.
+1. Screenshots for every key surface x {magenta,azul,claro} x {desktop,tablet,375}.
    Existing POC-001 screenshots are preserved untouched.
 2. Light/dark contact sheets (side by side, labelled) so a reviewer can compare
-   themes in one image instead of alt-tabbing.
+   themes in one image instead of alt-tabbing. Since 002B the themes are the
+   three data-theme keys of the console (magenta, azul, claro); a sheet is
+   composed only when a surface was captured on all three.
 3. review_manifest.json: per-surface deterministic results + what still needs a
    human eye.
 
@@ -63,9 +65,16 @@ PLAN = {
     "mobile": ["overview", "detail-managed"],
 }
 
-#: Readiness timeout. The backend answers in ~1s worst case, so 30s is a 30x
-#: margin. A shorter bound keeps a single stuck surface from consuming the run.
-SETTLE_MS = 30_000
+#: Readiness timeout. 30s was sized for an empty SE root (answers in ~1s);
+#: against a populated root each surface runs deep `se` reads (~10-30s each),
+#: and concurrent readers make individual requests exceed 30s (measured
+#: 2026-11-15: 6 surfaces timed out at 30s with another validator running).
+SETTLE_MS = 120_000
+
+
+#: The console's data-theme keys (002B renamed light/dark to magenta/azul/claro;
+#: the console itself migrates legacy saved values, this script does not need to).
+THEMES = ("magenta", "azul", "claro")
 
 
 def free_port(preferred: int) -> int:
@@ -79,9 +88,16 @@ def free_port(preferred: int) -> int:
 class Server:
     def __init__(self, port: int) -> None:
         env = dict(os.environ, SE_CONSOLE_PORT=str(port))
+        # stdout MUST be redirected: an unread PIPE fills up and blocks the
+        # backend mid-run. Measured 2026-11-14: desktop surfaces captured fine,
+        # then the buffer filled and every further request timed out while the
+        # process was alive. Same failure shape as the keep-alive pool issue
+        # documented below, different cause. Log to a file instead.
+        os.makedirs(EVIDENCE, exist_ok=True)
+        self._log = open(os.path.join(EVIDENCE, "server.log"), "a", encoding="utf-8")
         self.proc = subprocess.Popen(
             [sys.executable, "-m", "console.server"], cwd=CONSOLE_ROOT, env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            stdout=self._log, stderr=subprocess.STDOUT, text=True,
         )
         self.port = port
 
@@ -101,6 +117,10 @@ class Server:
             self.proc.communicate(timeout=15)
         except Exception:
             self.proc.kill()
+        try:
+            self._log.close()
+        except Exception:
+            pass
 
 
 def settle(page, extra: str = "", timeout: int = SETTLE_MS) -> None:
@@ -156,7 +176,7 @@ def capture() -> dict:
             browser = pw.chromium.launch(channel="chrome")
             for vp_name, (w, h) in VIEWPORTS.items():
                 manifest["deterministic"][vp_name] = {}
-                for theme in ("light", "dark"):
+                for theme in THEMES:
                     errors: list[str] = []
                     failed: list[str] = []
                     for surface in PLAN[vp_name]:
@@ -247,8 +267,15 @@ def capture() -> dict:
 
 
 def contact_sheets(manifest: dict) -> list[str]:
-    """Compose light|dark sheets. Composition only -- no judgement."""
-    from PIL import Image, ImageDraw
+    """Compose magenta|azul|claro sheets. Composition only -- no judgement."""
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        # Sheets are a reviewer convenience, not evidence: a missing PIL must
+        # not discard the whole capture run's manifest (measured 2026-11-14:
+        # ModuleNotFoundError after 15 successful screenshots).
+        print("  contact sheets skipped: PIL not installed", flush=True)
+        return []
 
     made: list[str] = []
     by_surface: dict[str, dict] = {}
@@ -257,10 +284,10 @@ def contact_sheets(manifest: dict) -> list[str]:
         by_surface.setdefault(f"{surface}/{vp}", {})[theme] = meta
 
     for pair, themes in sorted(by_surface.items()):
-        if "light" not in themes or "dark" not in themes:
+        if not all(t in themes for t in THEMES):
             continue
         imgs = []
-        for theme in ("light", "dark"):
+        for theme in THEMES:
             p = os.path.join(CONSOLE_ROOT, themes[theme]["file"].replace("/", os.sep))
             if not os.path.isfile(p):
                 imgs = []
