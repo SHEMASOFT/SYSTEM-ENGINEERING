@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SE Installer Web</title>
-        <style>
+    <style>
         /* =====================================================================
            SE Installer Web — Design tokens aligned with SE-CONSOLE (DESIGN.md)
            ===================================================================== */
@@ -627,7 +627,8 @@
     </style>
 </head>
 <body>
-                <header class="app-header" role="banner">
+    <div class="container">
+        <header class="app-header" role="banner">
             <div class="header-row">
                 <div class="brand">
                     <span class="brand-mark" aria-hidden="true">SE</span>
@@ -674,20 +675,11 @@
                 <span class="tag tag-UNKNOWN">UNKNOWN</span> no determinable
             </p>
         </header>
-        </div>
-
-        <div class="tabs">
-            <button class="tab active" data-tab="install">Ã°Å¸â€œÂ¦ Instalar</button>
-            <button class="tab" data-tab="uninstall">Ã°Å¸â€”â€˜Ã¯Â¸Â Desinstalar</button>
-            <button class="tab" data-tab="adapter">Ã¢Å¡â„¢Ã¯Â¸Â Adaptador</button>
-            <button class="tab" data-tab="model">Ã°Å¸Â§Â  Modelo</button>
-            <button class="tab" data-tab="log">Ã°Å¸â€œâ€¹ Log</button>
-        </div>
 
         <!-- INSTALL TAB -->
         <div class="panel active" id="panel-install">
             <div class="grid">
-                <div>
+                <div class="col-8">
                     <div class="card">
                         <h3>Componentes Disponibles</h3>
                         <div class="component-list" id="componentList">
@@ -695,36 +687,39 @@
                         </div>
                     </div>
                 </div>
-                <div>
+                <div class="col-4">
                     <div class="card">
-                        <h3>Opciones de InstalaciÃƒÂ³n</h3>
+                        <h3>Opciones de Instalación</h3>
                         <div class="form-group">
                             <label class="form-label">Runtimes objetivo</label>
                             <div class="checkbox-group">
                                 <label class="checkbox-label"><input type="checkbox" id="rt-opencode" checked> OpenCode</label>
                                 <label class="checkbox-label"><input type="checkbox" id="rt-codex"> Codex</label>
                                 <label class="checkbox-label"><input type="checkbox" id="rt-claude"> Claude Code</label>
+                                <label class="checkbox-label"><input type="checkbox" id="rt-pi"> Pi</label>
+                                <label class="checkbox-label"><input type="checkbox" id="rt-hermes"> Hermes</label>
+                                <label class="checkbox-label"><input type="checkbox" id="rt-deepseek"> DeepSeek</label>
                             </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Opciones</label>
                             <div class="checkbox-group">
                                 <label class="checkbox-label"><input type="checkbox" id="opt-dryrun"> Dry Run (simular)</label>
-                                <label class="checkbox-label"><input type="checkbox" id="opt-force"> Forzar reinstalaciÃƒÂ³n</label>
-                                <label class="checkbox-label"><input type="checkbox" id="opt-skip-verify"> Saltar verificaciÃƒÂ³n</label>
+                                <label class="checkbox-label"><input type="checkbox" id="opt-force"> Forzar reinstalación</label>
+                                <label class="checkbox-label"><input type="checkbox" id="opt-skip-verify"> Saltar verificación</label>
                                 <label class="checkbox-label"><input type="checkbox" id="opt-shortcuts"> Crear acceso directo</label>
                             </div>
                         </div>
                         <div class="progress-bar" id="installProgress"><div class="progress-fill"></div></div>
                         <div class="actions">
                             <button class="btn btn-primary" id="btnInstall" onclick="startInstall()">
-                                <span>Ã°Å¸Å¡â‚¬</span> Instalar Seleccionados
+                                <span>🚀</span> Instalar Seleccionados
                             </button>
                             <button class="btn btn-secondary" id="btnInstallRecommended" onclick="selectRecommended()">
-                                <span>Ã¢Â­Â</span> Solo Recomendados
+                                <span>⭐</span> Solo Recomendados
                             </button>
                             <button class="btn btn-secondary" id="btnRefresh" onclick="loadComponents()">
-                                <span>Ã°Å¸â€â€ž</span> Refrescar
+                                <span>🔄</span> Refrescar
                             </button>
                         </div>
                     </div>
@@ -735,10 +730,10 @@
         <!-- UNINSTALL TAB -->
         <div class="panel" id="panel-uninstall">
             <div class="grid">
-                <div>
+                <div class="col-8">
                     <div class="card">
-                        <h3>Ã°Å¸â€”â€˜Ã¯Â¸Â Desinstalar Artefactos SE de OpenCode</h3>
-                        <p style="color:#8b949e;margin-bottom:20px;font-size:.9rem;">
+                        <h3>🗑️ Desinstalar Artefactos SE de OpenCode</h3>
+                        <p class="p">
                             Elimina componentes generados por System Engineering: MCPs rastreados/no rastreados, capa .opencode/, etc.
                             Los MCPs ajenos (context7, filesystem) <strong>NUNCA</strong> se tocan.
                         </p>
@@ -757,18 +752,18 @@
                         <div class="progress-bar" id="uninstallProgress"><div class="progress-fill"></div></div>
                         <div class="actions">
                             <button class="btn btn-secondary" id="btnUninstallDryrun" onclick="startUninstall(false)">
-                                <span>Ã°Å¸â€˜ÂÃ¯Â¸Â</span> Ver Plan (Dry-Run)
+                                <span>👁️</span> Ver Plan (Dry-Run)
                             </button>
                             <button class="btn btn-danger" id="btnUninstallApply" onclick="startUninstall(true)">
-                                <span>Ã°Å¸â€™Â¥</span> Aplicar DesinstalaciÃƒÂ³n
+                                <span>💥</span> Aplicar Desinstalación
                             </button>
                             <button class="btn btn-secondary" id="btnUninstallRefresh" onclick="loadStatus()">
-                                <span>Ã°Å¸â€â€ž</span> Refrescar Estado
+                                <span>🔄</span> Refrescar Estado
                             </button>
                         </div>
                     </div>
                 </div>
-                <div>
+                <div class="col-4">
                     <div class="card">
                         <h3>Estado Actual</h3>
                         <div id="uninstallStatus" class="empty-state">Cargando...</div>
@@ -780,104 +775,151 @@
         <!-- ADAPTER TAB -->
         <div class="panel" id="panel-adapter">
             <div class="grid">
-                <div>
+                <div class="col-8">
                     <div class="card">
-                        <h3>Ã¢Å¡â„¢Ã¯Â¸Â Adaptador OpenCode</h3>
-                        <p style="color:#8b949e;margin-bottom:20px;font-size:.9rem;">
-                            Genera la capa de agentes, comandos y skills para OpenCode desde las fuentes canÃƒÂ³nicas de SE.
+                        <h3>⚙️ Adaptadores</h3>
+                        <p class="p">
+                            Genera la capa de agentes, comandos y skills para cada runtime desde las fuentes canónicas de SE.
                         </p>
+                        <div class="form-group">
+                            <label class="form-label">Runtimes a generar</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-opencode" checked> OpenCode</label>
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-codex"> Codex</label>
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-claude"> Claude Code</label>
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-pi"> Pi</label>
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-hermes"> Hermes</label>
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-deepseek"> DeepSeek</label>
+                            </div>
+                        </div>
                         <div class="actions">
                             <button class="btn btn-primary" onclick="generateAdapter()">
-                                <span>Ã°Å¸â€Â¨</span> Generar Adaptador
+                                <span>🔨</span> Generar Adaptadores
                             </button>
                             <button class="btn btn-danger" onclick="removeAdapter()">
-                                <span>Ã°Å¸â€”â€˜Ã¯Â¸Â</span> Eliminar .opencode/
+                                <span>🗑️</span> Eliminar .opencode/
                             </button>
                         </div>
                         <div id="adapterStatus" style="margin-top:16px;"></div>
                     </div>
                 </div>
-            </div>
-    </div>
-
-    <!-- MODEL TAB -->
-    <div class="panel" id="panel-model">
-        <div class="grid">
-            <div>
-                <div class="card">
-                    <h3>Ã°Å¸Â§Â  SelecciÃƒÂ³n de Modelo</h3>
-                    <p class="muted" style="margin-bottom:16px;">
-                        Elige un modelo para los agentes, o salta el paso. Saltar no escribe
-                        nada: la configuraciÃƒÂ³n queda exactamente como estÃƒÂ¡.
-                    </p>
-                    <div id="modelStepNotice"></div>
-                    <div class="form-group">
-                        <label class="form-label">Ã‚Â¿QuÃƒÂ© quieres configurar?</label>
-                        <div class="checkbox-group">
-                            <label class="checkbox-label">
-                                <input type="radio" name="modelMode" value="global" checked>
-                                Un mismo modelo para todos los agentes
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="radio" name="modelMode" value="per_agent">
-                                Un modelo por subagente
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="radio" name="modelMode" value="skip">
-                                Saltar (no configurar ningÃƒÂºn modelo)
-                            </label>
+                <div class="col-4">
+                    <div class="card">
+                        <h3>Runtimes Disponibles</h3>
+                        <div class="list" id="adapterRuntimes">
+                            <div class="empty-state">Cargando...</div>
                         </div>
                     </div>
-                    <div class="form-group" id="modelGlobalGroup">
-                        <label class="form-label" for="modelGlobalInput">Modelo para todos (<code>provider/model</code>)</label>
-                        <input type="text" class="text-input" id="modelGlobalInput"
-                               list="modelCatalogue" placeholder="provider/model"
-                               autocomplete="off" spellcheck="false">
-                        <datalist id="modelCatalogue"></datalist>
-                    </div>
-                    <div class="form-group" id="modelPerAgentGroup" style="display:none;">
-                        <label class="form-label">Un modelo por subagente (vacÃƒÂ­o = sin cambio)</label>
-                        <div id="modelAgentRows"></div>
-                    </div>
-                    <div class="actions">
-                        <button class="btn btn-primary" id="btnModelApply" onclick="applyModelSelection()">
-                            <span>Ã°Å¸â€™Â¾</span> Aplicar selecciÃƒÂ³n
-                        </button>
-                        <button class="btn btn-secondary" onclick="skipModelStep()">
-                            <span>Ã¢ÂÂ­Ã¯Â¸Â</span> Saltar
-                        </button>
-                        <button class="btn btn-secondary" onclick="loadModels()">
-                            <span>Ã°Å¸â€â€ž</span> Refrescar
-                        </button>
-                    </div>
-                    <div id="modelRuntimes" class="muted" style="margin-top:16px;"></div>
-                    <div id="modelApplyStatus" class="model-status"></div>
-                </div>
-            </div>
-            <div>
-                <div class="card">
-                    <h3>SelecciÃƒÂ³n Efectiva</h3>
-                    <p class="muted" style="margin-bottom:12px;">
-                        Lo que el runtime usarÃƒÂ¡ para cada agente.
-                    </p>
-                    <div id="modelCurrent" class="empty-state">Cargando...</div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- LOG TAB -->
+        <!-- MODEL TAB -->
+        <div class="panel" id="panel-model">
+            <div class="grid">
+                <div class="col-8">
+                    <div class="card">
+                        <h3>🧠 Selección de Modelo</h3>
+                        <p class="p">
+                            Elige un modelo para los agentes, o salta el paso. Saltar no escribe
+                            nada: la configuración queda exactamente como está.
+                        </p>
+                        <div id="modelStepNotice"></div>
+                        <div class="form-group">
+                            <label class="form-label">¿Qué quieres configurar?</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="modelMode" value="global" checked>
+                                    Un mismo modelo para todos los agentes
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="modelMode" value="per_agent">
+                                    Un modelo por subagente
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="modelMode" value="skip">
+                                    Saltar (no configurar ningún modelo)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-group" id="modelGlobalGroup">
+                            <label class="form-label" for="modelGlobalInput">Modelo para todos (<code>provider/model</code>)</label>
+                            <input type="text" class="text-input" id="modelGlobalInput"
+                                   list="modelCatalogue" placeholder="provider/model"
+                                   autocomplete="off" spellcheck="false">
+                            <datalist id="modelCatalogue"></datalist>
+                        </div>
+                        <div class="form-group" id="modelPerAgentGroup" style="display:none;">
+                            <label class="form-label">Un modelo por subagente (vacío = sin cambio)</label>
+                            <div id="modelAgentRows"></div>
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-primary" id="btnModelApply" onclick="applyModelSelection()">
+                                <span>💾</span> Aplicar selección
+                            </button>
+                            <button class="btn btn-secondary" onclick="skipModelStep()">
+                                <span>⏭️</span> Saltar
+                            </button>
+                            <button class="btn btn-secondary" onclick="loadModels()">
+                                <span>🔄</span> Refrescar
+                            </button>
+                        </div>
+                        <div id="modelRuntimes" class="muted" style="margin-top:16px;"></div>
+                        <div id="modelApplyStatus" class="model-status"></div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card">
+                        <h3>Selección Efectiva</h3>
+                        <p class="p">
+                            Lo que el runtime usará para cada agente.
+                        </p>
+                        <div id="modelCurrent" class="empty-state">Cargando...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOG TAB -->
         <div class="panel" id="panel-log">
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                    <h3>Ã°Å¸â€œâ€¹ Log en Tiempo Real</h3>
-                    <button class="btn btn-secondary" onclick="clearLog()">Ã°Å¸â€”â€˜Ã¯Â¸Â Limpiar</button>
+                    <h3>📋 Log en Tiempo Real</h3>
+                    <button class="btn btn-secondary" onclick="clearLog()">🗑️ Limpiar</button>
                 </div>
                 <div class="log-container" id="logContainer">
                     <div class="log-line"><span class="log-time">[--:--:--]</span><span class="log-event">Conectando...</span></div>
                 </div>
             </div>
         </div>
+
+        <footer class="app-footer" role="contentinfo">
+            <div class="footer-grid">
+                <div class="footer-item">
+                    <span class="footer-key">se root</span>
+                    <span class="mono footer-val" id="ft-root">—</span>
+                </div>
+                <div class="footer-item">
+                    <span class="footer-key">contrato</span>
+                    <span class="mono footer-val" id="ft-contract">se.report/1</span>
+                </div>
+                <div class="footer-item">
+                    <span class="footer-key">fingerprint</span>
+                    <span class="mono footer-val" id="ft-fp">—</span>
+                </div>
+                <div class="footer-item">
+                    <span class="footer-key">actualizado</span>
+                    <span class="mono footer-val" id="ft-time">—</span>
+                </div>
+            </div>
+            <p class="footer-note" id="ft-capability">
+                <span class="tag tag-UNKNOWN">UNKNOWN</span>
+                <span>visual.review no verificado: esta consola se valida con comprobaciones deterministas
+                (snapshot, capturas, errores de consola), no con revisión visual.</span>
+            </p>
+            <p class="footer-legal">SE Installer Web es una interfaz de instalación para SYSTEM-ENGINEERING.
+            Escribe configuración en <span class="mono">opencode.jsonc</span> y genera capas de adaptador.</p>
+        </footer>
     </div>
 
     <script>
@@ -912,7 +954,7 @@
             };
 
             ws.onerror = (err) => {
-                addLog('error', 'Error de conexiÃƒÂ³n: ' + err.message);
+                addLog('error', 'Error de conexión: ' + err.message);
             };
         }
 
@@ -943,7 +985,7 @@
                     break;
                 case 'completed':
                     addLog(msg.data.success ? 'completed' : 'error',
-                        msg.data.success ? 'InstalaciÃƒÂ³n completada' : `FallÃƒÂ³ (exit ${msg.data.exit_code || '?'})`);
+                        msg.data.success ? 'Instalación completada' : `Falló (exit ${msg.data.exit_code || '?'})`);
                     setInstalling(false);
                     loadStatus();
                     loadComponents();
@@ -1030,7 +1072,7 @@
                 <div class="component-item ${selectedComponents.has(c.id) ? 'selected' : ''}" data-id="${c.id}">
                     <input type="checkbox" class="comp-checkbox" ${selectedComponents.has(c.id) ? 'checked' : ''} onchange="toggleComponent('${c.id}', this.checked)">
                     <div class="comp-info">
-                        <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag ${c.component_type}">${c.component_type}</span> ${c.recommended ? '<span class="comp-tag recommended">Ã¢Ëœâ€¦ Recomendado</span>' : ''} ${c.status === 'success' ? '<span class="comp-tag installed">Ã¢Å“â€œ Instalado</span>' : ''}</div>
+                        <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag ${c.component_type}">${c.component_type}</span> ${c.recommended ? '<span class="comp-tag recommended">★ Recomendado</span>' : ''} ${c.status === 'success' ? '<span class="comp-tag installed">✓ Instalado</span>' : ''}</div>
                         <div class="comp-meta">
                             ${c.category ? `<span class="comp-tag">${escapeHtml(c.category)}</span>` : ''}
                             ${c.installed_version ? `<span class="comp-tag">v${escapeHtml(c.installed_version)}</span>` : ''}
@@ -1077,6 +1119,9 @@
             if (document.getElementById('rt-opencode').checked) runtimes.push('opencode');
             if (document.getElementById('rt-codex').checked) runtimes.push('codex');
             if (document.getElementById('rt-claude').checked) runtimes.push('claude_code');
+            if (document.getElementById('rt-pi').checked) runtimes.push('pi');
+            if (document.getElementById('rt-hermes').checked) runtimes.push('hermes');
+            if (document.getElementById('rt-deepseek').checked) runtimes.push('deepseek');
 
             await api('/install', {
                 method: 'POST',
@@ -1125,7 +1170,7 @@
                 container.innerHTML = data.installed_components.map(c => `
                     <div class="component-item" style="margin-bottom:8px;">
                         <div class="comp-info">
-                            <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag installed">Ã¢Å“â€œ ${escapeHtml(c.version || '')}</span></div>
+                            <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag installed">✓ ${escapeHtml(c.version || '')}</span></div>
                         </div>
                     </div>
                 `).join('');
@@ -1136,27 +1181,40 @@
 
         // ---------- Adapter ----------
         async function generateAdapter() {
-            await api('/adapter/generate', { method: 'POST' });
-        }
-        async function removeAdapter() {
-            const data = await api('/adapter/remove', { method: 'POST' });
-            document.getElementById('adapterStatus').innerHTML = `<div style="color:${data.status==='removed'?'#3fb950':'#8b949e'}">${data.status === 'removed' ? 'Ã¢Å“â€¦ Eliminado: ' + data.path : 'No encontrado'}</div>`;
+            const runtimes = [];
+            if (document.getElementById('ad-rt-opencode').checked) runtimes.push('opencode');
+            if (document.getElementById('ad-rt-codex').checked) runtimes.push('codex');
+            if (document.getElementById('ad-rt-claude').checked) runtimes.push('claude_code');
+            if (document.getElementById('ad-rt-pi').checked) runtimes.push('pi');
+            if (document.getElementById('ad-rt-hermes').checked) runtimes.push('hermes');
+            if (document.getElementById('ad-rt-deepseek').checked) runtimes.push('deepseek');
+
+            if (!runtimes.length) {
+                alert('Selecciona al menos un runtime');
+                return;
+            }
+            await api('/adapter/generate', {
+                method: 'POST',
+                body: JSON.stringify({ runtimes })
+            });
             loadComponents();
         }
 
-        // ---------- Init ----------
-        connectWS();
-        loadComponents();
-        loadStatus();
-    // ---------- Model Selection ----------
+        async function removeAdapter() {
+            const data = await api('/adapter/remove', { method: 'POST' });
+            document.getElementById('adapterStatus').innerHTML = `<div style="color:${data.status==='removed'?'var(--H-HEALTHY)':'var(--ink-3)'}">${data.status === 'removed' ? '✅ Eliminado: ' + data.path : 'No encontrado'}</div>`;
+            loadComponents();
+        }
+
+        // ---------- Model Selection ----------
         let modelState = null;
-        let modelRosterKey = null;
 
         async function loadModels() {
             try {
                 const data = await api('/models');
                 modelState = data;
                 renderModelState(data);
+                populateModelCatalogue(data.catalogue);
             } catch (e) {
                 console.error(e);
                 addLog('error', 'Error cargando modelos: ' + e.message);
@@ -1164,10 +1222,9 @@
         }
 
         function renderModelState(data) {
-            // Update notice
             const notice = document.getElementById('modelStepNotice');
             if (data.model_step_disabled) {
-                notice.innerHTML = '<div class="notice">El paso de modelo estÃƒÂ¡ deshabilitado (--no-model-step).</div>';
+                notice.innerHTML = '<div class="notice">El paso de modelo está deshabilitado (--no-model-step).</div>';
                 document.getElementById('btnModelApply').disabled = true;
                 document.getElementById('modelGlobalInput').disabled = true;
                 return;
@@ -1190,6 +1247,25 @@
                     }
                 }
                 current.innerHTML = html;
+            }
+
+            // Populate agent rows for per-agent mode
+            const agentRows = document.getElementById('modelAgentRows');
+            const roster = data.roster || [];
+            if (roster.length) {
+                agentRows.innerHTML = '';
+                const overrides = data.selection?.agents || {};
+                for (const agent of roster) {
+                    const override = overrides[agent] || '';
+                    agentRows.innerHTML += `
+                        <div class="model-row" data-agent="${escapeHtml(agent)}">
+                            <span class="model-key">${escapeHtml(agent)}:</span>
+                            <input type="text" class="text-input" data-agent="${escapeHtml(agent)}"
+                                   placeholder="provider/model" value="${escapeHtml(override)}"
+                                   autocomplete="off" spellcheck="false">
+                        </div>
+                    `;
+                }
             }
 
             // Show runtimes
@@ -1234,6 +1310,7 @@
                     const val = input.value.trim();
                     if (val) agents[agent] = val;
                 }
+                if (!Object.keys(agents).length) { alert('No se especificó ningún modelo por agente'); return null; }
                 return { agents };
             }
             return null;
@@ -1264,9 +1341,9 @@
         function showModelStatus(type, data) {
             const el = document.getElementById('modelApplyStatus');
             if (type === 'ok') {
-                el.innerHTML = '<div class="ok">Ã¢Å“â€¦ ' + (data.message || 'Modelo aplicado') + '</div>';
+                el.innerHTML = '<div class="ok">✅ ' + (data.message || 'Modelo aplicado') + '</div>';
             } else {
-                el.innerHTML = '<div class="error">Ã¢ÂÅ’ ' + (data.message || data.detail || 'Error') + '</div>';
+                el.innerHTML = '<div class="error">❌ ' + (data.message || data.detail || 'Error') + '</div>';
             }
         }
 
@@ -1275,15 +1352,10 @@
             if (!modelState) loadModels();
         });
 
-        // Initialize model state on load
+        // ---------- Init ----------
         let modelState = null;
-        let modelRosterKey = null;
 
-        function loadModels() {
-            api('/models').then(loadModels).catch(e => addLog('error', 'Error cargando modelos: ' + e.message));
-        }
-
-        // ---------- Theme toggle ----------
+        // Theme toggle
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
@@ -1291,10 +1363,10 @@
             const label = document.getElementById('themeLabel');
             if (btn && label) {
                 if (theme === 'dark') {
-                    btn.querySelector('.icon').textContent = 'â˜€ï¸';
+                    btn.querySelector('.icon').textContent = '☀️';
                     label.textContent = 'Claro';
                 } else {
-                    btn.querySelector('.icon').textContent = 'ðŸŒ™';
+                    btn.querySelector('.icon').textContent = '🌙';
                     label.textContent = 'Oscuro';
                 }
             }
@@ -1313,42 +1385,11 @@
             applyTheme(next);
         });
 
-        // ---------- Init ----------
+        // Initialize
         initTheme();
         connectWS();
         loadComponents();
         loadStatus();
     </script>
-        <footer class="app-footer" role="contentinfo">
-            <div class="footer-grid">
-                <div class="footer-item">
-                    <span class="footer-key">se root</span>
-                    <span class="mono footer-val" id="ft-root">—</span>
-                </div>
-                <div class="footer-item">
-                    <span class="footer-key">contrato</span>
-                    <span class="mono footer-val" id="ft-contract">se.report/1</span>
-                </div>
-                <div class="footer-item">
-                    <span class="footer-key">fingerprint</span>
-                    <span class="mono footer-val" id="ft-fp">—</span>
-                </div>
-                <div class="footer-item">
-                    <span class="footer-key">actualizado</span>
-                    <span class="mono footer-val" id="ft-time">—</span>
-                </div>
-            </div>
-            <p class="footer-note" id="ft-capability">
-                <span class="tag tag-UNKNOWN">UNKNOWN</span>
-                <span>visual.review no verificado: esta consola se valida con comprobaciones deterministas
-                (snapshot, capturas, errores de consola), no con revisión visual.</span>
-            </p>
-            <p class="footer-legal">SE Installer Web es una interfaz de instalación para SYSTEM-ENGINEERING.
-            Escribe configuración en <span class="mono">opencode.jsonc</span> y genera capas de adaptador.</p>
-        </footer></body>
-</html>
 </body>
 </html>
-
-
-
