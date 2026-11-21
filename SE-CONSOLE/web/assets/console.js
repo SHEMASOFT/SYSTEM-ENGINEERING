@@ -94,6 +94,8 @@
     projects: {
       title: "Proyectos",
       explain: "Los proyectos registrados y su estado de salud. Cada tarjeta indica en qué punto está el proyecto y si está gestionado.",
+      flowTitle: "Recorrido del proyecto",
+      flowHelp: "Las 9 fases son las del marco (lifecycle/states). El punto marca dónde está el proyecto ahora; las ya recorridas están completas.",
       managedCount: "gestionado(s)",
       unmanagedCount: "no gestionado(s)",
       location: "en PROJECTS/",
@@ -368,6 +370,8 @@
     projects: {
       title: "Projects",
       explain: "Registered projects and their health. Each card shows where the project stands and whether it is managed.",
+      flowTitle: "Project path",
+      flowHelp: "The 9 phases are the framework's (lifecycle/states). The marker shows where the project is now; the ones behind it are done.",
       managedCount: "managed",
       unmanagedCount: "unmanaged",
       location: "in PROJECTS/",
@@ -1499,8 +1503,74 @@
   }
 
   // ------------------------------------------------------- screen: projects
+  // Plain-language gloss for the framework's nine phases, so a reader without a
+  // development background understands what the phase means. The framework
+  // (se) stays the source of the phase ids and their order; these notes only
+  // re-word what a phase is about and never add or remove one.
+  var PHASE_HINT = {
+    DRAFT: { es: "el proyecto quedó anotado, todavía no se empieza a trabajar", en: "the project has been noted down; work has not started yet" },
+    DISCOVERY: { es: "se está identificando qué se necesita, qué se sabe y qué no", en: "identifying what is needed, what is known and what is not" },
+    PLANNING: { es: "se definen los requisitos y el plan de trabajo", en: "requirements and the work plan are being defined" },
+    ACTIVE: { es: "se está construyendo lo planificado", en: "the planned work is being built" },
+    VERIFICATION: { es: "se comprueba que lo construido cumple lo pedido", en: "checking that what was built meets what was asked" },
+    ACCEPTANCE: { es: "el responsable revisa y acepta el resultado", en: "the owner reviews and formally accepts the result" },
+    RELEASED: { es: "ya existe una versión publicada", en: "a published version exists" },
+    OPERATING: { es: "el sistema publicado está en uso", en: "the released system is in operation" },
+    ARCHIVED: { es: "el proyecto quedó cerrado y guardado", en: "the project is closed and preserved" }
+  };
+  function phaseHint(id) {
+    var h = PHASE_HINT[id] || {};
+    return currentLang === "en" ? (h.en || "") : (h.es || "");
+  }
+
+  // ------------------------------------------------------- lifecycle flow
+  function lifecycleStates() {
+    var lf = state.system && state.system.lifecycle_framework;
+    var st = lf && lf.states && lf.states.value;
+    return Array.isArray(st) ? st.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }) : [];
+  }
+  function phaseIndex(stateId) {
+    var states = lifecycleStates();
+    for (var i = 0; i < states.length; i++) if (states[i].id === stateId) return i;
+    return -1;
+  }
+  function lifecycleStepper(currentState) {
+    var states = lifecycleStates();
+    var idx = phaseIndex(currentState);
+    if (!states.length || idx < 0) return null;
+    var flow = el("div", { class: "flow", role: "list" }, states.map(function (s, i) {
+      var cls = i < idx ? "is-done" : i === idx ? "is-current" : "is-todo";
+      var step = el("div", { class: "flow-step " + cls, role: "listitem", title: s.description || "" }, [
+        el("span", { class: "flow-dot", "aria-hidden": "true" }),
+        el("span", { class: "flow-label", text: s.id })
+      ]);
+      step.setAttribute("aria-label", s.id + " · fase " + (i + 1) + " de " + states.length + (s.description ? " · " + s.description : ""));
+      if (i === idx) step.setAttribute("aria-current", "step");
+      return step;
+    }));
+    var cur = flow.querySelector(".is-current");
+    if (cur) {
+      requestAnimationFrame(function () {
+        try { var left = cur.offsetLeft - (flow.clientWidth - cur.offsetWidth) / 2; flow.scrollLeft = left; } catch (e) {}
+      });
+    }
+    return flow;
+  }
+  function lifecycleSentence(currentState) {
+    var states = lifecycleStates();
+    var idx = phaseIndex(currentState);
+    if (idx < 0) return "";
+    var i = idx + 1, n = states.length;
+    var hint = phaseHint(states[idx].id) || states[idx].description || "";
+    var es = "Est\u00e1s en la fase " + i + " de " + n + ": <strong>" + states[idx].id + "</strong> <span class=\"dim\">" + hint + "</span>";
+    var en = "You are in phase " + i + " of " + n + ": <strong>" + states[idx].id + "</strong> <span class=\"dim\">" + hint + "</span>";
+    return currentLang === "en" ? en : es;
+  }
+
   function viewProjects() {
-    return api("/api/projects").then(function (pj) {
+    return Promise.all([api("/api/system"), api("/api/projects")]).then(function (res) {
+      state.system = res[0];
+      var pj = res[1];
       state.projects = pj;
       var wrap = el("div");
       wrap.appendChild(el("h2", { class: "section-title", text: __t("projects.title") }));
@@ -1544,6 +1614,17 @@
         var nt = ((p.next_transition || {}).value);
         lines.push(el("p", { class: "proj-summary-line",
           text: gateSentence(gate, nt && nt.to) }));
+        // Where in the 9 phases this project is, from the framework itself.
+        var cur = p.lifecycle_state || ((p.lifecycle || {}).value);
+        var flow = lifecycleStepper(cur);
+        if (flow) {
+          lines.push(el("div", { class: "proj-flow" }, [
+            el("h4", { class: "proj-flow-title", text: __t("projects.flowTitle") }),
+            flow,
+            el("p", { class: "proj-flow-progress", html: lifecycleSentence(cur) }),
+            el("p", { class: "proj-flow-help", text: __t("projects.flowHelp") })
+          ]));
+        }
         // Next step in plain language
         var nextHtml = nextStepHint(nt, gate);
         if (nextHtml) lines.push(el("p", { class: "proj-next-step", style: "font-size:12px;color:var(--muted);margin-top:6px", html: nextHtml }));

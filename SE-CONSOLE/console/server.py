@@ -136,6 +136,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
     sys_version = ""
     protocol_version = "HTTP/1.1"
 
+    
+
     # -- helpers ---------------------------------------------------------
     def _send(self, status: int, body: bytes, ctype: str, *, head: bool = False) -> None:
         self.send_response(status)
