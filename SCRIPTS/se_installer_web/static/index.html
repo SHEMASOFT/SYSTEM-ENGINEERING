@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -6,7 +6,7 @@
     <title>SE Installer Web</title>
     <style>
         /* =====================================================================
-           SE Installer Web — Design tokens aligned with SE-CONSOLE (DESIGN.md)
+           SE Installer Web - Design tokens aligned with SE-CONSOLE (DESIGN.md)
            ===================================================================== */
         :root {
             /* Type scale */
@@ -53,7 +53,7 @@
             --glow: 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
             --glow-soft: 0 0 18px color-mix(in srgb, var(--accent) 25%, transparent);
 
-            /* Health semantics — light */
+            /* Health semantics - light */
             --H-HEALTHY: var(--green);   --H-HEALTHY-bg: color-mix(in srgb, var(--green) 12%, var(--bg));
             --H-WARNING: var(--yellow);  --H-WARNING-bg: color-mix(in srgb, var(--yellow) 10%, var(--bg));
             --H-BLOCKED: var(--red);     --H-BLOCKED-bg: color-mix(in srgb, var(--red) 5%, var(--bg));
@@ -636,7 +636,7 @@
                         <h1>SE Installer Web</h1>
                         <p class="brand-sub">
                             <span class="mono" id="hdr-system">SYSTEM-ENGINEERING</span>
-                            <span class="dot" aria-hidden="true">·</span>
+                            <span class="dot" aria-hidden="true">&middot;</span>
                             <span class="mono" id="hdr-version">v0.12.0</span>
                         </p>
                     </div>
@@ -647,31 +647,31 @@
                         <span class="chip-label">UNKNOWN</span>
                     </div>
                     <button type="button" id="btn-refresh" class="btn btn-primary" aria-label="Recargar datos del sistema">
-                        <span class="btn-ico" aria-hidden="true">⟳</span> Actualizar
+                        <span class="btn-ico" aria-hidden="true">&#10227;</span> Actualizar
                     </button>
-                    <select id="sel-theme" class="sel-theme" aria-label="Tema" title="Tema">
+                    <label for="sel-theme" class="form-label" style="margin-right: var(--sp-3);">Tema</label><select id="sel-theme" class="sel-theme" title="Tema">
                         <option value="light">Claro</option>
                         <option value="dark">Oscuro</option>
                     </select>
                     <div class="token-box">
                         <button type="button" id="themeToggle" class="theme-toggle" aria-label="Cambiar tema claro/oscuro">
-                            <span class="icon">🌙</span><span id="themeLabel">Oscuro</span>
+                            <span class="icon">&#127771;</span><span id="themeLabel">Oscuro</span>
                         </button>
                     </div>
                 </div>
             </div>
 
             <nav class="tabs" role="navigation" aria-label="Secciones del instalador">
-                <button type="button" class="tab active" data-tab="install" aria-current="page">📦 Instalar</button>
-                <button type="button" class="tab" data-tab="uninstall">🗑️ Desinstalar</button>
-                <button type="button" class="tab" data-tab="adapter">⚙️ Adaptador</button>
-                <button type="button" class="tab" data-tab="model">🧠 Modelo</button>
-                <button type="button" class="tab" data-tab="log">📋 Log</button>
+                <button type="button" class="tab active" data-tab="install" aria-current="page">&#128182; Instalar</button>
+                <button type="button" class="tab" data-tab="uninstall">&#128463; Desinstalar</button>
+                <button type="button" class="tab" data-tab="adapter">&#9881;&#65039; Adaptador</button>
+                <button type="button" class="tab" data-tab="model">&#129504; Modelo</button>
+                <button type="button" class="tab" data-tab="log">&#128203; Log</button>
             </nav>
 
             <p class="epistemic-strip" id="epistemic-strip">
-                Cada valor muestra su procedencia: <span class="tag tag-OBSERVED">OBSERVED</span> veredicto de <span class="mono">se</span> ·
-                <span class="tag tag-DERIVED">DERIVED</span> calculado por la consola ·
+                Cada valor muestra su procedencia: <span class="tag tag-OBSERVED">OBSERVED</span> veredicto de <span class="mono">se</span> &middot;
+                <span class="tag tag-DERIVED">DERIVED</span> calculado por la consola &middot;
                 <span class="tag tag-UNKNOWN">UNKNOWN</span> no determinable
             </p>
         </header>
@@ -689,7 +689,7 @@
                 </div>
                 <div class="col-4">
                     <div class="card">
-                        <h3>Opciones de Instalación</h3>
+                        <h3>Opciones de Instalacion</h3>
                         <div class="form-group">
                             <label class="form-label">Runtimes objetivo</label>
                             <div class="checkbox-group">
@@ -705,21 +705,21 @@
                             <label class="form-label">Opciones</label>
                             <div class="checkbox-group">
                                 <label class="checkbox-label"><input type="checkbox" id="opt-dryrun"> Dry Run (simular)</label>
-                                <label class="checkbox-label"><input type="checkbox" id="opt-force"> Forzar reinstalación</label>
-                                <label class="checkbox-label"><input type="checkbox" id="opt-skip-verify"> Saltar verificación</label>
+                                <label class="checkbox-label"><input type="checkbox" id="opt-force"> Forzar reinstalacion</label>
+                                <label class="checkbox-label"><input type="checkbox" id="opt-skip-verify"> Saltar verificacion</label>
                                 <label class="checkbox-label"><input type="checkbox" id="opt-shortcuts"> Crear acceso directo</label>
                             </div>
                         </div>
                         <div class="progress-bar" id="installProgress"><div class="progress-fill"></div></div>
                         <div class="actions">
                             <button class="btn btn-primary" id="btnInstall" onclick="startInstall()">
-                                <span>🚀</span> Instalar Seleccionados
+                                <span>&#128640;</span> Instalar Seleccionados
                             </button>
                             <button class="btn btn-secondary" id="btnInstallRecommended" onclick="selectRecommended()">
-                                <span>⭐</span> Solo Recomendados
+                                <span>&#11088;</span> Solo Recomendados
                             </button>
                             <button class="btn btn-secondary" id="btnRefresh" onclick="loadComponents()">
-                                <span>🔄</span> Refrescar
+                                <span>&#128284;</span> Refrescar
                             </button>
                         </div>
                     </div>
@@ -732,7 +732,7 @@
             <div class="grid">
                 <div class="col-8">
                     <div class="card">
-                        <h3>🗑️ Desinstalar Artefactos SE de OpenCode</h3>
+                        <h3>&#128463; Desinstalar Artefactos SE de OpenCode</h3>
                         <p class="p">
                             Elimina componentes generados por System Engineering: MCPs rastreados/no rastreados, capa .opencode/, etc.
                             Los MCPs ajenos (context7, filesystem) <strong>NUNCA</strong> se tocan.
@@ -752,13 +752,13 @@
                         <div class="progress-bar" id="uninstallProgress"><div class="progress-fill"></div></div>
                         <div class="actions">
                             <button class="btn btn-secondary" id="btnUninstallDryrun" onclick="startUninstall(false)">
-                                <span>👁️</span> Ver Plan (Dry-Run)
+                                <span>&#128065;</span> Ver Plan (Dry-Run)
                             </button>
                             <button class="btn btn-danger" id="btnUninstallApply" onclick="startUninstall(true)">
-                                <span>💥</span> Aplicar Desinstalación
+                                <span>&#128165;</span> Aplicar Desinstalacion
                             </button>
                             <button class="btn btn-secondary" id="btnUninstallRefresh" onclick="loadStatus()">
-                                <span>🔄</span> Refrescar Estado
+                                <span>&#128284;</span> Refrescar Estado
                             </button>
                         </div>
                     </div>
@@ -777,9 +777,9 @@
             <div class="grid">
                 <div class="col-8">
                     <div class="card">
-                        <h3>⚙️ Adaptadores</h3>
+                        <h3>&#9881;&#65039; Adaptadores</h3>
                         <p class="p">
-                            Genera la capa de agentes, comandos y skills para cada runtime desde las fuentes canónicas de SE.
+                            Genera la capa de agentes, comandos y skills para cada runtime desde las fuentes canonicas de SE.
                         </p>
                         <div class="form-group">
                             <label class="form-label">Runtimes a generar</label>
@@ -794,10 +794,10 @@
                         </div>
                         <div class="actions">
                             <button class="btn btn-primary" onclick="generateAdapter()">
-                                <span>🔨</span> Generar Adaptadores
+                                <span>&#128296;</span> Generar Adaptadores
                             </button>
                             <button class="btn btn-danger" onclick="removeAdapter()">
-                                <span>🗑️</span> Eliminar .opencode/
+                                <span>&#128463;</span> Eliminar .opencode/
                             </button>
                         </div>
                         <div id="adapterStatus" style="margin-top:16px;"></div>
@@ -819,14 +819,14 @@
             <div class="grid">
                 <div class="col-8">
                     <div class="card">
-                        <h3>🧠 Selección de Modelo</h3>
+                        <h3>&#129504; Seleccion de Modelo</h3>
                         <p class="p">
                             Elige un modelo para los agentes, o salta el paso. Saltar no escribe
-                            nada: la configuración queda exactamente como está.
+                            nada: la configuracion queda exactamente como esta.
                         </p>
                         <div id="modelStepNotice"></div>
                         <div class="form-group">
-                            <label class="form-label">¿Qué quieres configurar?</label>
+                            <label class="form-label">Que quieres configurar?</label>
                             <div class="radio-group">
                                 <label class="radio-label">
                                     <input type="radio" name="modelMode" value="global" checked>
@@ -838,7 +838,7 @@
                                 </label>
                                 <label class="radio-label">
                                     <input type="radio" name="modelMode" value="skip">
-                                    Saltar (no configurar ningún modelo)
+                                    Saltar (no configurar ningun modelo)
                                 </label>
                             </div>
                         </div>
@@ -850,18 +850,18 @@
                             <datalist id="modelCatalogue"></datalist>
                         </div>
                         <div class="form-group" id="modelPerAgentGroup" style="display:none;">
-                            <label class="form-label">Un modelo por subagente (vacío = sin cambio)</label>
+                            <label class="form-label">Un modelo por subagente (vacio = sin cambio)</label>
                             <div id="modelAgentRows"></div>
                         </div>
                         <div class="actions">
                             <button class="btn btn-primary" id="btnModelApply" onclick="applyModelSelection()">
-                                <span>💾</span> Aplicar selección
+                                <span>&#128454;</span> Aplicar seleccion
                             </button>
                             <button class="btn btn-secondary" onclick="skipModelStep()">
-                                <span>⏭️</span> Saltar
+                                <span>&#9175;&#65039;</span> Saltar
                             </button>
                             <button class="btn btn-secondary" onclick="loadModels()">
-                                <span>🔄</span> Refrescar
+                                <span>&#128284;</span> Refrescar
                             </button>
                         </div>
                         <div id="modelRuntimes" class="muted" style="margin-top:16px;"></div>
@@ -870,9 +870,9 @@
                 </div>
                 <div class="col-4">
                     <div class="card">
-                        <h3>Selección Efectiva</h3>
+                        <h3>Seleccion Efectiva</h3>
                         <p class="p">
-                            Lo que el runtime usará para cada agente.
+                            Lo que el runtime usara para cada agente.
                         </p>
                         <div id="modelCurrent" class="empty-state">Cargando...</div>
                     </div>
@@ -884,8 +884,8 @@
         <div class="panel" id="panel-log">
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                    <h3>📋 Log en Tiempo Real</h3>
-                    <button class="btn btn-secondary" onclick="clearLog()">🗑️ Limpiar</button>
+                    <h3>&#128203; Log en Tiempo Real</h3>
+                    <button class="btn btn-secondary" onclick="clearLog()">&#128463; Limpiar</button>
                 </div>
                 <div class="log-container" id="logContainer">
                     <div class="log-line"><span class="log-time">[--:--:--]</span><span class="log-event">Conectando...</span></div>
@@ -897,7 +897,7 @@
             <div class="footer-grid">
                 <div class="footer-item">
                     <span class="footer-key">se root</span>
-                    <span class="mono footer-val" id="ft-root">—</span>
+                    <span class="mono footer-val" id="ft-root">&#8212;</span>
                 </div>
                 <div class="footer-item">
                     <span class="footer-key">contrato</span>
@@ -905,20 +905,20 @@
                 </div>
                 <div class="footer-item">
                     <span class="footer-key">fingerprint</span>
-                    <span class="mono footer-val" id="ft-fp">—</span>
+                    <span class="mono footer-val" id="ft-fp">&#8212;</span>
                 </div>
                 <div class="footer-item">
                     <span class="footer-key">actualizado</span>
-                    <span class="mono footer-val" id="ft-time">—</span>
+                    <span class="mono footer-val" id="ft-time">&#8212;</span>
                 </div>
             </div>
             <p class="footer-note" id="ft-capability">
                 <span class="tag tag-UNKNOWN">UNKNOWN</span>
                 <span>visual.review no verificado: esta consola se valida con comprobaciones deterministas
-                (snapshot, capturas, errores de consola), no con revisión visual.</span>
+                (snapshot, capturas, errores de consola), no con revision visual.</span>
             </p>
-            <p class="footer-legal">SE Installer Web es una interfaz de instalación para SYSTEM-ENGINEERING.
-            Escribe configuración en <span class="mono">opencode.jsonc</span> y genera capas de adaptador.</p>
+            <p class="footer-legal">SE Installer Web es una interfaz de instalacion para SYSTEM-ENGINEERING.
+            Escribe configuracion en <span class="mono">opencode.jsonc</span> y genera capas de adaptador.</p>
         </footer>
     </div>
 
@@ -954,7 +954,7 @@
             };
 
             ws.onerror = (err) => {
-                addLog('error', 'Error de conexión: ' + err.message);
+                addLog('error', 'Error de conexion: ' + err.message);
             };
         }
 
@@ -981,11 +981,11 @@
                     if (msg.data.error) {
                         addLog('error', `${msg.data.component}: ${msg.data.error}`);
                     }
-                    loadComponents(); // refresh status
+                    loadComponents();
                     break;
                 case 'completed':
                     addLog(msg.data.success ? 'completed' : 'error',
-                        msg.data.success ? 'Instalación completada' : `Falló (exit ${msg.data.exit_code || '?'})`);
+                        msg.data.success ? 'Instalacion completada' : `Fallo (exit ${msg.data.exit_code || '?'})`);
                     setInstalling(false);
                     loadStatus();
                     loadComponents();
@@ -1002,7 +1002,7 @@
             const time = new Date().toLocaleTimeString();
             const div = document.createElement('div');
             div.className = 'log-line';
-            div.innerHTML = `<span class="log-time">[${time}]</span><span class="log-event ${type}">${escapeHtml(message)}</span>`;
+            div.innerHTML = '<span class="log-time">[' + time + ']</span><span class="log-event ' + type + '">' + escapeHtml(message) + '</span>';
             logContainer.appendChild(div);
             logContainer.scrollTop = logContainer.scrollHeight;
         }
@@ -1029,7 +1029,7 @@
             const pct = Math.round((current / total) * 100);
             const fill = document.querySelector('#installProgress .progress-fill');
             if (fill) fill.style.width = pct + '%';
-            addLog('started', `[${current}/${total}] ${component}`);
+            addLog('started', '[' + current + '/' + total + '] ' + component);
         }
 
         // ---------- Tab Switching ----------
@@ -1072,10 +1072,10 @@
                 <div class="component-item ${selectedComponents.has(c.id) ? 'selected' : ''}" data-id="${c.id}">
                     <input type="checkbox" class="comp-checkbox" ${selectedComponents.has(c.id) ? 'checked' : ''} onchange="toggleComponent('${c.id}', this.checked)">
                     <div class="comp-info">
-                        <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag ${c.component_type}">${c.component_type}</span> ${c.recommended ? '<span class="comp-tag recommended">★ Recomendado</span>' : ''} ${c.status === 'success' ? '<span class="comp-tag installed">✓ Instalado</span>' : ''}</div>
+                        <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag ${c.component_type}">${c.component_type}</span> ${c.recommended ? '<span class="comp-tag recommended">&#9733; Recomendado</span>' : ''} ${c.status === 'success' ? '<span class="comp-tag installed">&#10003; Instalado</span>' : ''}</div>
                         <div class="comp-meta">
-                            ${c.category ? `<span class="comp-tag">${escapeHtml(c.category)}</span>` : ''}
-                            ${c.installed_version ? `<span class="comp-tag">v${escapeHtml(c.installed_version)}</span>` : ''}
+                            ${c.category ? '<span class="comp-tag">' + escapeHtml(c.category) + '</span>' : ''}
+                            ${c.installed_version ? '<span class="comp-tag">v' + escapeHtml(c.installed_version) + '</span>' : ''}
                         </div>
                         <div class="comp-desc">${escapeHtml(c.description)}</div>
                     </div>
@@ -1084,7 +1084,7 @@
         }
 
         function toggleComponent(id, checked) {
-            const el = document.querySelector(`.component-item[data-id="${id}"]`);
+            const el = document.querySelector('.component-item[data-id="' + id + '"]');
             if (checked) {
                 selectedComponents.add(id);
                 el?.classList.add('selected');
@@ -1123,17 +1123,33 @@
             if (document.getElementById('rt-hermes').checked) runtimes.push('hermes');
             if (document.getElementById('rt-deepseek').checked) runtimes.push('deepseek');
 
-            await api('/install', {
-                method: 'POST',
-                body: JSON.stringify({
-                    component_ids: Array.from(selectedComponents),
-                    runtimes,
-                    dry_run: document.getElementById('opt-dryrun').checked,
-                    force: document.getElementById('opt-force').checked,
-                    skip_verification: document.getElementById('opt-skip-verify').checked,
-                    create_shortcuts: document.getElementById('opt-shortcuts').checked
-                })
-            });
+            if (!runtimes.length) {
+                alert('Selecciona al menos un runtime');
+                return;
+            }
+
+            setInstalling(true);
+            try {
+                addLog('output', 'Iniciando instalacion de ' + selectedComponents.size + ' componente(s)...');
+                await api('/install', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        component_ids: Array.from(selectedComponents),
+                        runtimes,
+                        dry_run: document.getElementById('opt-dryrun').checked,
+                        force: document.getElementById('opt-force').checked,
+                        skip_verification: document.getElementById('opt-skip-verify').checked,
+                        create_shortcuts: document.getElementById('opt-shortcuts').checked
+                    })
+                });
+                addLog('completed', 'Instalacion enviada correctamente');
+            } catch (e) {
+                console.error(e);
+                addLog('error', 'Error: ' + e.message);
+                alert('Error al instalar: ' + e.message);
+            } finally {
+                setInstalling(false);
+            }
         }
 
         // ---------- Uninstall ----------
@@ -1148,7 +1164,18 @@
                 apply: apply,
                 dry_run: !apply
             };
-            await api('/uninstall', { method: 'POST', body: JSON.stringify(opts) });
+            setInstalling(true);
+            try {
+                addLog('output', 'Iniciando desinstalacion...');
+                await api('/uninstall', { method: 'POST', body: JSON.stringify(opts) });
+                addLog('completed', 'Desinstalacion enviada correctamente');
+            } catch (e) {
+                console.error(e);
+                addLog('error', 'Error: ' + e.message);
+                alert('Error al desinstalar: ' + e.message);
+            } finally {
+                setInstalling(false);
+            }
         }
 
         async function loadStatus() {
@@ -1170,7 +1197,7 @@
                 container.innerHTML = data.installed_components.map(c => `
                     <div class="component-item" style="margin-bottom:8px;">
                         <div class="comp-info">
-                            <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag installed">✓ ${escapeHtml(c.version || '')}</span></div>
+                            <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag installed">&#10003; ${escapeHtml(c.version || '')}</span></div>
                         </div>
                     </div>
                 `).join('');
@@ -1193,17 +1220,39 @@
                 alert('Selecciona al menos un runtime');
                 return;
             }
-            await api('/adapter/generate', {
-                method: 'POST',
-                body: JSON.stringify({ runtimes })
-            });
-            loadComponents();
+
+            setInstalling(true);
+            try {
+                addLog('output', 'Generando adaptadores para ' + runtimes.length + ' runtime(s)...');
+                await api('/adapter/generate', {
+                    method: 'POST',
+                    body: JSON.stringify({ runtimes })
+                });
+                addLog('completed', 'Adaptadores generados correctamente');
+                loadComponents();
+            } catch (e) {
+                console.error(e);
+                addLog('error', 'Error: ' + e.message);
+                alert('Error al generar adaptadores: ' + e.message);
+            } finally {
+                setInstalling(false);
+            }
         }
 
         async function removeAdapter() {
-            const data = await api('/adapter/remove', { method: 'POST' });
-            document.getElementById('adapterStatus').innerHTML = `<div style="color:${data.status==='removed'?'var(--H-HEALTHY)':'var(--ink-3)'}">${data.status === 'removed' ? '✅ Eliminado: ' + data.path : 'No encontrado'}</div>`;
-            loadComponents();
+            setInstalling(true);
+            try {
+                const data = await api('/adapter/remove', { method: 'POST' });
+                document.getElementById('adapterStatus').innerHTML = '<div style="color:' + (data.status==='removed'?'var(--H-HEALTHY)':'var(--ink-3)') + '">' + (data.status === 'removed' ? '&#10003; Eliminado: ' + data.path : 'No encontrado') + '</div>';
+                addLog('completed', data.status === 'removed' ? 'Adaptador eliminado: ' + data.path : 'No se encontro adaptador');
+                loadComponents();
+            } catch (e) {
+                console.error(e);
+                addLog('error', 'Error: ' + e.message);
+                alert('Error al eliminar adaptador: ' + e.message);
+            } finally {
+                setInstalling(false);
+            }
         }
 
         // ---------- Model Selection ----------
@@ -1224,7 +1273,7 @@
         function renderModelState(data) {
             const notice = document.getElementById('modelStepNotice');
             if (data.model_step_disabled) {
-                notice.innerHTML = '<div class="notice">El paso de modelo está deshabilitado (--no-model-step).</div>';
+                notice.innerHTML = '<div class="notice">El paso de modelo esta deshabilitado (--no-model-step).</div>';
                 document.getElementById('btnModelApply').disabled = true;
                 document.getElementById('modelGlobalInput').disabled = true;
                 return;
@@ -1257,10 +1306,11 @@
                 const overrides = data.selection?.agents || {};
                 for (const agent of roster) {
                     const override = overrides[agent] || '';
+                    const agentId = 'model-agent-' + agent.replace(/[^a-zA-Z0-9_-]/g, '_');
                     agentRows.innerHTML += `
                         <div class="model-row" data-agent="${escapeHtml(agent)}">
-                            <span class="model-key">${escapeHtml(agent)}:</span>
-                            <input type="text" class="text-input" data-agent="${escapeHtml(agent)}"
+                            <label for="model-agent-${agent.replace(/[^a-zA-Z0-9_-]/g, '_')}" class="model-key">${escapeHtml(agent)}:</label>
+                            <input type="text" class="text-input" id="model-agent-${agent.replace(/[^a-zA-Z0-9_-]/g, '_')}" data-agent="${escapeHtml(agent)}"
                                    placeholder="provider/model" value="${escapeHtml(override)}"
                                    autocomplete="off" spellcheck="false">
                         </div>
@@ -1310,7 +1360,7 @@
                     const val = input.value.trim();
                     if (val) agents[agent] = val;
                 }
-                if (!Object.keys(agents).length) { alert('No se especificó ningún modelo por agente'); return null; }
+                if (!Object.keys(agents).length) { alert('No se especifico ningun modelo por agente'); return null; }
                 return { agents };
             }
             return null;
@@ -1341,9 +1391,9 @@
         function showModelStatus(type, data) {
             const el = document.getElementById('modelApplyStatus');
             if (type === 'ok') {
-                el.innerHTML = '<div class="ok">✅ ' + (data.message || 'Modelo aplicado') + '</div>';
+                el.innerHTML = '<div class="ok">&#10003; ' + (data.message || 'Modelo aplicado') + '</div>';
             } else {
-                el.innerHTML = '<div class="error">❌ ' + (data.message || data.detail || 'Error') + '</div>';
+                el.innerHTML = '<div class="error">&#10007; ' + (data.message || data.detail || 'Error') + '</div>';
             }
         }
 
@@ -1363,10 +1413,10 @@
             const label = document.getElementById('themeLabel');
             if (btn && label) {
                 if (theme === 'dark') {
-                    btn.querySelector('.icon').textContent = '☀️';
+                    btn.querySelector('.icon').textContent = 'â˜€ï¸';
                     label.textContent = 'Claro';
                 } else {
-                    btn.querySelector('.icon').textContent = '🌙';
+                    btn.querySelector('.icon').textContent = 'ðŸŒ™';
                     label.textContent = 'Oscuro';
                 }
             }
@@ -1393,3 +1443,6 @@
     </script>
 </body>
 </html>
+
+
+
