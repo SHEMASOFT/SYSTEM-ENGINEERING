@@ -25,7 +25,7 @@ import sys
 import urllib.parse
 from typing import Any, Callable
 
-from . import actions, auth, read_model, se_cli, se_reader
+from . import actions, auth, read_cache, read_model, se_cli, se_reader
 
 WEB_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
 
@@ -92,14 +92,85 @@ def api_system(_m: dict) -> tuple[int, dict[str, Any]]:
 
 
 def api_projects(_m: dict) -> tuple[int, dict[str, Any]]:
-    return 200, read_model.build_project_list()
+    return 200, read_cache.get("projects", read_model.build_project_list)
 
 
 def api_project_detail(m: dict) -> tuple[int, dict[str, Any]]:
     rel = (m.get("rel_path") or "").strip("/")
     if not _SAFE_RELPATH.match(rel) or ".." in rel:
         return _error(400, "invalid project path", rel_path=rel)
-    return 200, read_model.build_project_detail(rel)
+    key = "project:" + rel
+    detail = read_cache.get(key, lambda: read_model.build_project_detail(rel))
+    # The list carries no per-project depth; mark freshness so the UI can tell
+    # a served-from-cache read from a fresh one without inventing an age.
+    detail = dict(detail)
+    detail["_cache"] = {
+        "key": key,
+        "age_seconds": read_cache.age_of(key),
+        "ttl_seconds": read_cache.ttl_seconds(),
+    }
+    return 200, detail
+
+
+def warm_attention() -> None:
+    """Pre-fill the attention cache off the request path.
+
+    The first cold read costs ~45 s because it runs one deep read per managed
+    project. Doing that once at startup (same shape as `audit.start_background`)
+    means the first person to open the tab does not pay for it, and the next
+    refresh replaces the value in place.
+    """
+    import threading
+
+    def _bg() -> None:
+        try:
+            api_attention({})
+        except Exception:  # a failed warm only costs a slow first read
+            pass
+
+    threading.Thread(target=_bg, daemon=True).start()
+
+
+def api_attention(_m: dict) -> tuple[int, dict[str, Any]]:
+    """Aggregate every managed project's attention items in ONE request.
+
+    The Attention view used to fan out `/api/project` per project from the
+    browser (one deep read each, in series), which is what made the tab slow.
+    Here the same canonical reads are done server-side and reuse the bounded
+    TTL cache, so the first load pays the cost and the rest are instant.
+    """
+    projects = read_cache.get("projects", read_model.build_project_list) or {}
+    out_items: list[dict[str, Any]] = []
+    for p in projects.get("projects", []) or []:
+        if p.get("management") != "MANAGED":
+            continue
+        rel = p.get("rel_path")
+        if not rel:
+            continue
+        key = "project:" + rel
+        detail = read_cache.get(key, lambda r=rel: read_model.build_project_detail(r)) or {}
+        for item in ((detail.get("attention") or {}).get("items") or []):
+            it = dict(item)
+            it["_project"] = rel
+            it["_project_name"] = p.get("dir_name") or p.get("name") or rel
+            out_items.append(it)
+    order = {"BLOCKED": 0, "WARNING": 1, "UNKNOWN": 2, "INFO": 3}
+    out_items.sort(key=lambda i: (order.get(str(i.get("severity", "")).upper(), 9),
+                                  str(i.get("_project", "")), str(i.get("id", ""))))
+    counts = {
+        "total": len(out_items),
+        "BLOCKED": sum(1 for i in out_items if i.get("severity") == "BLOCKED"),
+        "WARNING": sum(1 for i in out_items if i.get("severity") == "WARNING"),
+    }
+    return 200, {
+        "counts": counts,
+        "items": out_items,
+        "projects": [p.get("rel_path") for p in (projects.get("projects", []) or [])
+                     if p.get("management") == "MANAGED"],
+        "note": "Aggregated per project from the same canonical reads as /api/project; "
+                "severity orders attention, it is not a governance verdict.",
+        "generated_at": read_model._now(),
+    }
 
 
 def api_record_detail(m: dict) -> tuple[int, dict[str, Any]]:
@@ -277,6 +348,7 @@ ROUTES: dict[str, Callable[[dict], tuple[int, dict]]] = {
     "/api/system": api_system,
     "/api/projects": api_projects,
     "/api/project": api_project_detail,
+    "/api/attention": api_attention,
     "/api/record": api_record_detail,
     "/api/provenance": api_provenance,
     # P3-B.1: Memory endpoints
@@ -352,6 +424,10 @@ def api_action(
         result.setdefault("warnings", []).append(
             f"console audit write failed: {exc} (se still applied the action)"
         )
+
+    # A write is never followed by a stale cached read: drop every cached read
+    # so the next GET re-reads the canonical tree the action just changed.
+    read_cache.invalidate()
 
     return 200, {
         **result,

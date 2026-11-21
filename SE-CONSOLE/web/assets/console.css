@@ -505,6 +505,29 @@ main:focus { outline: none; }
 .table tr:last-child td { border-bottom: 0; }
 .table-wrap { overflow-x: auto; }
 
+/* ---------- attention groups ---------- */
+.attn-groups { display: flex; flex-direction: column; gap: var(--sp-4); }
+.attn-group { display: flex; flex-direction: column; gap: var(--sp-3); }
+.attn-group-head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3);
+  padding: var(--sp-3); border-radius: var(--r-2);
+  background: var(--bg-sunken); border: 1px solid var(--line-2);
+}
+.attn-group-title { font-size: var(--fs-h3); font-weight: 700; margin: 0; }
+.stat-chip {
+  font-size: var(--fs-11); font-family: var(--font-mono);
+  padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-2);
+  color: var(--ink-2); background: var(--bg-raised); white-space: nowrap;
+}
+.stat-chip-fail { color: var(--H-BLOCKED); border-color: var(--H-BLOCKED); }
+.stat-chip-warn { color: var(--H-WARNING); border-color: var(--H-WARNING); }
+.crumb-btn {
+  font-size: var(--fs-12); color: var(--accent); background: none;
+  border: 1px solid var(--line-2); border-radius: var(--r-1);
+  padding: 4px 10px; cursor: pointer; margin-left: auto;
+}
+.crumb-btn:hover { border-color: var(--accent); color: var(--accent-strong); }
+
 /* ---------- attention table ---------- */
 .attn-table { table-layout: fixed; min-width: 960px; }
 .attn-table th:nth-child(1),

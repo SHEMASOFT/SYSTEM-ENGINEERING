@@ -206,6 +206,10 @@
       projectTitle: "Atención requerida en este proyecto · Acciones",
       intro: "Consolida los gates FAIL, las condiciones MANUAL, los gaps de se review y los registros que fallan schema. La severidad ordena la atención; no sustituye un veredicto del motor.",
       orderNote: "el orden es prioridad de atención, no un veredicto de governance",
+      groupNote: "Están agrupados por proyecto para saber a qué pertenece cada uno. Empiece por el primer proyecto: de arriba abajo, primero lo que bloquea y después lo que solo advierte.",
+      openProject: "Ver el estado del proyecto",
+      projectColumn: "proyecto",
+      resolveFirst: "Orden para resolver",
       severity: "severidad",
       area: "área",
       detail: "detalle",
@@ -473,6 +477,10 @@
       projectTitle: "Attention required in this project · Actions",
       intro: "Consolidates FAIL gates, MANUAL conditions, se review gaps and records that fail schema. Severity orders attention; it does not replace an engine verdict.",
       orderNote: "the order is attention priority, not a governance verdict",
+      groupNote: "They are grouped by project so you know what each one belongs to. Start with the first project: from the top down, what blocks before what merely warns.",
+      openProject: "Open the project",
+      projectColumn: "project",
+      resolveFirst: "Resolution order",
       severity: "severity",
       area: "area",
       detail: "detail",
@@ -2039,38 +2047,78 @@
     return steps;
   }
 
+  // Attention grouped by project: every item must say where it belongs before
+  // a non-technical reader can act on it. Groups are ordered by their worst
+  // severity, so the project that needs attention first is read first.
+  function severityRank(s) {
+    var o = { BLOCKED: 0, WARNING: 1, UNKNOWN: 2, INFO: 3 };
+    return o[String(s || "").toUpperCase()] === undefined ? 9 : o[String(s || "").toUpperCase()];
+  }
+
+  function groupByProject(items) {
+    var by = {};
+    var order = [];
+    (items || []).forEach(function (i) {
+      var k = i._project || i.project || "(sin proyecto)";
+      if (!by[k]) { by[k] = []; order.push(k); }
+      by[k].push(i);
+    });
+    return order.map(function (k) {
+      var its = by[k].slice().sort(function (a, b) { return severityRank(a.severity) - severityRank(b.severity); });
+      return {
+        key: k,
+        name: (its[0] && (its[0]._project_name || its[0]._project)) || k,
+        items: its
+      };
+    }).sort(function (a, b) {
+      return severityRank(a.items[0] && a.items[0].severity) - severityRank(b.items[0] && b.items[0].severity);
+    });
+  }
+
+  function renderProjectGroup(g) {
+    var blocked = g.items.filter(function (i) { return i.severity === "BLOCKED"; }).length;
+    var warning = g.items.filter(function (i) { return i.severity === "WARNING"; }).length;
+    return el("section", { class: "attn-group" }, [
+      el("div", { class: "attn-group-head" }, [
+        el("h3", { class: "attn-group-title", text: g.name }),
+        el("div", { class: "tag-row" }, [
+          blocked ? el("span", { class: "stat-chip stat-chip-fail", text: blocked + " BLOCKED" }) : null,
+          warning ? el("span", { class: "stat-chip stat-chip-warn", text: warning + " WARNING" }) : null,
+          el("span", { class: "stat-chip", text: g.items.length + " " + __t("attention.total") }),
+          el("span", { class: "muted", style: "font-size:12px", text: g.key })
+        ]),
+        el("a", {
+          class: "crumb-btn", href: "#project",
+          text: __t("attention.openProject"),
+          onclick: function (e) { e.preventDefault(); openProject(g.key); }
+        })
+      ]),
+      renderAttentionTable({ items: g.items })
+    ]);
+  }
+
   function viewAttention() {
-    return Promise.all([api("/api/system"), api("/api/projects")]).then(function (res) {
-      renderHeader(res[0]);
+    return api("/api/attention").then(function (att) {
+      renderHeader(state.system || (att.system || {}));
       var wrap = el("div");
       wrap.appendChild(el("h2", { class: "section-title", text: __t("attention.title") }));
       wrap.appendChild(el("p", { class: "muted", style: "margin-bottom:16px",
         text: __t("attention.intro") }));
-      // aggregate per project
-      var jobs = (res[1].projects || []).filter(function (p) { return p.management === "MANAGED"; })
-        .map(function (p) {
-          return api("/api/project?rel_path=" + encodeURIComponent(p.rel_path)).then(function (d) {
-            return { name: p.dir_name, rel_path: p.rel_path, attention: d.attention };
-          });
-        });
-      return Promise.all(jobs).then(function (rows) {
-        var all = [];
-        rows.forEach(function (r) {
-          (r.attention.items || []).forEach(function (i) { var it = Object.assign({}, i); it._project = r.rel_path; all.push(it); });
-        });
-        all.sort(function (a, b) {
-          var o = { BLOCKED: 0, WARNING: 1, UNKNOWN: 2, INFO: 3 };
-          return (o[a.severity] || 9) - (o[b.severity] || 9);
-        });
-        wrap.appendChild(el("div", { class: "stat-row", style: "margin-bottom:16px" }, [
-          el("div", { class: "stat stat-fail" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "BLOCKED"; }).length }), el("div", { class: "stat-k", text: "BLOCKED" })]),
-          el("div", { class: "stat stat-warn" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "WARNING"; }).length }), el("div", { class: "stat-k", text: "WARNING" })]),
-          el("div", { class: "stat" }, [el("div", { class: "stat-n", text: all.length }), el("div", { class: "stat-k", text: __t("attention.total") })])
-        ]));
-        wrap.appendChild(renderAttentionTable({ items: all }));
-        return wrap;
+      var all = (att.items || []);
+      var counts = att.counts || {};
+      wrap.appendChild(el("div", { class: "stat-row", style: "margin-bottom:16px" }, [
+        el("div", { class: "stat stat-fail" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "BLOCKED"; }).length }), el("div", { class: "stat-k", text: "BLOCKED" })]),
+        el("div", { class: "stat stat-warn" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "WARNING"; }).length }), el("div", { class: "stat-k", text: "WARNING" })]),
+        el("div", { class: "stat" }, [el("div", { class: "stat-n", text: all.length }), el("div", { class: "stat-k", text: __t("attention.total") })])
+      ]));
+      wrap.appendChild(el("p", { class: "muted", style: "font-size:12px;margin-bottom:12px",
+        text: (att.note || "") }));
+      // Explain the order, then group by project so each item says where it belongs.
+      var orderNote = __t("attention.orderNote") + " " + __t("attention.groupNote");
+      wrap.appendChild(el("div", { class: "callout", style: "margin-bottom:16px" }, orderNote));
+      wrap.appendChild(el("div", { class: "attn-groups" }, groupByProject(all).map(renderProjectGroup)));
+      return wrap;
       });
-    });
   }
 
   // ---------------------------------------------------------------- router
