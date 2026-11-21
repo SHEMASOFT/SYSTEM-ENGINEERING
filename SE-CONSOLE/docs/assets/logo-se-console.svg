@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Logo SE-CONSOLE">
+  <title>Logo SE-CONSOLE</title>
+  <desc>Marca de SE-CONSOLE: consola de lectura sobre SYSTEM-ENGINEERING.</desc>
+  <defs>
+    <linearGradient id="gradMagenta" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A1218"/>
+      <stop offset="100%" stop-color="#2D1E26"/>
+    </linearGradient>
+  </defs>
+  <!-- Fondo redondeado -->
+  <rect width="128" height="128" rx="24" fill="url(#gradMagenta)"/>
+  <!-- Letra SE en magenta neón -->
+  <text x="64" y="72" font-family="monospace" font-size="56" font-weight="bold" fill="#F095C8" text-anchor="middle" letter-spacing="-4">SE</text>
+  <!-- Subrayado del tema -->
+  <rect x="24" y="96" width="80" height="4" rx="2" fill="#F095C8"/>
+</svg>

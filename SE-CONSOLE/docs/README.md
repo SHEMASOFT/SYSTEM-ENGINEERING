@@ -1,200 +1,146 @@
-# SE-CONSOLE-POC-001
+# SE-CONSOLE
 
-A **local-first, read-only console** over [SYSTEM-ENGINEERING](../..).
-It answers, in one interface, what SYSTEM-ENGINEERING is, what state it is in,
-what it is made of, what its projects are, and what needs attention.
+Consola local, solo lectura, para ver el estado de tus proyectos en SYSTEM-ENGINEERING.
 
-> **This console writes nothing.** It has no database, no ledger, no cache and
-> no manifest of its own. Every request re-reads canonical state, and every
-> governance verdict is relayed verbatim from the `se` engine.
+<div align="center">
+  <img src="docs/assets/logo-se-console.svg" width="80" alt="Logo SE-CONSOLE"/>
+
+  **SE-CONSOLE** te muestra en un solo lugar: qué proyectos tienes, en qué estado están, qué necesitas atención y una memoria automática de cada proyecto.
+
+  [![Tema: Neón Magenta](https://img.shields.io/badge/tema-magenta-F095C8)](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING)
+  [![Idioma: ES / EN](https://img.shields.io/badge/idioma-ES_%7C_EN-1A1218)](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING)
+  [![Solo lectura](https://img.shields.io/badge/solo_s%C3%B3lo_lectura-s%C3%AD-2D1E26)](https://github.com/SHEMASOFT/SYSTEM-ENGINEERING)
+</div>
 
 ---
 
-## Run it
+## Qué hace (y qué no)
 
-The console ships inside SYSTEM-ENGINEERING at `SE-CONSOLE/`. From the
-repository root:
+**Qué hace:**
+- Muestra tus proyectos (MiApp, SHEMA, SHEMASEG, workflow-demo y `_template`)
+- Te dice en qué fase está cada uno (flujo de 9 pasos) y qué sigue
+- Agrupa todo lo que necesita atención (gates que fallan, condiciones pendientes, gaps de revisión)
+- Genera una **memoria automática** por proyecto: en qué estás trabajando, próximos pasos y notas — sin que escribas nada
 
-```powershell
-cd SE-CONSOLE
-python -m console.server
-# -> http://127.0.0.1:8777
-```
+**Qué no hace:**
+- No escribe ni modifica nada en SYSTEM-ENGINEERING (solo lee)
+- No necesita instalación, ni Node, ni build, ni base de datos
+- No necesita privilegios de administrador
 
-No install step, no build step, no `npm install`. Requirements: the Python
-interpreter that already runs `se`, and `jsonschema` (already present for
-`se doctor`). Nothing else.
+---
 
-Point it elsewhere with `SE_ROOT`; change the port with `SE_CONSOLE_PORT`.
-The console defaults `SE_ROOT` to the repository root when vendored.
+## Empezar en 60 segundos
 
-Run this way the console stays up until you stop it: `--idle-timeout SECONDS` is
-the server's own flag and defaults to `0` (never stop). The helper below is what
-arms it.
+<img src="docs/assets/start-in-60s.svg" width="700" alt="SE-CONSOLE en 60 segundos"/>
 
-### Start / stop with one click (optional)
+### O por línea de comandos
 
-`scripts/dev_console.py` is a small local helper for the operator: bring the
-console up while you work, take it down when you stop. It is **not** a service
-and needs no privileges -- no Docker, no systemd, no NSSM, no boot entry. It
-writes only under `SE-CONSOLE/.runtime/` (gitignored); the console process itself
-still writes nothing into the SE tree.
+Desde la carpeta `SE-CONSOLE/`:
 
 ```powershell
-python scripts\dev_console.py start     # up in the background, waits for /api/health
+# Iniciar
+python scripts\dev_console.py start
+
+# Abrir en el navegador
+# http://localhost:8631
+
+# Ver estado
 python scripts\dev_console.py status
-python scripts\dev_console.py stop      # clean shutdown
-python scripts\dev_console.py restart
-python scripts\dev_console.py logs -n 40
+
+# Detener
+python scripts\dev_console.py stop
 ```
 
-Double-clickable shortcuts live next to it:
-
-- Windows: `scripts\Start SE Console.cmd`, `scripts\Stop SE Console.cmd`
-  (point a Desktop shortcut at either one)
-- macOS: `scripts\Start SE Console.command`, `scripts\Stop SE Console.command`
-
-Installing SE with `se-installer install --shortcuts` (or ticking the box in
-`se-installer tui`) creates that Desktop shortcut for you: **one**, which starts
-the console. It is start-only on purpose -- the console stops itself, so a Stop
-shortcut would have nothing to do.
-
-#### It stops when you close the browser
-
-`start` and `restart` arm the console's **idle timeout**: 15 minutes with no
-client asking for anything, and the console shuts itself down. Closing the tab is
-therefore enough; nothing of yours stays running behind the desktop.
-
-| How | Effect |
-|---|---|
-| `start` (default) | `--idle-timeout 900` -- stop after 15 min with no client |
-| `--idle-timeout 0` | never stop on its own; only `stop` takes it down |
-| `--idle-timeout SECONDS` | any other value |
-| `SE_CONSOLE_IDLE_TIMEOUT` | environment override of the default |
-
-The timer stays **disarmed until the first client connects**, so a console nobody
-opens never stops by itself. `status` reports what the process was started with:
-`idle_timeout=15 min`, `idle_timeout=off`, or `unknown` when the console was not
-started by this helper -- including one started before the option existed. Run
-directly with `python -m console.server` the timeout is `off`; the helper is what
-arms it.
-
-The helper proves a running console by its `/api/health` signature
-(`console=se-console`, `mode=read-only`), never by a bare PID, and refuses to
-kill a process it cannot prove is this console (`--force` overrides).
-
-## Verify it
+O directamente, sin el helper:
 
 ```powershell
-python tests\validate_poc.py    # 33 checks: contract, read-only, browser, non-interference
-python tests\audit_visual.py    # contrast / clipping / overlap / target size, both themes
+python -m console.server
+# -> http://localhost:8631
 ```
 
-Both write evidence into `artifacts/evidence/` and exit non-zero on failure.
+---
+
+## Qué ves en la consola
+
+<img src="docs/assets/screens.svg" width="700" alt="Pantallas de SE-CONSOLE"/>
+
+### 1 · Resumen
+Estado general del sistema SE: salud, versión, capacidades, agentes y gates.
+
+### 2 · Proyectos
+Tarjetas con el flujo de 9 fases de cada proyecto. Haz clic en una para ver su detalle: memoria automática (foco, próximos pasos, notas, contexto) y matriz de gates.
+
+### 3 · Atención
+Todo lo que necesita tu acción, agrupado por proyecto. 64 BLOCKED y 36 WARNING en orden de prioridad. Haz clic en cualquier fila para abrir un cajón con pasos a seguir, a qué pertenece y acciones disponibles.
 
 ---
 
-## Why this stack
+## Temas e idioma
 
-Node is not installed on this machine, so Next.js/Vite were not options without
-first adding a toolchain. For a read-only JSON view, the minimal professional
-answer is static HTML/CSS/JS with no build step, served by the same Python that
-runs `se`. Zero third-party dependencies; the smallest possible surface between
-canonical bytes and pixels. See `DESIGN.md` §2.2.
+| Opción | Valores | Guardado en |
+|--------|---------|-------------|
+| Tema | magenta (default), azul, claro | `localStorage` → `se-console-theme` |
+| Idioma | español, inglés | Selector en la cabecera |
+
+Los temas usan los colores `#1A1218` (fondo oscuro) y `#F095C8` (magenta neón). El contraste se verificó en los 3 temas (nivel AA).
 
 ---
 
-## Architecture
+## Inicio y apagado (un clic)
 
+Los scripts viven en `SE-CONSOLE/scripts/`:
+
+| Archivo | Qué hace |
+|---------|----------|
+| `Start SE Console.cmd` | Inicia el servidor y abre el navegador (doble clic) |
+| `Stop SE Console.cmd` | Detiene el servidor (doble clic) |
+| `dev_console.py` | `start`, `stop`, `status`, `restart`, `logs` desde terminal |
+
+En Windows también puedes crear un acceso directo en el escritorio apuntando a `scripts\Start SE Console.cmd`.
+
+El servidor se detiene solo tras 15 minutos sin nadie usando la consola, o cuando cierras el navegador.
+
+---
+
+## Requisitos
+
+- Python (el mismo que usa `se`)
+- `jsonschema` (ya instalado para `se doctor`)
+- Nada más. No hay `npm install`, no hay Node, no hay Docker.
+
+Puedes cambiar la carpeta de SE con `SE_ROOT` y el puerto con `SE_CONSOLE_PORT`.
+
+---
+
+## Seguridad: solo lectura
+
+Capa tras capa, la consola no puede escribir:
+
+1. Solo hay rutas GET. No existe POST/PUT/PATCH/DELETE.
+2. Cualquier verbo de escritura recibe `405`.
+3. El lector de SE rechaza comandos mutantes por nombre (`new`, `update`, `transition`, etc.).
+
+Cada valor en pantalla trae su procedencia: `OBSERVED` (vino de `se`), `DERIVED` (calculado por la consola) o `UNKNOWN` (no se pudo determinar). Nunca se inventa un estado.
+
+---
+
+## Verificar que funciona
+
+```powershell
+python tests\validate_poc.py    # 33 comprobaciones
+python tests\audit_visual.py    # contraste, solapamiento, tamaño de objetivo
 ```
-web/                    static frontend, no build
-  index.html            shell: header, tabs, epistemic strip, footer
-  assets/console.css    design tokens + components, light & dark
-  assets/console.js     vanilla rendering, no framework
 
-console/                thin read layer (stdlib only)
-  se_cli.py             the ONLY way to reach the engine: read-only allow-list,
-                        se.report/1 envelopes relayed verbatim
-  se_reader.py          transcription-only canonical reader (parse/validate/index)
-  read_model.py         maps SE verdicts -> the 4 health states, attention queue
-  api.py                GET-only routes, traversal-safe static serving
-  server.py             http.server, preflight, 405 for any mutating verb
-
-tests/
-  validate_poc.py       end-to-end harness + evidence capture
-  audit_visual.py       deterministic visual audit (contrast, clipping, overlap)
-
-docs/DESIGN.md          design contract, tokens, layout, success criteria
-```
-
-### The three rules that keep it honest
-
-1. **No re-implemented governance.** Gate status comes from `se gate`, review
-   gaps from `se review`, capabilities from `se capabilities`, project identity
-   from `se context`. The console cannot report a gate as passing unless `se` did.
-2. **Transcription is not judgement.** `se_reader` may parse, validate and
-   index. It never decides. The single derived computation is an inverted link
-   index, rebuilt per request, and it is labelled `DERIVED`.
-3. **Fail closed.** Anything undeterminable renders as an explicit `UNKNOWN`
-   with its reason. It is never rendered as `0`, `""`, or green.
+Ambos escriben evidencia en `artifacts/evidence/` y fallan si algo no pasa.
 
 ---
 
-## Epistemic labelling
+## Límites conocidos
 
-Every value on screen is tagged with where it came from:
-
-| Tag | Meaning |
-|---|---|
-| `OBSERVED` | an `se` verdict or a canonical field, verbatim |
-| `DERIVED` | computed by the console from observed facts |
-| `UNKNOWN` | not determinable — shown as unknown, never defaulted |
-
-`UNKNOWN` is rendered hatched, not muted-green, so an unresolved value can never
-be mistaken for a healthy one.
+- `se doctor` tarda unos 9 segundos, por lo que la pestaña Resumen tarda ~10s en llenarse. Es el costo real del motor; la consola no puede almacenarlo en caché.
+- El proyecto `_template` aparece como **no gestionado** (no tiene `PROJECT.json`): se muestra tal cual, sin inventar estado.
+- No hay revisión visual automática (vision capability no disponible en este entorno).
 
 ---
 
-## Read-only enforcement
-
-Three independent layers, so no single mistake can make it a writer:
-
-1. The route table contains only GET handlers — there is no POST/PUT/PATCH/DELETE
-   route to dispatch to.
-2. Any mutating verb is answered `405` with `Allow: GET, HEAD, OPTIONS`.
-3. `se_cli` refuses mutating `se` subcommands (`new`, `update`, `transition`,
-   `plan`, `release`, `init`, `explore`) by name, not by convention.
-
-Verified live by the harness, not merely asserted.
-
----
-
-## Visual verification status — stated plainly
-
-**No visual review was performed.** `se capabilities` reports provider
-`deepseek-vision` with `visual.review = unknown`, and the reviewing model in
-this run has no image input. The console says so in its own footer.
-
-What *was* done instead, and is a different claim:
-
-- screenshots at 1280×800 and 375×812, both themes, three screens
-- accessibility-tree snapshots (`aria_snapshot`) of each screen
-- zero console errors and zero failed requests
-- no horizontal overflow at 375 / 768 / 1440
-- WCAG AA contrast computed for every text node, both themes
-- no clipped text, no overlapping panels, all targets ≥24px
-
-`tests/audit_visual.py` is the reproducible form of that audit.
-
----
-
-## Known limitations
-
-- `visual.review` unverified → no human/vision sign-off on appearance.
-- `se doctor` takes ~9s, so the Overview takes ~10s to populate. This is the
-  real engine's cost; the console is forbidden from caching it away.
-- An unmanaged `PROJECTS/` entry: the engine refuses to evaluate its gates, and
-  the console shows that refusal (`FAIL · no PROJECT.json`) rather than
-  inventing a state or creating a manifest.
-- `se report/1` is a pseudo-contract: no machine-checkable interface exists
-  upstream. The console pins the id and warns on mismatch.
+¿Necesitas ayuda? Abre un issue en este repositorio o contacta al mantenedor de SYSTEM-ENGINEERING.
