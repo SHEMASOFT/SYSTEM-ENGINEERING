@@ -1,249 +1,335 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SE Installer Web</title>
-    <style>
+        <style>
         /* =====================================================================
-           SE Installer Web â€” Design tokens aligned with SE-CONSOLE (DESIGN.md)
+           SE Installer Web — Design tokens aligned with SE-CONSOLE (DESIGN.md)
            ===================================================================== */
         :root {
-            /* Light theme (default) */
-            --color-bg: #fafbfc;
-            --color-card: #ffffff;
-            --color-border: #d0d7de;
-            --color-text: #24292f;
-            --color-muted: #57606a;
-            --color-accent: #0969da;
-            --color-accent-hover: #1186ff;
+            /* Type scale */
+            --fs-12: 0.75rem;  --fs-13: 0.8125rem; --fs-14: 0.875rem;
+            --fs-16: 1rem;    --fs-20: 1.25rem;  --fs-h1: 26px;
+            --fs-h2: 18px;   --fs-h3: 15px;   --fs-sub: 13px;
 
-            /* Health semantics â€” light */
-            --health-healthy: #0f7b3f;
-            --health-warning: #9a5b00;
-            --health-blocked: #b42318;
-            --health-unknown: #5b6472;
+            /* Space */
+            --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+            --sp-5: 24px; --sp-6: 32px;
+
+            /* Shape & elevation */
+            --r-ctl: 6px;  --r-panel: 10px;
+            --elev-1: 0 1px 2px var(--shadow), 0 0 0 1px var(--line);
+            --focus: 2px solid var(--accent);
 
             /* Typography */
-            --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+            --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
             --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 
-            /* Space & shape */
-            --space-1: 4px;
-            --space-2: 8px;
-            --space-3: 12px;
-            --space-4: 16px;
-            --space-5: 24px;
-            --space-6: 32px;
-            --radius-control: 6px;
-            --radius-panel: 10px;
+            /* Light theme (default) */
+            --bg: #fafbfc;
+            --panel: #ffffff;
+            --panel-2: #f3f4f6;
+            --panel-3: #e5e7eb;
+            --border: #d1d5db;
+            --border-soft: #e5e7eb;
+            --accent: #0969da;
+            --accent-soft: #3b82f6;
+            --violet: #7c3aed;
+            --green: #15803d;
+            --yellow: #ca8a04;
+            --red: #dc2626;
+            --text: #111827;
+            --muted: #6b7280;
+            --muted-2: #9ca3af;
+            --on-accent: #ffffff;
+            --shadow: rgba(0,0,0,.08);
+
+            /* Derived surfaces */
+            --accent-bg: color-mix(in srgb, var(--accent) 8%, var(--bg));
+            --overlay: color-mix(in srgb, var(--bg) 60%, transparent);
+            --focus-glow: 0 0 8px color-mix(in srgb, var(--accent) 35%, transparent);
+            --glow: 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+            --glow-soft: 0 0 18px color-mix(in srgb, var(--accent) 25%, transparent);
+
+            /* Health semantics — light */
+            --H-HEALTHY: var(--green);   --H-HEALTHY-bg: color-mix(in srgb, var(--green) 12%, var(--bg));
+            --H-WARNING: var(--yellow);  --H-WARNING-bg: color-mix(in srgb, var(--yellow) 10%, var(--bg));
+            --H-BLOCKED: var(--red);     --H-BLOCKED-bg: color-mix(in srgb, var(--red) 5%, var(--bg));
+            --H-UNKNOWN: var(--muted);   --H-UNKNOWN-bg: color-mix(in srgb, var(--muted-2) 18%, var(--bg));
+
+            /* Aliases */
+            --bg-panel: var(--panel);
+            --bg-sunken: var(--panel-2);
+            --bg-raised: var(--panel-3);
+            --ink: var(--text);
+            --ink-1: var(--text);
+            --ink-2: var(--muted);
+            --ink-3: var(--muted);
+            --line: var(--border);
+            --line-1: var(--border);
+            --line-2: var(--border-soft);
+            --accent-ink: var(--on-accent);
         }
 
         [data-theme="dark"] {
-            /* Dark theme */
-            --color-bg: #0d1117;
-            --color-card: #161b22;
-            --color-border: #30363d;
-            --color-text: #e6edf3;
-            --color-muted: #8b949e;
-            --color-accent: #1f6feb;
-            --color-accent-hover: #388bfd;
+            --bg: #060608;
+            --panel: #0E0E11;
+            --panel-2: #151519;
+            --panel-3: #1C1C21;
+            --border: #3D0A24;
+            --border-soft: #2A0719;
+            --accent: #FF1B8D;
+            --accent-soft: #FF6FB8;
+            --violet: #9D4DFF;
+            --green: #2BE89A;
+            --yellow: #FFD24D;
+            --red: #FF4059;
+            --text: #FFFFFF;
+            --muted: #A8A2AE;
+            --muted-2: #6B6672;
+            --on-accent: #1A000C;
+            --shadow: rgba(0,0,0,.5);
 
-            /* Health semantics â€” dark */
-            --health-healthy: #4ade80;
-            --health-warning: #fbbf24;
-            --health-blocked: #f87171;
-            --health-unknown: #94a3b8;
+            --glow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+            --glow-soft: 0 0 18px color-mix(in srgb, var(--accent) 30%, transparent);
+            --accent-bg: color-mix(in srgb, var(--accent) 4%, var(--bg));
+            --H-UNKNOWN-bg: color-mix(in srgb, var(--muted-2) 18%, var(--bg));
+
+            color-scheme: dark;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        html {
-            /* Respect system preference, fall back to light */
-            color-scheme: light dark;
-        }
+        html { color-scheme: light dark; }
 
         body {
             font-family: var(--font-sans);
-            background: var(--color-bg);
-            color: var(--color-text);
+            background: var(--bg);
+            color: var(--ink);
             line-height: 1.5;
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
             transition: background 0.2s, color 0.2s;
         }
 
-        .container { max-width: 1200px; margin: 0 auto; padding: var(--space-4); }
+        h1, h2, h3, h4 { margin: 0; line-height: 1.2; font-weight: 650; }
+        p { margin: 0; }
+        .mono { font-family: var(--font-mono); font-size: var(--fs-13); }
 
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: var(--space-5);
-            padding-bottom: var(--space-4);
-            border-bottom: 1px solid var(--color-border);
+        .container { max-width: 1360px; margin: 0 auto; padding: var(--sp-5); }
+
+        /* ---------- Header ---------- */
+        header.app-header {
+            background: var(--bg-panel);
+            border-bottom: 1px solid transparent;
+            border-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 40%, transparent), transparent) 1;
+            position: sticky; top: 0; z-index: 20;
+        }
+        .header-row {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: var(--sp-4); padding: var(--sp-3) var(--sp-5);
+            flex-wrap: wrap;
+        }
+        .brand { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+        .brand-mark {
+            width: 36px; height: 36px; flex: none; border-radius: var(--r-ctl);
+            background: var(--accent); color: var(--accent-ink);
+            border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+            box-shadow: var(--glow);
+            display: grid; place-items: center;
+            font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-14);
+        }
+        .brand-text { min-width: 0; }
+        .brand-text h1 {
+            font-size: var(--fs-h1); font-weight: 700; letter-spacing: .02em;
+            line-height: 1.2;
+            text-shadow: 0 0 14px color-mix(in srgb, var(--accent) 40%, transparent);
+        }
+        .brand-sub { color: var(--ink-3); font-size: var(--fs-sub); }
+        .brand-sub .dot { margin: 0 var(--sp-1); }
+
+        .header-actions {
+            display: flex; align-items: center; gap: var(--sp-2);
+            flex-wrap: wrap; min-width: 0;
         }
 
-        .header-left { display: flex; align-items: center; gap: var(--space-3); }
-
-        h1 {
-            font-size: 1.5rem;
-            font-weight: 600;
+        /* ---------- Buttons ---------- */
+        .btn {
+            font: inherit; font-size: var(--fs-13);
+            background: transparent; color: var(--text);
+            border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+            border-radius: var(--r-panel);
+            padding: 8px 14px; cursor: pointer;
+            display: inline-flex; align-items: center; gap: var(--sp-2);
+            transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
             font-family: var(--font-sans);
-            letter-spacing: -0.01em;
         }
-
-        .version-chip {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            padding: 2px 8px;
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-control);
-            color: var(--color-muted);
-            background: transparent;
+        .btn:hover {
+            border-color: var(--accent);
+            background: color-mix(in srgb, var(--accent) 8%, transparent);
         }
+        .btn:focus-visible { box-shadow: var(--focus-glow); }
+        .btn-icon { padding: var(--sp-2); }
+        .btn-ico { display: inline-block; font-size: 15px; line-height: 1; }
 
-        /* ---- Theme toggle ---- */
+        .btn-primary {
+            background: var(--accent); color: var(--on-accent);
+            border-color: transparent;
+            box-shadow: var(--glow-soft);
+        }
+        .btn-primary:hover {
+            background: var(--accent); border-color: transparent;
+            box-shadow: var(--glow); transform: translateY(-1px);
+        }
+        .btn-primary:active { box-shadow: var(--glow-soft); transform: translateY(0); }
+        .btn-secondary {
+            background: transparent; color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: var(--accent); }
+        .btn-danger {
+            background: var(--red); color: #fff;
+        }
+        .btn-danger:hover { background: #ff4d5a; }
+        .btn-success {
+            background: var(--green); color: #000;
+        }
+        .btn-success:hover { background: #4ade80; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ---------- Theme toggle ---------- */
         .theme-toggle {
-            display: inline-flex;
-            align-items: center;
-            gap: var(--space-2);
-            padding: var(--space-2) var(--space-3);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-control);
+            display: inline-flex; align-items: center; gap: var(--sp-2);
+            padding: var(--sp-2) var(--sp-3);
+            border: 1px solid var(--border);
+            border-radius: var(--r-ctl);
             background: transparent;
-            color: var(--color-text);
+            color: var(--text);
             font-size: 0.85rem;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
             font-family: var(--font-sans);
         }
-        .theme-toggle:hover { border-color: var(--color-accent); }
+        .theme-toggle:hover { border-color: var(--accent); }
         .theme-toggle .icon { font-size: 1rem; }
 
-        /* ---- Health badges (semantic) ---- */
-        .health-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: var(--space-1);
-            padding: 2px 8px;
-            border-radius: var(--radius-control);
-            font-size: 0.75rem;
-            font-weight: 600;
+        /* ---------- Health chips ---------- */
+        .health-chip, .status-chip, .tag {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-family: var(--font-mono); font-size: var(--fs-12); font-weight: 600;
+            border-radius: 999px; padding: 3px 10px;
+            border: 1px solid transparent; white-space: nowrap;
+        }
+        .chip-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+
+        .health-HEALTHY, .status-PASS    { color: var(--H-HEALTHY); background: var(--H-HEALTHY-bg); border-color: color-mix(in srgb, var(--H-HEALTHY) 30%, transparent); }
+        .health-WARNING, .status-WARN,
+        .status-WARNING, .status-MANUAL,
+        .status-SKIP, .status-INFO      { color: var(--H-WARNING); background: var(--H-WARNING-bg); border-color: color-mix(in srgb, var(--H-WARNING) 30%, transparent); }
+        .health-BLOCKED, .status-FAIL,
+        .status-ERROR, .status-CRITICAL { color: var(--H-BLOCKED); background: var(--H-BLOCKED-bg); border-color: color-mix(in srgb, var(--H-BLOCKED) 30%, transparent); }
+        .health-UNKNOWN, .status-UNKNOWN,
+        .status-MANAGED                { color: var(--H-UNKNOWN); background: var(--H-UNKNOWN-bg); border-color: color-mix(in srgb, var(--H-UNKNOWN) 30%, transparent); }
+
+        .health-UNKNOWN, .tag-UNKNOWN, .status-UNKNOWN {
+            background-image: repeating-linear-gradient(
+                135deg, transparent, transparent 4px,
+                color-mix(in srgb, currentColor 12%, transparent) 4px,
+                color-mix(in srgb, currentColor 12%, transparent) 8px
+            );
+        }
+
+        .tag { border-radius: var(--r-ctl); padding: 2px 7px; font-weight: 600; }
+        .tag-OBSERVED { color: var(--accent); background: var(--accent-bg); border-color: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: var(--glow-soft); }
+        .tag-DERIVED  { color: var(--ink-2); background: var(--bg-sunken); border-color: var(--line);
+                        text-decoration: underline dotted color-mix(in srgb, var(--ink-3) 60%, transparent); text-underline-offset: 3px; }
+        .tag-UNKNOWN  { color: var(--H-UNKNOWN); border-color: color-mix(in srgb, var(--H-UNKNOWN) 35%, transparent); }
+
+        /* ---------- Epistemic strip ---------- */
+        .epistemic-strip {
+            padding: var(--sp-2) var(--sp-5) var(--sp-3);
+            color: var(--ink-3); font-size: var(--fs-sub);
+            border-top: 1px solid var(--line-2);
             font-family: var(--font-sans);
-            border: 1px solid transparent;
         }
-        .health-badge.healthy   { background: var(--health-healthy); color: #000; }
-        .health-badge.warning   { background: var(--health-warning); color: #000; }
-        .health-badge.blocked   { background: var(--health-blocked); color: #fff; }
-        .health-badge.unknown   { background: var(--health-unknown); color: #fff; }
 
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-        .status-badge.connected { background: var(--health-healthy); color: #000; }
-        .status-badge.disconnected { background: var(--health-blocked); color: #fff; }
-        .status-badge.installing { background: var(--health-warning); color: #000; }
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-
-        /* ---- Tabs ---- */
+        /* ---------- Tabs ---------- */
         .tabs {
-            display: flex;
-            gap: 4px;
-            margin-bottom: var(--space-4);
-            background: var(--color-card);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-panel);
-            padding: 4px;
+            display: flex; gap: var(--sp-1); padding: 0 var(--sp-5);
+            border-top: 1px solid var(--line-2);
         }
         .tab {
-            flex: 1;
-            padding: 10px 20px;
-            border: none;
-            background: transparent;
-            color: var(--color-muted);
-            font-size: 0.9rem;
-            font-weight: 500;
+            font: inherit; font-size: var(--fs-13); font-weight: 550;
+            background: none; border: 0; border-bottom: 2px solid transparent;
+            color: var(--ink-3); padding: var(--sp-3) var(--sp-4); cursor: pointer;
             font-family: var(--font-sans);
-            cursor: pointer;
-            border-radius: var(--radius-control);
-            transition: all 0.2s;
         }
-        .tab:hover { background: rgba(9, 105, 218, 0.08); color: var(--color-text); }
+        .tab:hover { color: var(--ink); }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab.active:hover { color: var(--accent-soft); }
         .tab.active {
-            background: var(--color-accent);
-            color: #fff;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent);
+            box-shadow: 0 8px 14px -8px var(--accent);
         }
 
-        .panel { display: none; }
-        .panel.active { display: block; animation: fadeIn 0.2s; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* ---- Grid & cards ---- */
-        .grid { display: grid; grid-template-columns: 1fr 400px; gap: var(--space-5); }
-        @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
-
-        .card {
-            background: var(--color-card);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-panel);
-            padding: var(--space-5);
-            margin-bottom: var(--space-4);
-            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-            transition: border-color 0.2s;
+        /* ---------- Grid & panels ---------- */
+        .grid { display: grid; gap: var(--sp-4); grid-template-columns: repeat(12, minmax(0, 1fr)); }
+        @media (max-width: 1099px) {
+            .grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
         }
-        .card:hover { border-color: var(--color-accent); }
-
-        .card h3 {
-            margin-bottom: var(--space-3);
-            font-size: 1.1rem;
-            font-weight: 600;
-            font-family: var(--font-sans);
-            display: flex;
-            align-items: center;
-            gap: var(--space-2);
-        }
-        .card h3::before {
-            content: "";
-            width: 4px;
-            height: 20px;
-            background: var(--color-accent);
-            border-radius: 2px;
+        @media (max-width: 759px) {
+            .grid { grid-template-columns: minmax(0, 1fr); }
         }
 
-        .p {
-            color: var(--color-muted);
-            font-size: 0.9rem;
-            margin-bottom: var(--space-4);
-            font-family: var(--font-sans);
-        }
+        .col-4  { grid-column: span 4;  min-width: 0; }
+        .col-6  { grid-column: span 6;  min-width: 0; }
+        .col-8  { grid-column: span 8;  min-width: 0; }
+        .col-12 { grid-column: span 12; min-width: 0; }
 
-        /* ---- Components list ---- */
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--line);
+            border-radius: var(--r-panel);
+            box-shadow: 0 1px 2px var(--shadow);
+            overflow: hidden;
+            min-width: 0;
+        }
+        .panel:hover { box-shadow: 0 1px 2px var(--shadow), var(--glow-soft); }
+        .panel-head {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);
+            border-bottom: 1px solid var(--line-2);
+            background: var(--bg-sunken);
+            flex-wrap: wrap;
+        }
+        .panel-title { font-size: var(--fs-h3); font-weight: 650; margin-bottom: 2px; }
+        .panel-sub { font-size: var(--fs-12); color: var(--ink-3); font-weight: 400; }
+        .panel-body { padding: var(--sp-4); }
+        .panel-body.tight { padding: var(--sp-3) var(--sp-4); }
+
+        /* ---------- Components list ---------- */
         .component-list { max-height: 500px; overflow-y: auto; }
         .component-item {
             display: flex;
             align-items: flex-start;
-            gap: var(--space-3);
-            padding: var(--space-3);
-            background: var(--color-bg);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-control);
-            margin-bottom: var(--space-2);
+            gap: var(--sp-3);
+            padding: var(--sp-3);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-ctl);
+            margin-bottom: var(--sp-2);
             transition: all 0.2s;
         }
-        .component-item:hover { border-color: var(--color-accent); background: var(--color-card); }
-        .component-item.selected { border-color: var(--color-accent); background: rgba(9, 105, 218, 0.08); }
+        .component-item:hover { border-color: var(--accent); background: var(--bg-panel); }
+        .component-item.selected { border-color: var(--accent); background: var(--accent-bg); }
         .comp-checkbox {
             width: 18px;
             height: 18px;
-            accent-color: var(--color-accent);
+            accent-color: var(--accent);
             flex-shrink: 0;
             margin-top: 3px;
         }
@@ -255,289 +341,347 @@
         }
         .comp-meta {
             display: flex;
-            gap: var(--space-2);
-            font-size: 0.8rem;
-            color: var(--color-muted);
+            gap: var(--sp-2);
+            font-size: var(--fs-12);
+            color: var(--ink-3);
             flex-wrap: wrap;
-            margin-bottom: var(--space-2);
+            margin-bottom: var(--sp-2);
         }
         .comp-tag {
-            background: rgba(9, 105, 218, 0.1);
+            background: color-mix(in srgb, var(--accent) 10%, var(--bg));
             padding: 1px 7px;
-            border-radius: var(--radius-control);
+            border-radius: var(--r-ctl);
             font-size: 0.7rem;
             font-family: var(--font-mono);
-            border: 1px solid rgba(9, 105, 218, 0.2);
+            border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
         }
         .comp-tag.recommended {
-            background: rgba(9, 105, 218, 0.2);
-            color: var(--color-accent);
-            border-color: var(--color-accent);
+            background: color-mix(in srgb, var(--accent) 15%, var(--bg));
+            color: var(--accent);
+            border-color: var(--accent);
         }
         .comp-tag.installed {
-            background: var(--health-healthy);
-            color: #000;
-            border-color: var(--health-healthy);
+            background: var(--H-HEALTHY-bg);
+            color: var(--H-HEALTHY);
+            border-color: color-mix(in srgb, var(--H-HEALTHY) 30%, var(--bg));
         }
         .comp-desc {
-            margin-top: var(--space-2);
-            color: var(--color-muted);
+            margin-top: var(--sp-2);
+            color: var(--ink-3);
             font-size: 0.85rem;
             font-family: var(--font-sans);
         }
 
-        /* ---- Actions & buttons ---- */
+        /* ---------- Actions & forms ---------- */
         .actions {
             display: flex;
-            gap: var(--space-2);
+            gap: var(--sp-2);
             flex-wrap: wrap;
-            margin-top: var(--space-4);
-            padding-top: var(--space-4);
-            border-top: 1px solid var(--color-border);
+            margin-top: var(--sp-4);
+            padding-top: var(--sp-4);
+            border-top: 1px solid var(--line);
         }
-        .btn {
-            padding: 9px 18px;
-            border: 1px solid transparent;
-            border-radius: var(--radius-control);
-            font-size: 0.9rem;
-            font-weight: 500;
-            font-family: var(--font-sans);
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-        }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-primary {
-            background: var(--color-accent);
-            color: #fff;
-        }
-        .btn-primary:hover:not(:disabled) { background: var(--color-accent-hover); }
-        .btn-secondary {
-            background: transparent;
-            color: var(--color-text);
-            border-color: var(--color-border);
-        }
-        .btn-secondary:hover:not(:disabled) { background: rgba(9, 105, 218, 0.08); border-color: var(--color-accent); }
-        .btn-danger {
-            background: var(--health-blocked);
-            color: #fff;
-        }
-        .btn-danger:hover:not(:disabled) { background: #f87171; }
-        .btn-success {
-            background: var(--health-healthy);
-            color: #000;
-        }
-        .btn-success:hover:not(:disabled) { background: #3fb950; }
 
-        /* ---- Log ---- */
+        .form-group { margin-bottom: var(--sp-4); }
+        .form-label {
+            display: block;
+            margin-bottom: var(--sp-1);
+            font-weight: 600;
+            font-size: var(--fs-13);
+            font-family: var(--font-sans);
+            color: var(--ink);
+        }
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-2);
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: var(--sp-2);
+            cursor: pointer;
+            padding: var(--sp-2) var(--sp-3);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-ctl);
+            transition: all 0.2s;
+        }
+        .checkbox-label:hover { background: var(--bg-panel); border-color: var(--accent); }
+        .checkbox-label input {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+        }
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-2);
+        }
+        .radio-label {
+            display: flex;
+            align-items: center;
+            gap: var(--sp-2);
+            cursor: pointer;
+            padding: var(--sp-2) var(--sp-3);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-ctl);
+            transition: all 0.2s;
+        }
+        .radio-label:hover { background: var(--bg-panel); border-color: var(--accent); }
+        .radio-label input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+        /* ---------- Progress ---------- */
+        .progress-bar {
+            height: 8px;
+            background: color-mix(in srgb, var(--accent) 15%, var(--bg));
+            border-radius: 4px;
+            overflow: hidden;
+            margin: var(--sp-3) 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        /* ---------- Summary stats ---------- */
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: var(--sp-3);
+            margin-bottom: var(--sp-4);
+        }
+        .stat {
+            background: var(--bg-panel);
+            border: 1px solid var(--line);
+            border-radius: var(--r-ctl);
+            padding: var(--sp-3);
+            text-align: center;
+            box-shadow: 0 1px 2px var(--shadow);
+        }
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--accent);
+        }
+        .stat-label {
+            font-size: var(--fs-12);
+            color: var(--ink-3);
+            margin-top: var(--sp-1);
+            font-family: var(--font-sans);
+        }
+        .stat.installed .stat-value { color: var(--H-HEALTHY); }
+        .stat.pending .stat-value { color: var(--H-WARNING); }
+        .stat.failed .stat-value { color: var(--H-BLOCKED); }
+
+        /* ---------- Log ---------- */
         .log-container {
-            background: var(--color-bg);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-control);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-ctl);
             height: 300px;
             overflow-y: auto;
-            padding: var(--space-3);
+            padding: var(--sp-3);
             font-family: var(--font-mono);
             font-size: 0.78rem;
         }
         .log-line {
             margin-bottom: 3px;
             display: flex;
-            gap: var(--space-2);
+            gap: var(--sp-2);
         }
         .log-time {
-            color: var(--color-muted);
+            color: var(--ink-3);
             white-space: nowrap;
             font-family: var(--font-mono);
         }
-        .log-event { color: var(--color-text); }
-        .log-event.started { color: var(--health-warning); }
-        .log-event.completed { color: var(--health-healthy); }
-        .log-event.error { color: var(--health-blocked); }
-        .log-event.output { color: var(--color-muted); }
+        .log-event { color: var(--ink); }
+        .log-event.started { color: var(--H-WARNING); }
+        .log-event.completed { color: var(--H-HEALTHY); }
+        .log-event.error { color: var(--H-BLOCKED); }
+        .log-event.output { color: var(--ink-3); }
 
-        /* ---- Forms ---- */
-        .form-group { margin-bottom: var(--space-4); }
-        .form-label {
-            display: block;
-            margin-bottom: var(--space-1);
-            font-weight: 600;
-            font-size: 0.9rem;
-            font-family: var(--font-sans);
-            color: var(--color-text);
-        }
-        .checkbox-group {
-            display: flex;
-            flex-direction: column;
-            gap: var(--space-2);
-        }
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: var(--space-2);
-            cursor: pointer;
-            padding: var(--space-2) var(--space-3);
-            background: var(--color-bg);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-control);
-            transition: all 0.2s;
-        }
-        .checkbox-label:hover { background: var(--color-card); border-color: var(--color-accent); }
-        .checkbox-label input {
-            width: 18px;
-            height: 18px;
-            accent-color: var(--color-accent);
-        }
-        .radio-group {
-            display: flex;
-            flex-direction: column;
-            gap: var(--space-2);
-        }
-        .radio-label {
-            display: flex;
-            align-items: center;
-            gap: var(--space-2);
-            cursor: pointer;
-            padding: var(--space-2) var(--space-3);
-            background: var(--color-bg);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-control);
-            transition: all 0.2s;
-        }
-        .radio-label:hover { background: var(--color-card); border-color: var(--color-accent); }
-        .radio-label input { width: 18px; height: 18px; accent-color: var(--color-accent); }
-
-        /* ---- Progress ---- */
-        .progress-bar {
-            height: 8px;
-            background: rgba(9, 105, 218, 0.15);
-            border-radius: 4px;
-            overflow: hidden;
-            margin: var(--space-3) 0;
-        }
-        .progress-fill {
-            height: 100%;
-            background: var(--color-accent);
-            border-radius: 4px;
-            transition: width 0.3s;
-            width: 0%;
-        }
-
-        /* ---- Empty states & status ---- */
+        /* ---------- Empty states ---------- */
         .empty-state {
             text-align: center;
-            padding: var(--space-5) var(--space-3);
-            color: var(--color-muted);
+            padding: var(--sp-5) var(--sp-3);
+            color: var(--ink-3);
         }
-        .empty-state svg { width: 48px; height: 48px; margin-bottom: var(--space-2); opacity: 0.5; }
+        .empty-state svg { width: 48px; height: 48px; margin-bottom: var(--sp-2); opacity: 0.5; }
 
-        .summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: var(--space-3);
-            margin-bottom: var(--space-4);
-        }
-        .stat {
-            background: var(--color-card);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-panel);
-            padding: var(--space-4);
-            text-align: center;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-        }
-        .stat-value {
-            font-size: 1.75rem;
-            font-weight: 700;
-            font-family: var(--font-mono);
-            color: var(--color-accent);
-        }
-        .stat-label {
-            font-size: 0.8rem;
-            color: var(--color-muted);
-            margin-top: var(--space-1);
-            font-family: var(--font-sans);
-        }
-        .stat.installed .stat-value { color: var(--health-healthy); }
-        .stat.pending .stat-value { color: var(--health-warning); }
-        .stat.failed .stat-value { color: var(--health-blocked); }
-
-        /* ---- Model tab specifics ---- */
+        /* ---------- Model tab specifics ---------- */
         .model-key {
             font-family: var(--font-mono);
             font-size: 0.85rem;
-            color: var(--color-muted);
+            color: var(--ink-3);
             display: inline-block;
             min-width: 110px;
         }
         .model-spec {
             font-family: var(--font-mono);
             font-size: 0.9rem;
-            color: var(--color-accent);
+            color: var(--accent);
         }
         .model-line {
             display: flex;
-            gap: var(--space-2);
+            gap: var(--sp-2);
             align-items: baseline;
-            padding: var(--space-1) 0;
+            padding: var(--sp-1) 0;
             font-family: var(--font-sans);
         }
         .model-subtitle {
-            font-size: 0.8rem;
+            font-size: var(--fs-12);
             font-weight: 600;
-            color: var(--color-muted);
+            color: var(--ink-3);
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            margin: var(--space-3) 0 var(--space-2);
+            margin: var(--sp-3) 0 var(--sp-2);
             font-family: var(--font-sans);
         }
         .model-status {
-            margin-top: var(--space-3);
+            margin-top: var(--sp-3);
             font-family: var(--font-sans);
         }
-        .model-status .ok { color: var(--health-healthy); font-weight: 600; }
-        .model-status .error { color: var(--health-blocked); font-weight: 600; }
+        .model-status .ok { color: var(--H-HEALTHY); font-weight: 600; }
+        .model-status .error { color: var(--H-BLOCKED); font-weight: 600; }
 
         .notice {
-            padding: var(--space-2);
-            border-radius: var(--radius-control);
-            background: rgba(9, 105, 218, 0.1);
-            border: 1px solid rgba(9, 105, 218, 0.2);
-            color: var(--color-accent);
+            padding: var(--sp-2);
+            border-radius: var(--r-ctl);
+            background: var(--accent-bg);
+            border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+            color: var(--accent);
             font-size: 0.85rem;
             font-family: var(--font-sans);
-            margin-bottom: var(--space-3);
+            margin-bottom: var(--sp-3);
         }
-        .muted { color: var(--color-muted); }
+        .muted { color: var(--ink-3); }
 
-        /* Monospace utility */
+        /* ---------- Footer ---------- */
+        footer.app-footer {
+            margin-top: auto;
+            padding: var(--sp-4) var(--sp-5);
+            border-top: 1px solid var(--line-2);
+            background: var(--bg-panel);
+        }
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: var(--sp-4);
+            margin-bottom: var(--sp-3);
+        }
+        .footer-item {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-1);
+        }
+        .footer-key {
+            font-size: var(--fs-12);
+            color: var(--ink-3);
+            font-family: var(--font-sans);
+        }
+        .footer-val {
+            font-family: var(--font-mono);
+            font-size: var(--fs-13);
+            color: var(--text);
+        }
+        .footer-note {
+            font-size: var(--fs-13);
+            color: var(--ink-3);
+            font-family: var(--font-sans);
+        }
+        .footer-legal {
+            font-size: 0.8rem;
+            color: var(--ink-3);
+            margin-top: var(--sp-3);
+            font-family: var(--font-sans);
+        }
+
+        /* ---------- Misc ---------- */
+        .p {
+            color: var(--ink-3);
+            font-size: 0.9rem;
+            margin-bottom: var(--sp-4);
+            font-family: var(--font-sans);
+        }
+        .muted { color: var(--ink-3); }
         .font-mono { font-family: var(--font-mono); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 12px; height: 12px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb {
+            background: var(--panel-3); border: 2px solid var(--bg); border-radius: 6px;
+        }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+        ::-webkit-scrollbar-corner { background: var(--bg); }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; animation: none !important; }
+        }
     </style>
 </head>
 <body>
-        <header>
-            <div class="header-left">
-                <h1>🔧 SE Installer Web</h1>
-                <span class="version-chip font-mono">SE v0.12.0</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px;">
-                <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema claro/oscuro">
-                    <span class="icon">🌙</span><span id="themeLabel">Oscuro</span>
-                </button>
-                <div class="status-badge disconnected" id="connectionStatus">
-                    <span class="status-dot"></span><span>Desconectado</span>
+                <header class="app-header" role="banner">
+            <div class="header-row">
+                <div class="brand">
+                    <span class="brand-mark" aria-hidden="true">SE</span>
+                    <div class="brand-text">
+                        <h1>SE Installer Web</h1>
+                        <p class="brand-sub">
+                            <span class="mono" id="hdr-system">SYSTEM-ENGINEERING</span>
+                            <span class="dot" aria-hidden="true">·</span>
+                            <span class="mono" id="hdr-version">v0.12.0</span>
+                        </p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <div id="hdr-health" class="health-chip health-UNKNOWN" role="status" aria-live="polite">
+                        <span class="chip-dot" aria-hidden="true"></span>
+                        <span class="chip-label">UNKNOWN</span>
+                    </div>
+                    <button type="button" id="btn-refresh" class="btn btn-primary" aria-label="Recargar datos del sistema">
+                        <span class="btn-ico" aria-hidden="true">⟳</span> Actualizar
+                    </button>
+                    <select id="sel-theme" class="sel-theme" aria-label="Tema" title="Tema">
+                        <option value="light">Claro</option>
+                        <option value="dark">Oscuro</option>
+                    </select>
+                    <div class="token-box">
+                        <button type="button" id="themeToggle" class="theme-toggle" aria-label="Cambiar tema claro/oscuro">
+                            <span class="icon">🌙</span><span id="themeLabel">Oscuro</span>
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            <nav class="tabs" role="navigation" aria-label="Secciones del instalador">
+                <button type="button" class="tab active" data-tab="install" aria-current="page">📦 Instalar</button>
+                <button type="button" class="tab" data-tab="uninstall">🗑️ Desinstalar</button>
+                <button type="button" class="tab" data-tab="adapter">⚙️ Adaptador</button>
+                <button type="button" class="tab" data-tab="model">🧠 Modelo</button>
+                <button type="button" class="tab" data-tab="log">📋 Log</button>
+            </nav>
+
+            <p class="epistemic-strip" id="epistemic-strip">
+                Cada valor muestra su procedencia: <span class="tag tag-OBSERVED">OBSERVED</span> veredicto de <span class="mono">se</span> ·
+                <span class="tag tag-DERIVED">DERIVED</span> calculado por la consola ·
+                <span class="tag tag-UNKNOWN">UNKNOWN</span> no determinable
+            </p>
         </header>
         </div>
 
         <div class="tabs">
-            <button class="tab active" data-tab="install">ðŸ“¦ Instalar</button>
-            <button class="tab" data-tab="uninstall">ðŸ—‘ï¸ Desinstalar</button>
-            <button class="tab" data-tab="adapter">âš™ï¸ Adaptador</button>
-            <button class="tab" data-tab="model">ðŸ§  Modelo</button>
-            <button class="tab" data-tab="log">ðŸ“‹ Log</button>
+            <button class="tab active" data-tab="install">Ã°Å¸â€œÂ¦ Instalar</button>
+            <button class="tab" data-tab="uninstall">Ã°Å¸â€”â€˜Ã¯Â¸Â Desinstalar</button>
+            <button class="tab" data-tab="adapter">Ã¢Å¡â„¢Ã¯Â¸Â Adaptador</button>
+            <button class="tab" data-tab="model">Ã°Å¸Â§Â  Modelo</button>
+            <button class="tab" data-tab="log">Ã°Å¸â€œâ€¹ Log</button>
         </div>
 
         <!-- INSTALL TAB -->
@@ -553,7 +697,7 @@
                 </div>
                 <div>
                     <div class="card">
-                        <h3>Opciones de InstalaciÃ³n</h3>
+                        <h3>Opciones de InstalaciÃƒÂ³n</h3>
                         <div class="form-group">
                             <label class="form-label">Runtimes objetivo</label>
                             <div class="checkbox-group">
@@ -566,21 +710,21 @@
                             <label class="form-label">Opciones</label>
                             <div class="checkbox-group">
                                 <label class="checkbox-label"><input type="checkbox" id="opt-dryrun"> Dry Run (simular)</label>
-                                <label class="checkbox-label"><input type="checkbox" id="opt-force"> Forzar reinstalaciÃ³n</label>
-                                <label class="checkbox-label"><input type="checkbox" id="opt-skip-verify"> Saltar verificaciÃ³n</label>
+                                <label class="checkbox-label"><input type="checkbox" id="opt-force"> Forzar reinstalaciÃƒÂ³n</label>
+                                <label class="checkbox-label"><input type="checkbox" id="opt-skip-verify"> Saltar verificaciÃƒÂ³n</label>
                                 <label class="checkbox-label"><input type="checkbox" id="opt-shortcuts"> Crear acceso directo</label>
                             </div>
                         </div>
                         <div class="progress-bar" id="installProgress"><div class="progress-fill"></div></div>
                         <div class="actions">
                             <button class="btn btn-primary" id="btnInstall" onclick="startInstall()">
-                                <span>ðŸš€</span> Instalar Seleccionados
+                                <span>Ã°Å¸Å¡â‚¬</span> Instalar Seleccionados
                             </button>
                             <button class="btn btn-secondary" id="btnInstallRecommended" onclick="selectRecommended()">
-                                <span>â­</span> Solo Recomendados
+                                <span>Ã¢Â­Â</span> Solo Recomendados
                             </button>
                             <button class="btn btn-secondary" id="btnRefresh" onclick="loadComponents()">
-                                <span>ðŸ”„</span> Refrescar
+                                <span>Ã°Å¸â€â€ž</span> Refrescar
                             </button>
                         </div>
                     </div>
@@ -593,7 +737,7 @@
             <div class="grid">
                 <div>
                     <div class="card">
-                        <h3>ðŸ—‘ï¸ Desinstalar Artefactos SE de OpenCode</h3>
+                        <h3>Ã°Å¸â€”â€˜Ã¯Â¸Â Desinstalar Artefactos SE de OpenCode</h3>
                         <p style="color:#8b949e;margin-bottom:20px;font-size:.9rem;">
                             Elimina componentes generados por System Engineering: MCPs rastreados/no rastreados, capa .opencode/, etc.
                             Los MCPs ajenos (context7, filesystem) <strong>NUNCA</strong> se tocan.
@@ -613,13 +757,13 @@
                         <div class="progress-bar" id="uninstallProgress"><div class="progress-fill"></div></div>
                         <div class="actions">
                             <button class="btn btn-secondary" id="btnUninstallDryrun" onclick="startUninstall(false)">
-                                <span>ðŸ‘ï¸</span> Ver Plan (Dry-Run)
+                                <span>Ã°Å¸â€˜ÂÃ¯Â¸Â</span> Ver Plan (Dry-Run)
                             </button>
                             <button class="btn btn-danger" id="btnUninstallApply" onclick="startUninstall(true)">
-                                <span>ðŸ’¥</span> Aplicar DesinstalaciÃ³n
+                                <span>Ã°Å¸â€™Â¥</span> Aplicar DesinstalaciÃƒÂ³n
                             </button>
                             <button class="btn btn-secondary" id="btnUninstallRefresh" onclick="loadStatus()">
-                                <span>ðŸ”„</span> Refrescar Estado
+                                <span>Ã°Å¸â€â€ž</span> Refrescar Estado
                             </button>
                         </div>
                     </div>
@@ -638,16 +782,16 @@
             <div class="grid">
                 <div>
                     <div class="card">
-                        <h3>âš™ï¸ Adaptador OpenCode</h3>
+                        <h3>Ã¢Å¡â„¢Ã¯Â¸Â Adaptador OpenCode</h3>
                         <p style="color:#8b949e;margin-bottom:20px;font-size:.9rem;">
-                            Genera la capa de agentes, comandos y skills para OpenCode desde las fuentes canÃ³nicas de SE.
+                            Genera la capa de agentes, comandos y skills para OpenCode desde las fuentes canÃƒÂ³nicas de SE.
                         </p>
                         <div class="actions">
                             <button class="btn btn-primary" onclick="generateAdapter()">
-                                <span>ðŸ”¨</span> Generar Adaptador
+                                <span>Ã°Å¸â€Â¨</span> Generar Adaptador
                             </button>
                             <button class="btn btn-danger" onclick="removeAdapter()">
-                                <span>ðŸ—‘ï¸</span> Eliminar .opencode/
+                                <span>Ã°Å¸â€”â€˜Ã¯Â¸Â</span> Eliminar .opencode/
                             </button>
                         </div>
                         <div id="adapterStatus" style="margin-top:16px;"></div>
@@ -661,14 +805,14 @@
         <div class="grid">
             <div>
                 <div class="card">
-                    <h3>ðŸ§  SelecciÃ³n de Modelo</h3>
+                    <h3>Ã°Å¸Â§Â  SelecciÃƒÂ³n de Modelo</h3>
                     <p class="muted" style="margin-bottom:16px;">
                         Elige un modelo para los agentes, o salta el paso. Saltar no escribe
-                        nada: la configuraciÃ³n queda exactamente como estÃ¡.
+                        nada: la configuraciÃƒÂ³n queda exactamente como estÃƒÂ¡.
                     </p>
                     <div id="modelStepNotice"></div>
                     <div class="form-group">
-                        <label class="form-label">Â¿QuÃ© quieres configurar?</label>
+                        <label class="form-label">Ã‚Â¿QuÃƒÂ© quieres configurar?</label>
                         <div class="checkbox-group">
                             <label class="checkbox-label">
                                 <input type="radio" name="modelMode" value="global" checked>
@@ -680,7 +824,7 @@
                             </label>
                             <label class="checkbox-label">
                                 <input type="radio" name="modelMode" value="skip">
-                                Saltar (no configurar ningÃºn modelo)
+                                Saltar (no configurar ningÃƒÂºn modelo)
                             </label>
                         </div>
                     </div>
@@ -692,18 +836,18 @@
                         <datalist id="modelCatalogue"></datalist>
                     </div>
                     <div class="form-group" id="modelPerAgentGroup" style="display:none;">
-                        <label class="form-label">Un modelo por subagente (vacÃ­o = sin cambio)</label>
+                        <label class="form-label">Un modelo por subagente (vacÃƒÂ­o = sin cambio)</label>
                         <div id="modelAgentRows"></div>
                     </div>
                     <div class="actions">
                         <button class="btn btn-primary" id="btnModelApply" onclick="applyModelSelection()">
-                            <span>ðŸ’¾</span> Aplicar selecciÃ³n
+                            <span>Ã°Å¸â€™Â¾</span> Aplicar selecciÃƒÂ³n
                         </button>
                         <button class="btn btn-secondary" onclick="skipModelStep()">
-                            <span>â­ï¸</span> Saltar
+                            <span>Ã¢ÂÂ­Ã¯Â¸Â</span> Saltar
                         </button>
                         <button class="btn btn-secondary" onclick="loadModels()">
-                            <span>ðŸ”„</span> Refrescar
+                            <span>Ã°Å¸â€â€ž</span> Refrescar
                         </button>
                     </div>
                     <div id="modelRuntimes" class="muted" style="margin-top:16px;"></div>
@@ -712,9 +856,9 @@
             </div>
             <div>
                 <div class="card">
-                    <h3>SelecciÃ³n Efectiva</h3>
+                    <h3>SelecciÃƒÂ³n Efectiva</h3>
                     <p class="muted" style="margin-bottom:12px;">
-                        Lo que el runtime usarÃ¡ para cada agente.
+                        Lo que el runtime usarÃƒÂ¡ para cada agente.
                     </p>
                     <div id="modelCurrent" class="empty-state">Cargando...</div>
                 </div>
@@ -726,8 +870,8 @@
         <div class="panel" id="panel-log">
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                    <h3>ðŸ“‹ Log en Tiempo Real</h3>
-                    <button class="btn btn-secondary" onclick="clearLog()">ðŸ—‘ï¸ Limpiar</button>
+                    <h3>Ã°Å¸â€œâ€¹ Log en Tiempo Real</h3>
+                    <button class="btn btn-secondary" onclick="clearLog()">Ã°Å¸â€”â€˜Ã¯Â¸Â Limpiar</button>
                 </div>
                 <div class="log-container" id="logContainer">
                     <div class="log-line"><span class="log-time">[--:--:--]</span><span class="log-event">Conectando...</span></div>
@@ -768,7 +912,7 @@
             };
 
             ws.onerror = (err) => {
-                addLog('error', 'Error de conexiÃ³n: ' + err.message);
+                addLog('error', 'Error de conexiÃƒÂ³n: ' + err.message);
             };
         }
 
@@ -799,7 +943,7 @@
                     break;
                 case 'completed':
                     addLog(msg.data.success ? 'completed' : 'error',
-                        msg.data.success ? 'InstalaciÃ³n completada' : `FallÃ³ (exit ${msg.data.exit_code || '?'})`);
+                        msg.data.success ? 'InstalaciÃƒÂ³n completada' : `FallÃƒÂ³ (exit ${msg.data.exit_code || '?'})`);
                     setInstalling(false);
                     loadStatus();
                     loadComponents();
@@ -886,7 +1030,7 @@
                 <div class="component-item ${selectedComponents.has(c.id) ? 'selected' : ''}" data-id="${c.id}">
                     <input type="checkbox" class="comp-checkbox" ${selectedComponents.has(c.id) ? 'checked' : ''} onchange="toggleComponent('${c.id}', this.checked)">
                     <div class="comp-info">
-                        <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag ${c.component_type}">${c.component_type}</span> ${c.recommended ? '<span class="comp-tag recommended">â˜… Recomendado</span>' : ''} ${c.status === 'success' ? '<span class="comp-tag installed">âœ“ Instalado</span>' : ''}</div>
+                        <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag ${c.component_type}">${c.component_type}</span> ${c.recommended ? '<span class="comp-tag recommended">Ã¢Ëœâ€¦ Recomendado</span>' : ''} ${c.status === 'success' ? '<span class="comp-tag installed">Ã¢Å“â€œ Instalado</span>' : ''}</div>
                         <div class="comp-meta">
                             ${c.category ? `<span class="comp-tag">${escapeHtml(c.category)}</span>` : ''}
                             ${c.installed_version ? `<span class="comp-tag">v${escapeHtml(c.installed_version)}</span>` : ''}
@@ -981,7 +1125,7 @@
                 container.innerHTML = data.installed_components.map(c => `
                     <div class="component-item" style="margin-bottom:8px;">
                         <div class="comp-info">
-                            <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag installed">âœ“ ${escapeHtml(c.version || '')}</span></div>
+                            <div class="comp-name">${escapeHtml(c.name)} <span class="comp-tag installed">Ã¢Å“â€œ ${escapeHtml(c.version || '')}</span></div>
                         </div>
                     </div>
                 `).join('');
@@ -996,7 +1140,7 @@
         }
         async function removeAdapter() {
             const data = await api('/adapter/remove', { method: 'POST' });
-            document.getElementById('adapterStatus').innerHTML = `<div style="color:${data.status==='removed'?'#3fb950':'#8b949e'}">${data.status === 'removed' ? 'âœ… Eliminado: ' + data.path : 'No encontrado'}</div>`;
+            document.getElementById('adapterStatus').innerHTML = `<div style="color:${data.status==='removed'?'#3fb950':'#8b949e'}">${data.status === 'removed' ? 'Ã¢Å“â€¦ Eliminado: ' + data.path : 'No encontrado'}</div>`;
             loadComponents();
         }
 
@@ -1023,7 +1167,7 @@
             // Update notice
             const notice = document.getElementById('modelStepNotice');
             if (data.model_step_disabled) {
-                notice.innerHTML = '<div class="notice">El paso de modelo estÃ¡ deshabilitado (--no-model-step).</div>';
+                notice.innerHTML = '<div class="notice">El paso de modelo estÃƒÂ¡ deshabilitado (--no-model-step).</div>';
                 document.getElementById('btnModelApply').disabled = true;
                 document.getElementById('modelGlobalInput').disabled = true;
                 return;
@@ -1120,9 +1264,9 @@
         function showModelStatus(type, data) {
             const el = document.getElementById('modelApplyStatus');
             if (type === 'ok') {
-                el.innerHTML = '<div class="ok">âœ… ' + (data.message || 'Modelo aplicado') + '</div>';
+                el.innerHTML = '<div class="ok">Ã¢Å“â€¦ ' + (data.message || 'Modelo aplicado') + '</div>';
             } else {
-                el.innerHTML = '<div class="error">âŒ ' + (data.message || data.detail || 'Error') + '</div>';
+                el.innerHTML = '<div class="error">Ã¢ÂÅ’ ' + (data.message || data.detail || 'Error') + '</div>';
             }
         }
 
@@ -1147,10 +1291,10 @@
             const label = document.getElementById('themeLabel');
             if (btn && label) {
                 if (theme === 'dark') {
-                    btn.querySelector('.icon').textContent = '☀️';
+                    btn.querySelector('.icon').textContent = 'â˜€ï¸';
                     label.textContent = 'Claro';
                 } else {
-                    btn.querySelector('.icon').textContent = '🌙';
+                    btn.querySelector('.icon').textContent = 'ðŸŒ™';
                     label.textContent = 'Oscuro';
                 }
             }
@@ -1175,7 +1319,36 @@
         loadComponents();
         loadStatus();
     </script>
-</body>
+        <footer class="app-footer" role="contentinfo">
+            <div class="footer-grid">
+                <div class="footer-item">
+                    <span class="footer-key">se root</span>
+                    <span class="mono footer-val" id="ft-root">—</span>
+                </div>
+                <div class="footer-item">
+                    <span class="footer-key">contrato</span>
+                    <span class="mono footer-val" id="ft-contract">se.report/1</span>
+                </div>
+                <div class="footer-item">
+                    <span class="footer-key">fingerprint</span>
+                    <span class="mono footer-val" id="ft-fp">—</span>
+                </div>
+                <div class="footer-item">
+                    <span class="footer-key">actualizado</span>
+                    <span class="mono footer-val" id="ft-time">—</span>
+                </div>
+            </div>
+            <p class="footer-note" id="ft-capability">
+                <span class="tag tag-UNKNOWN">UNKNOWN</span>
+                <span>visual.review no verificado: esta consola se valida con comprobaciones deterministas
+                (snapshot, capturas, errores de consola), no con revisión visual.</span>
+            </p>
+            <p class="footer-legal">SE Installer Web es una interfaz de instalación para SYSTEM-ENGINEERING.
+            Escribe configuración en <span class="mono">opencode.jsonc</span> y genera capas de adaptador.</p>
+        </footer></body>
 </html>
 </body>
 </html>
+
+
+
