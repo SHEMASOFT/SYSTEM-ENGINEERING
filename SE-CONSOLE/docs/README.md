@@ -3,7 +3,7 @@
 Consola local, solo lectura, para ver el estado de tus proyectos en SYSTEM-ENGINEERING.
 
 <div align="center">
-  <img src="docs/assets/logo-se-console.svg" width="80" alt="Logo SE-CONSOLE"/>
+  <img src="assets/logo-se-console.svg" width="80" alt="Logo SE-CONSOLE"/>
 
   **SE-CONSOLE** te muestra en un solo lugar: qué proyectos tienes, en qué estado están, qué necesitas atención y una memoria automática de cada proyecto.
 
@@ -31,7 +31,7 @@ Consola local, solo lectura, para ver el estado de tus proyectos en SYSTEM-ENGIN
 
 ## Empezar en 60 segundos
 
-<img src="docs/assets/start-in-60s.svg" width="700" alt="SE-CONSOLE en 60 segundos"/>
+<img src="assets/start-in-60s.svg" width="700" alt="SE-CONSOLE en 60 segundos"/>
 
 ### O por línea de comandos
 
@@ -62,7 +62,7 @@ python -m console.server
 
 ## Qué ves en la consola
 
-<img src="docs/assets/screens.svg" width="700" alt="Pantallas de SE-CONSOLE"/>
+<img src="assets/screens.svg" width="700" alt="Pantallas de SE-CONSOLE"/>
 
 ### 1 · Resumen
 Estado general del sistema SE: salud, versión, capacidades, agentes y gates.
