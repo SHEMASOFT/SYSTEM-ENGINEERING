@@ -56,6 +56,10 @@ class InstallRequest(BaseModel):
     create_shortcuts: bool = False
 
 
+class AdapterGenerateRequest(BaseModel):
+    runtimes: list[str] = ["opencode"]
+
+
 class UninstallRequest(BaseModel):
     interactive: bool = False
     all: bool = False
@@ -269,29 +273,31 @@ async def uninstall_components(request: UninstallRequest):
 
 
 @app.post("/api/adapter/generate")
-async def generate_adapter():
-    """Generate OpenCode adapter."""
+async def generate_adapter(request: AdapterGenerateRequest):
+    """Generate adapters for specified runtimes."""
     se_cli = get_se_cli()
     py = get_se_python()
 
     async def run_generate():
         await manager.broadcast({"event": "started", "data": {"command": "adapter generate"}})
         try:
-            proc = await asyncio.create_subprocess_exec(
-                py, str(se_cli), "adapter", "opencode",
-                cwd=str(REPO_ROOT),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-            )
-            async for line in proc.stdout:
-                await manager.broadcast({"event": "output", "data": {"line": line.decode().rstrip()}})
-            await proc.wait()
-            await manager.broadcast({"event": "completed", "data": {"exit_code": proc.returncode}})
+            for rt in request.runtimes:
+                await manager.broadcast({"event": "output", "data": {"line": f"Generating adapter for {rt}..."}})
+                proc = await asyncio.create_subprocess_exec(
+                    py, str(se_cli), "adapter", rt,
+                    cwd=str(REPO_ROOT),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                )
+                async for line in proc.stdout:
+                    await manager.broadcast({"event": "output", "data": {"line": line.decode().rstrip()}})
+                await proc.wait()
+            await manager.broadcast({"event": "completed", "data": {"exit_code": 0}})
         except Exception as e:
             await manager.broadcast({"event": "error", "data": {"message": str(e)}})
 
     asyncio.create_task(run_generate())
-    return {"status": "started"}
+    return {"status": "started", "runtimes": request.runtimes}
 
 
 @app.post("/api/adapter/remove")
@@ -308,6 +314,13 @@ async def remove_adapter():
 # ---------- WebSocket ----------
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    # Handle WebSocket CORS - accept all origins for local development
+    origin = websocket.headers.get("origin")
+    if origin:
+        # For local development, accept all origins
+        # In production, you'd validate against allowed origins
+        pass
+    
     await manager.connect(websocket)
     try:
         # Send initial status
