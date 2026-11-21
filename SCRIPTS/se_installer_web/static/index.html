@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -675,6 +675,17 @@
                 <span class="tag tag-UNKNOWN">UNKNOWN</span> no determinable
             </p>
         </header>
+
+        <div class="summary" id="summary">
+            <div class="stat"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Total</div></div>
+            <div class="stat installed"><div class="stat-value" id="statInstalled">0</div><div class="stat-label">Instalados</div></div>
+            <div class="stat pending"><div class="stat-value" id="statPending">0</div><div class="stat-label">Pendientes</div></div>
+            <div class="stat failed"><div class="stat-value" id="statFailed">0</div><div class="stat-label">Fallidos</div></div>
+        </div>
+
+        <div id="connectionStatus" class="status-badge disconnected">
+            <span class="status-dot"></span><span>Desconectado</span>
+        </div>
 
         <!-- INSTALL TAB -->
         <div class="panel active" id="panel-install">
@@ -1403,7 +1414,6 @@
         });
 
         // ---------- Init ----------
-        let modelState = null;
 
         // Theme toggle
         function applyTheme(theme) {
@@ -1443,6 +1453,11 @@
     </script>
 </body>
 </html>
+
+
+
+
+
 
 
 
