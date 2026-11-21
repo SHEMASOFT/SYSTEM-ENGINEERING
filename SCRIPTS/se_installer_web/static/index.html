@@ -5,149 +5,681 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SE Installer Web</title>
     <style>
+        /* =====================================================================
+           SE Installer Web — Design tokens aligned with SE-CONSOLE (DESIGN.md)
+           ===================================================================== */
+        :root {
+            /* Type scale */
+            --fs-12: 0.75rem;  --fs-13: 0.8125rem; --fs-14: 0.875rem;
+            --fs-16: 1rem;    --fs-20: 1.25rem;  --fs-h1: 26px;
+            --fs-h2: 18px;   --fs-h3: 15px;   --fs-sub: 13px;
+
+            /* Space */
+            --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+            --sp-5: 24px; --sp-6: 32px;
+
+            /* Shape & elevation */
+            --r-ctl: 6px;  --r-panel: 10px;
+            --elev-1: 0 1px 2px var(--shadow), 0 0 0 1px var(--line);
+            --focus: 2px solid var(--accent);
+
+            /* Typography */
+            --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+
+            /* Light theme (default) */
+            --bg: #fafbfc;
+            --panel: #ffffff;
+            --panel-2: #f3f4f6;
+            --panel-3: #e5e7eb;
+            --border: #d1d5db;
+            --border-soft: #e5e7eb;
+            --accent: #0969da;
+            --accent-soft: #3b82f6;
+            --violet: #7c3aed;
+            --green: #15803d;
+            --yellow: #ca8a04;
+            --red: #dc2626;
+            --text: #111827;
+            --muted: #6b7280;
+            --muted-2: #9ca3af;
+            --on-accent: #ffffff;
+            --shadow: rgba(0,0,0,.08);
+
+            /* Derived surfaces */
+            --accent-bg: color-mix(in srgb, var(--accent) 8%, var(--bg));
+            --overlay: color-mix(in srgb, var(--bg) 60%, transparent);
+            --focus-glow: 0 0 8px color-mix(in srgb, var(--accent) 35%, transparent);
+            --glow: 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+            --glow-soft: 0 0 18px color-mix(in srgb, var(--accent) 25%, transparent);
+
+            /* Health semantics — light */
+            --H-HEALTHY: var(--green);   --H-HEALTHY-bg: color-mix(in srgb, var(--green) 12%, var(--bg));
+            --H-WARNING: var(--yellow);  --H-WARNING-bg: color-mix(in srgb, var(--yellow) 10%, var(--bg));
+            --H-BLOCKED: var(--red);     --H-BLOCKED-bg: color-mix(in srgb, var(--red) 5%, var(--bg));
+            --H-UNKNOWN: var(--muted);   --H-UNKNOWN-bg: color-mix(in srgb, var(--muted-2) 18%, var(--bg));
+
+            /* Aliases */
+            --bg-panel: var(--panel);
+            --bg-sunken: var(--panel-2);
+            --bg-raised: var(--panel-3);
+            --ink: var(--text);
+            --ink-1: var(--text);
+            --ink-2: var(--muted);
+            --ink-3: var(--muted);
+            --line: var(--border);
+            --line-1: var(--border);
+            --line-2: var(--border-soft);
+            --accent-ink: var(--on-accent);
+        }
+
+        [data-theme="dark"] {
+            --bg: #060608;
+            --panel: #0E0E11;
+            --panel-2: #151519;
+            --panel-3: #1C1C21;
+            --border: #3D0A24;
+            --border-soft: #2A0719;
+            --accent: #FF1B8D;
+            --accent-soft: #FF6FB8;
+            --violet: #9D4DFF;
+            --green: #2BE89A;
+            --yellow: #FFD24D;
+            --red: #FF4059;
+            --text: #FFFFFF;
+            --muted: #A8A2AE;
+            --muted-2: #6B6672;
+            --on-accent: #1A000C;
+            --shadow: rgba(0,0,0,.5);
+
+            --glow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+            --glow-soft: 0 0 18px color-mix(in srgb, var(--accent) 30%, transparent);
+            --accent-bg: color-mix(in srgb, var(--accent) 4%, var(--bg));
+            --H-UNKNOWN-bg: color-mix(in srgb, var(--muted-2) 18%, var(--bg));
+
+            color-scheme: dark;
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { color-scheme: light dark; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0d1117; color: #e6edf3; line-height: 1.6;
+            font-family: var(--font-sans);
+            background: var(--bg);
+            color: var(--ink);
+            line-height: 1.5;
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background 0.2s, color 0.2s;
         }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #30363d; }
-        h1 { font-size: 1.8rem; font-weight: 600; }
-        .status-badge {
+
+        h1, h2, h3, h4 { margin: 0; line-height: 1.2; font-weight: 650; }
+        p { margin: 0; }
+        .mono { font-family: var(--font-mono); font-size: var(--fs-13); }
+
+        .container { max-width: 1360px; margin: 0 auto; padding: var(--sp-5); }
+
+        /* ---------- Header ---------- */
+        header.app-header {
+            background: var(--bg-panel);
+            border-bottom: 1px solid transparent;
+            border-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 40%, transparent), transparent) 1;
+            position: sticky; top: 0; z-index: 20;
+        }
+        .header-row {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: var(--sp-4); padding: var(--sp-3) var(--sp-5);
+            flex-wrap: wrap;
+        }
+        .brand { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+        .brand-mark {
+            width: 36px; height: 36px; flex: none; border-radius: var(--r-ctl);
+            background: var(--accent); color: var(--accent-ink);
+            border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+            box-shadow: var(--glow);
+            display: grid; place-items: center;
+            font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-14);
+        }
+        .brand-text { min-width: 0; }
+        .brand-text h1 {
+            font-size: var(--fs-h1); font-weight: 700; letter-spacing: .02em;
+            line-height: 1.2;
+            text-shadow: 0 0 14px color-mix(in srgb, var(--accent) 40%, transparent);
+        }
+        .brand-sub { color: var(--ink-3); font-size: var(--fs-sub); }
+        .brand-sub .dot { margin: 0 var(--sp-1); }
+
+        .header-actions {
+            display: flex; align-items: center; gap: var(--sp-2);
+            flex-wrap: wrap; min-width: 0;
+        }
+
+        /* ---------- Buttons ---------- */
+        .btn {
+            font: inherit; font-size: var(--fs-13);
+            background: transparent; color: var(--text);
+            border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+            border-radius: var(--r-panel);
+            padding: 8px 14px; cursor: pointer;
+            display: inline-flex; align-items: center; gap: var(--sp-2);
+            transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
+            font-family: var(--font-sans);
+        }
+        .btn:hover {
+            border-color: var(--accent);
+            background: color-mix(in srgb, var(--accent) 8%, transparent);
+        }
+        .btn:focus-visible { box-shadow: var(--focus-glow); }
+        .btn-icon { padding: var(--sp-2); }
+        .btn-ico { display: inline-block; font-size: 15px; line-height: 1; }
+
+        .btn-primary {
+            background: var(--accent); color: var(--on-accent);
+            border-color: transparent;
+            box-shadow: var(--glow-soft);
+        }
+        .btn-primary:hover {
+            background: var(--accent); border-color: transparent;
+            box-shadow: var(--glow); transform: translateY(-1px);
+        }
+        .btn-primary:active { box-shadow: var(--glow-soft); transform: translateY(0); }
+        .btn-secondary {
+            background: transparent; color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: var(--accent); }
+        .btn-danger {
+            background: var(--red); color: #fff;
+        }
+        .btn-danger:hover { background: #ff4d5a; }
+        .btn-success {
+            background: var(--green); color: #000;
+        }
+        .btn-success:hover { background: #4ade80; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ---------- Theme toggle ---------- */
+        .theme-toggle {
+            display: inline-flex; align-items: center; gap: var(--sp-2);
+            padding: var(--sp-2) var(--sp-3);
+            border: 1px solid var(--border);
+            border-radius: var(--r-ctl);
+            background: transparent;
+            color: var(--text);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-sans);
+        }
+        .theme-toggle:hover { border-color: var(--accent); }
+        .theme-toggle .icon { font-size: 1rem; }
+
+        /* ---------- Health chips ---------- */
+        .health-chip, .status-chip, .tag {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 500;
+            font-family: var(--font-mono); font-size: var(--fs-12); font-weight: 600;
+            border-radius: 999px; padding: 3px 10px;
+            border: 1px solid transparent; white-space: nowrap;
         }
-        .status-badge.connected { background: #1f6feb; color: white; }
-        .status-badge.disconnected { background: #da3633; color: white; }
-        .status-badge.installing { background: #d29922; color: black; }
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+        .chip-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
 
-        .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #161b22; border-radius: 8px; padding: 4px; }
+        .health-HEALTHY, .status-PASS    { color: var(--H-HEALTHY); background: var(--H-HEALTHY-bg); border-color: color-mix(in srgb, var(--H-HEALTHY) 30%, transparent); }
+        .health-WARNING, .status-WARN,
+        .status-WARNING, .status-MANUAL,
+        .status-SKIP, .status-INFO      { color: var(--H-WARNING); background: var(--H-WARNING-bg); border-color: color-mix(in srgb, var(--H-WARNING) 30%, transparent); }
+        .health-BLOCKED, .status-FAIL,
+        .status-ERROR, .status-CRITICAL { color: var(--H-BLOCKED); background: var(--H-BLOCKED-bg); border-color: color-mix(in srgb, var(--H-BLOCKED) 30%, transparent); }
+        .health-UNKNOWN, .status-UNKNOWN,
+        .status-MANAGED                { color: var(--H-UNKNOWN); background: var(--H-UNKNOWN-bg); border-color: color-mix(in srgb, var(--H-UNKNOWN) 30%, transparent); }
+
+        .health-UNKNOWN, .tag-UNKNOWN, .status-UNKNOWN {
+            background-image: repeating-linear-gradient(
+                135deg, transparent, transparent 4px,
+                color-mix(in srgb, currentColor 12%, transparent) 4px,
+                color-mix(in srgb, currentColor 12%, transparent) 8px
+            );
+        }
+
+        .tag { border-radius: var(--r-ctl); padding: 2px 7px; font-weight: 600; }
+        .tag-OBSERVED { color: var(--accent); background: var(--accent-bg); border-color: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: var(--glow-soft); }
+        .tag-DERIVED  { color: var(--ink-2); background: var(--bg-sunken); border-color: var(--line);
+                        text-decoration: underline dotted color-mix(in srgb, var(--ink-3) 60%, transparent); text-underline-offset: 3px; }
+        .tag-UNKNOWN  { color: var(--H-UNKNOWN); border-color: color-mix(in srgb, var(--H-UNKNOWN) 35%, transparent); }
+
+        /* ---------- Epistemic strip ---------- */
+        .epistemic-strip {
+            padding: var(--sp-2) var(--sp-5) var(--sp-3);
+            color: var(--ink-3); font-size: var(--fs-sub);
+            border-top: 1px solid var(--line-2);
+            font-family: var(--font-sans);
+        }
+
+        /* ---------- Tabs ---------- */
+        .tabs {
+            display: flex; gap: var(--sp-1); padding: 0 var(--sp-5);
+            border-top: 1px solid var(--line-2);
+        }
         .tab {
-            flex: 1; padding: 12px 24px; border: none; background: transparent; color: #8b949e;
-            font-size: 0.95rem; font-weight: 500; cursor: pointer; border-radius: 6px; transition: all 0.2s;
+            font: inherit; font-size: var(--fs-13); font-weight: 550;
+            background: none; border: 0; border-bottom: 2px solid transparent;
+            color: var(--ink-3); padding: var(--sp-3) var(--sp-4); cursor: pointer;
+            font-family: var(--font-sans);
         }
-        .tab:hover { background: #21262d; color: #e6edf3; }
-        .tab.active { background: #1f6feb; color: white; }
-
-        .panel { display: none; }
-        .panel.active { display: block; animation: fadeIn 0.2s; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-
-        .grid { display: grid; grid-template-columns: 1fr 400px; gap: 24px; }
-        @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
-
-        .card {
-            background: #161b22; border: 1px solid #30363d; border-radius: 12px;
-            padding: 24px; margin-bottom: 20px;
+        .tab:hover { color: var(--ink); }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab.active:hover { color: var(--accent-soft); }
+        .tab.active {
+            text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent);
+            box-shadow: 0 8px 14px -8px var(--accent);
         }
-        .card h3 { margin-bottom: 16px; font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-        .card h3::before { content: ""; width: 4px; height: 20px; background: #1f6feb; border-radius: 2px; }
 
+        /* ---------- Grid & panels ---------- */
+        .grid { display: grid; gap: var(--sp-4); grid-template-columns: repeat(12, minmax(0, 1fr)); }
+        @media (max-width: 1099px) {
+            .grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+        }
+        @media (max-width: 759px) {
+            .grid { grid-template-columns: minmax(0, 1fr); }
+        }
+
+        .col-4  { grid-column: span 4;  min-width: 0; }
+        .col-6  { grid-column: span 6;  min-width: 0; }
+        .col-8  { grid-column: span 8;  min-width: 0; }
+        .col-12 { grid-column: span 12; min-width: 0; }
+
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--line);
+            border-radius: var(--r-panel);
+            box-shadow: 0 1px 2px var(--shadow);
+            overflow: hidden;
+            min-width: 0;
+        }
+        .panel:hover { box-shadow: 0 1px 2px var(--shadow), var(--glow-soft); }
+        .panel-head {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);
+            border-bottom: 1px solid var(--line-2);
+            background: var(--bg-sunken);
+            flex-wrap: wrap;
+        }
+        .panel-title { font-size: var(--fs-h3); font-weight: 650; margin-bottom: 2px; }
+        .panel-sub { font-size: var(--fs-12); color: var(--ink-3); font-weight: 400; }
+        .panel-body { padding: var(--sp-4); }
+        .panel-body.tight { padding: var(--sp-3) var(--sp-4); }
+
+        /* ---------- Components list ---------- */
         .component-list { max-height: 500px; overflow-y: auto; }
         .component-item {
-            display: flex; align-items: flex-start; gap: 12px; padding: 14px;
-            background: #0d1117; border: 1px solid #21262d; border-radius: 8px; margin-bottom: 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: var(--sp-3);
+            padding: var(--sp-3);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-ctl);
+            margin-bottom: var(--sp-2);
             transition: all 0.2s;
         }
-        .component-item:hover { border-color: #30363d; background: #161b22; }
-        .component-item.selected { border-color: #1f6feb; background: rgba(31, 111, 235, 0.1); }
-        .comp-checkbox { width: 20px; height: 20px; accent-color: #1f6feb; flex-shrink: 0; margin-top: 2px; }
+        .component-item:hover { border-color: var(--accent); background: var(--bg-panel); }
+        .component-item.selected { border-color: var(--accent); background: var(--accent-bg); }
+        .comp-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+            flex-shrink: 0;
+            margin-top: 3px;
+        }
         .comp-info { flex: 1; min-width: 0; }
-        .comp-name { font-weight: 600; margin-bottom: 4px; }
-        .comp-meta { display: flex; gap: 12px; font-size: 0.8rem; color: #8b949e; flex-wrap: wrap; }
-        .comp-tag { background: #21262d; padding: 2px 8px; border-radius: 4px; }
-        .comp-tag.recommended { background: #1f6feb; color: white; }
-        .comp-tag.installed { background: #238636; color: white; }
-        .comp-desc { margin-top: 6px; color: #8b949e; font-size: 0.85rem; }
-
-        .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; padding-top: 20px; border-top: 1px solid #30363d; }
-        .btn {
-            padding: 10px 20px; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 500;
-            cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
+        .comp-name {
+            font-weight: 600;
+            margin-bottom: var(--space-1);
+            font-family: var(--font-sans);
         }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-primary { background: #1f6feb; color: white; }
-        .btn-primary:hover:not(:disabled) { background: #388bfd; }
-        .btn-secondary { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
-        .btn-secondary:hover:not(:disabled) { background: #30363d; }
-        .btn-danger { background: #da3633; color: white; }
-        .btn-danger:hover:not(:disabled) { background: #f85149; }
-        .btn-success { background: #238636; color: white; }
-        .btn-success:hover:not(:disabled) { background: #2ea043; }
-
-        .log-container {
-            background: #0d1117; border: 1px solid #21262d; border-radius: 8px;
-            height: 300px; overflow-y: auto; padding: 16px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8rem;
+        .comp-meta {
+            display: flex;
+            gap: var(--sp-2);
+            font-size: var(--fs-12);
+            color: var(--ink-3);
+            flex-wrap: wrap;
+            margin-bottom: var(--sp-2);
         }
-        .log-line { margin-bottom: 4px; display: flex; gap: 8px; }
-        .log-time { color: #8b949e; white-space: nowrap; }
-        .log-event { color: #e6edf3; }
-        .log-event.started { color: #d29922; }
-        .log-event.completed { color: #238636; }
-        .log-event.error { color: #f85149; }
-        .log-event.output { color: #8b949e; }
+        .comp-tag {
+            background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+            padding: 1px 7px;
+            border-radius: var(--r-ctl);
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+        }
+        .comp-tag.recommended {
+            background: color-mix(in srgb, var(--accent) 15%, var(--bg));
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+        .comp-tag.installed {
+            background: var(--H-HEALTHY-bg);
+            color: var(--H-HEALTHY);
+            border-color: color-mix(in srgb, var(--H-HEALTHY) 30%, var(--bg));
+        }
+        .comp-desc {
+            margin-top: var(--sp-2);
+            color: var(--ink-3);
+            font-size: 0.85rem;
+            font-family: var(--font-sans);
+        }
 
-        .form-group { margin-bottom: 16px; }
-        .form-label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.9rem; }
-        .checkbox-group { display: flex; flex-direction: column; gap: 10px; }
+        /* ---------- Actions & forms ---------- */
+        .actions {
+            display: flex;
+            gap: var(--sp-2);
+            flex-wrap: wrap;
+            margin-top: var(--sp-4);
+            padding-top: var(--sp-4);
+            border-top: 1px solid var(--line);
+        }
+
+        .form-group { margin-bottom: var(--sp-4); }
+        .form-label {
+            display: block;
+            margin-bottom: var(--sp-1);
+            font-weight: 600;
+            font-size: var(--fs-13);
+            font-family: var(--font-sans);
+            color: var(--ink);
+        }
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-2);
+        }
         .checkbox-label {
-            display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px 12px;
-            background: #0d1117; border: 1px solid #21262d; border-radius: 6px; transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: var(--sp-2);
+            cursor: pointer;
+            padding: var(--sp-2) var(--sp-3);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-ctl);
+            transition: all 0.2s;
         }
-        .checkbox-label:hover { background: #161b22; border-color: #30363d; }
-        .checkbox-label input { width: 18px; height: 18px; accent-color: #1f6feb; }
+        .checkbox-label:hover { background: var(--bg-panel); border-color: var(--accent); }
+        .checkbox-label input {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+        }
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-2);
+        }
+        .radio-label {
+            display: flex;
+            align-items: center;
+            gap: var(--sp-2);
+            cursor: pointer;
+            padding: var(--sp-2) var(--sp-3);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-ctl);
+            transition: all 0.2s;
+        }
+        .radio-label:hover { background: var(--bg-panel); border-color: var(--accent); }
+        .radio-label input { width: 18px; height: 18px; accent-color: var(--accent); }
 
+        /* ---------- Progress ---------- */
         .progress-bar {
-            height: 8px; background: #21262d; border-radius: 4px; overflow: hidden; margin: 16px 0;
+            height: 8px;
+            background: color-mix(in srgb, var(--accent) 15%, var(--bg));
+            border-radius: 4px;
+            overflow: hidden;
+            margin: var(--sp-3) 0;
         }
         .progress-fill {
-            height: 100%; background: linear-gradient(90deg, #1f6feb, #388bfd);
-            border-radius: 4px; transition: width 0.3s; width: 0%;
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.3s;
+            width: 0%;
         }
 
-        .empty-state { text-align: center; padding: 40px 20px; color: #8b949e; }
-        .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5; }
+        /* ---------- Summary stats ---------- */
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: var(--sp-3);
+            margin-bottom: var(--sp-4);
+        }
+        .stat {
+            background: var(--bg-panel);
+            border: 1px solid var(--line);
+            border-radius: var(--r-ctl);
+            padding: var(--sp-3);
+            text-align: center;
+            box-shadow: 0 1px 2px var(--shadow);
+        }
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--accent);
+        }
+        .stat-label {
+            font-size: var(--fs-12);
+            color: var(--ink-3);
+            margin-top: var(--sp-1);
+            font-family: var(--font-sans);
+        }
+        .stat.installed .stat-value { color: var(--H-HEALTHY); }
+        .stat.pending .stat-value { color: var(--H-WARNING); }
+        .stat.failed .stat-value { color: var(--H-BLOCKED); }
 
-        .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .stat { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; text-align: center; }
-        .stat-value { font-size: 2rem; font-weight: 700; color: #58a6ff; }
-        .stat-label { font-size: 0.85rem; color: #8b949e; margin-top: 4px; }
-        .stat.installed .stat-value { color: #3fb950; }
-        .stat.pending .stat-value { color: #d29922; }
-        .stat.failed .stat-value { color: #f85149; }
+        /* ---------- Log ---------- */
+        .log-container {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-ctl);
+            height: 300px;
+            overflow-y: auto;
+            padding: var(--sp-3);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+        }
+        .log-line {
+            margin-bottom: 3px;
+            display: flex;
+            gap: var(--sp-2);
+        }
+        .log-time {
+            color: var(--ink-3);
+            white-space: nowrap;
+            font-family: var(--font-mono);
+        }
+        .log-event { color: var(--ink); }
+        .log-event.started { color: var(--H-WARNING); }
+        .log-event.completed { color: var(--H-HEALTHY); }
+        .log-event.error { color: var(--H-BLOCKED); }
+        .log-event.output { color: var(--ink-3); }
+
+        /* ---------- Empty states ---------- */
+        .empty-state {
+            text-align: center;
+            padding: var(--sp-5) var(--sp-3);
+            color: var(--ink-3);
+        }
+        .empty-state svg { width: 48px; height: 48px; margin-bottom: var(--sp-2); opacity: 0.5; }
+
+        /* ---------- Model tab specifics ---------- */
+        .model-key {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--ink-3);
+            display: inline-block;
+            min-width: 110px;
+        }
+        .model-spec {
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            color: var(--accent);
+        }
+        .model-line {
+            display: flex;
+            gap: var(--sp-2);
+            align-items: baseline;
+            padding: var(--sp-1) 0;
+            font-family: var(--font-sans);
+        }
+        .model-subtitle {
+            font-size: var(--fs-12);
+            font-weight: 600;
+            color: var(--ink-3);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: var(--sp-3) 0 var(--sp-2);
+            font-family: var(--font-sans);
+        }
+        .model-status {
+            margin-top: var(--sp-3);
+            font-family: var(--font-sans);
+        }
+        .model-status .ok { color: var(--H-HEALTHY); font-weight: 600; }
+        .model-status .error { color: var(--H-BLOCKED); font-weight: 600; }
+
+        .notice {
+            padding: var(--sp-2);
+            border-radius: var(--r-ctl);
+            background: var(--accent-bg);
+            border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+            color: var(--accent);
+            font-size: 0.85rem;
+            font-family: var(--font-sans);
+            margin-bottom: var(--sp-3);
+        }
+        .muted { color: var(--ink-3); }
+
+        /* ---------- Footer ---------- */
+        footer.app-footer {
+            margin-top: auto;
+            padding: var(--sp-4) var(--sp-5);
+            border-top: 1px solid var(--line-2);
+            background: var(--bg-panel);
+        }
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: var(--sp-4);
+            margin-bottom: var(--sp-3);
+        }
+        .footer-item {
+            display: flex;
+            flex-direction: column;
+            gap: var(--sp-1);
+        }
+        .footer-key {
+            font-size: var(--fs-12);
+            color: var(--ink-3);
+            font-family: var(--font-sans);
+        }
+        .footer-val {
+            font-family: var(--font-mono);
+            font-size: var(--fs-13);
+            color: var(--text);
+        }
+        .footer-note {
+            font-size: var(--fs-13);
+            color: var(--ink-3);
+            font-family: var(--font-sans);
+        }
+        .footer-legal {
+            font-size: 0.8rem;
+            color: var(--ink-3);
+            margin-top: var(--sp-3);
+            font-family: var(--font-sans);
+        }
+
+        /* ---------- Misc ---------- */
+        .p {
+            color: var(--ink-3);
+            font-size: 0.9rem;
+            margin-bottom: var(--sp-4);
+            font-family: var(--font-sans);
+        }
+        .muted { color: var(--ink-3); }
+        .font-mono { font-family: var(--font-mono); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 12px; height: 12px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb {
+            background: var(--panel-3); border: 2px solid var(--bg); border-radius: 6px;
+        }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+        ::-webkit-scrollbar-corner { background: var(--bg); }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; animation: none !important; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🔧 SE Installer Web</h1>
-            <div class="status-badge disconnected" id="connectionStatus">
-                <span class="status-dot"></span>
-                <span>Desconectado</span>
+        <header class="app-header" role="banner">
+            <div class="header-row">
+                <div class="brand">
+                    <span class="brand-mark" aria-hidden="true">SE</span>
+                    <div class="brand-text">
+                        <h1>SE Installer Web</h1>
+                        <p class="brand-sub">
+                            <span class="mono" id="hdr-system">SYSTEM-ENGINEERING</span>
+                            <span class="dot" aria-hidden="true">·</span>
+                            <span class="mono" id="hdr-version">v0.12.0</span>
+                        </p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <div id="hdr-health" class="health-chip health-UNKNOWN" role="status" aria-live="polite">
+                        <span class="chip-dot" aria-hidden="true"></span>
+                        <span class="chip-label">UNKNOWN</span>
+                    </div>
+                    <button type="button" id="btn-refresh" class="btn btn-primary" aria-label="Recargar datos del sistema">
+                        <span class="btn-ico" aria-hidden="true">⟳</span> Actualizar
+                    </button>
+                    <select id="sel-theme" class="sel-theme" aria-label="Tema" title="Tema">
+                        <option value="light">Claro</option>
+                        <option value="dark">Oscuro</option>
+                    </select>
+                    <div class="token-box">
+                        <button type="button" id="themeToggle" class="theme-toggle" aria-label="Cambiar tema claro/oscuro">
+                            <span class="icon">🌙</span><span id="themeLabel">Oscuro</span>
+                        </button>
+                    </div>
+                </div>
             </div>
+
+            <nav class="tabs" role="navigation" aria-label="Secciones del instalador">
+                <button type="button" class="tab active" data-tab="install" aria-current="page">📦 Instalar</button>
+                <button type="button" class="tab" data-tab="uninstall">🗑️ Desinstalar</button>
+                <button type="button" class="tab" data-tab="adapter">⚙️ Adaptador</button>
+                <button type="button" class="tab" data-tab="model">🧠 Modelo</button>
+                <button type="button" class="tab" data-tab="log">📋 Log</button>
+            </nav>
+
+            <p class="epistemic-strip" id="epistemic-strip">
+                Cada valor muestra su procedencia: <span class="tag tag-OBSERVED">OBSERVED</span> veredicto de <span class="mono">se</span> ·
+                <span class="tag tag-DERIVED">DERIVED</span> calculado por la consola ·
+                <span class="tag tag-UNKNOWN">UNKNOWN</span> no determinable
+            </p>
         </header>
-
-        <div class="summary" id="summary">
-            <div class="stat"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Total</div></div>
-            <div class="stat installed"><div class="stat-value" id="statInstalled">0</div><div class="stat-label">Instalados</div></div>
-            <div class="stat pending"><div class="stat-value" id="statPending">0</div><div class="stat-label">Pendientes</div></div>
-            <div class="stat failed"><div class="stat-value" id="statFailed">0</div><div class="stat-label">Fallidos</div></div>
-        </div>
-
-        <div class="tabs">
-            <button class="tab active" data-tab="install">📦 Instalar</button>
-            <button class="tab" data-tab="uninstall">🗑️ Desinstalar</button>
-            <button class="tab" data-tab="adapter">⚙️ Adaptador</button>
-            <button class="tab" data-tab="model">🧠 Modelo</button>
-            <button class="tab" data-tab="log">📋 Log</button>
-        </div>
 
         <!-- INSTALL TAB -->
         <div class="panel active" id="panel-install">
             <div class="grid">
-                <div>
+                <div class="col-8">
                     <div class="card">
                         <h3>Componentes Disponibles</h3>
                         <div class="component-list" id="componentList">
@@ -155,7 +687,7 @@
                         </div>
                     </div>
                 </div>
-                <div>
+                <div class="col-4">
                     <div class="card">
                         <h3>Opciones de Instalación</h3>
                         <div class="form-group">
@@ -164,6 +696,9 @@
                                 <label class="checkbox-label"><input type="checkbox" id="rt-opencode" checked> OpenCode</label>
                                 <label class="checkbox-label"><input type="checkbox" id="rt-codex"> Codex</label>
                                 <label class="checkbox-label"><input type="checkbox" id="rt-claude"> Claude Code</label>
+                                <label class="checkbox-label"><input type="checkbox" id="rt-pi"> Pi</label>
+                                <label class="checkbox-label"><input type="checkbox" id="rt-hermes"> Hermes</label>
+                                <label class="checkbox-label"><input type="checkbox" id="rt-deepseek"> DeepSeek</label>
                             </div>
                         </div>
                         <div class="form-group">
@@ -195,10 +730,10 @@
         <!-- UNINSTALL TAB -->
         <div class="panel" id="panel-uninstall">
             <div class="grid">
-                <div>
+                <div class="col-8">
                     <div class="card">
                         <h3>🗑️ Desinstalar Artefactos SE de OpenCode</h3>
-                        <p style="color:#8b949e;margin-bottom:20px;font-size:.9rem;">
+                        <p class="p">
                             Elimina componentes generados por System Engineering: MCPs rastreados/no rastreados, capa .opencode/, etc.
                             Los MCPs ajenos (context7, filesystem) <strong>NUNCA</strong> se tocan.
                         </p>
@@ -228,7 +763,7 @@
                         </div>
                     </div>
                 </div>
-                <div>
+                <div class="col-4">
                     <div class="card">
                         <h3>Estado Actual</h3>
                         <div id="uninstallStatus" class="empty-state">Cargando...</div>
@@ -240,15 +775,26 @@
         <!-- ADAPTER TAB -->
         <div class="panel" id="panel-adapter">
             <div class="grid">
-                <div>
+                <div class="col-8">
                     <div class="card">
-                        <h3>⚙️ Adaptador OpenCode</h3>
-                        <p style="color:#8b949e;margin-bottom:20px;font-size:.9rem;">
-                            Genera la capa de agentes, comandos y skills para OpenCode desde las fuentes canónicas de SE.
+                        <h3>⚙️ Adaptadores</h3>
+                        <p class="p">
+                            Genera la capa de agentes, comandos y skills para cada runtime desde las fuentes canónicas de SE.
                         </p>
+                        <div class="form-group">
+                            <label class="form-label">Runtimes a generar</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-opencode" checked> OpenCode</label>
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-codex"> Codex</label>
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-claude"> Claude Code</label>
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-pi"> Pi</label>
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-hermes"> Hermes</label>
+                                <label class="checkbox-label"><input type="checkbox" id="ad-rt-deepseek"> DeepSeek</label>
+                            </div>
+                        </div>
                         <div class="actions">
                             <button class="btn btn-primary" onclick="generateAdapter()">
-                                <span>🔨</span> Generar Adaptador
+                                <span>🔨</span> Generar Adaptadores
                             </button>
                             <button class="btn btn-danger" onclick="removeAdapter()">
                                 <span>🗑️</span> Eliminar .opencode/
@@ -257,76 +803,84 @@
                         <div id="adapterStatus" style="margin-top:16px;"></div>
                     </div>
                 </div>
-            </div>
-    </div>
-
-    <!-- MODEL TAB -->
-    <div class="panel" id="panel-model">
-        <div class="grid">
-            <div>
-                <div class="card">
-                    <h3>🧠 Selección de Modelo</h3>
-                    <p class="muted" style="margin-bottom:16px;">
-                        Elige un modelo para los agentes, o salta el paso. Saltar no escribe
-                        nada: la configuración queda exactamente como está.
-                    </p>
-                    <div id="modelStepNotice"></div>
-                    <div class="form-group">
-                        <label class="form-label">¿Qué quieres configurar?</label>
-                        <div class="checkbox-group">
-                            <label class="checkbox-label">
-                                <input type="radio" name="modelMode" value="global" checked>
-                                Un mismo modelo para todos los agentes
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="radio" name="modelMode" value="per_agent">
-                                Un modelo por subagente
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="radio" name="modelMode" value="skip">
-                                Saltar (no configurar ningún modelo)
-                            </label>
+                <div class="col-4">
+                    <div class="card">
+                        <h3>Runtimes Disponibles</h3>
+                        <div class="list" id="adapterRuntimes">
+                            <div class="empty-state">Cargando...</div>
                         </div>
                     </div>
-                    <div class="form-group" id="modelGlobalGroup">
-                        <label class="form-label" for="modelGlobalInput">Modelo para todos (<code>provider/model</code>)</label>
-                        <input type="text" class="text-input" id="modelGlobalInput"
-                               list="modelCatalogue" placeholder="provider/model"
-                               autocomplete="off" spellcheck="false">
-                        <datalist id="modelCatalogue"></datalist>
-                    </div>
-                    <div class="form-group" id="modelPerAgentGroup" style="display:none;">
-                        <label class="form-label">Un modelo por subagente (vacío = sin cambio)</label>
-                        <div id="modelAgentRows"></div>
-                    </div>
-                    <div class="actions">
-                        <button class="btn btn-primary" id="btnModelApply" onclick="applyModelSelection()">
-                            <span>💾</span> Aplicar selección
-                        </button>
-                        <button class="btn btn-secondary" onclick="skipModelStep()">
-                            <span>⏭️</span> Saltar
-                        </button>
-                        <button class="btn btn-secondary" onclick="loadModels()">
-                            <span>🔄</span> Refrescar
-                        </button>
-                    </div>
-                    <div id="modelRuntimes" class="muted" style="margin-top:16px;"></div>
-                    <div id="modelApplyStatus" class="model-status"></div>
-                </div>
-            </div>
-            <div>
-                <div class="card">
-                    <h3>Selección Efectiva</h3>
-                    <p class="muted" style="margin-bottom:12px;">
-                        Lo que el runtime usará para cada agente.
-                    </p>
-                    <div id="modelCurrent" class="empty-state">Cargando...</div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- LOG TAB -->
+        <!-- MODEL TAB -->
+        <div class="panel" id="panel-model">
+            <div class="grid">
+                <div class="col-8">
+                    <div class="card">
+                        <h3>🧠 Selección de Modelo</h3>
+                        <p class="p">
+                            Elige un modelo para los agentes, o salta el paso. Saltar no escribe
+                            nada: la configuración queda exactamente como está.
+                        </p>
+                        <div id="modelStepNotice"></div>
+                        <div class="form-group">
+                            <label class="form-label">¿Qué quieres configurar?</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="modelMode" value="global" checked>
+                                    Un mismo modelo para todos los agentes
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="modelMode" value="per_agent">
+                                    Un modelo por subagente
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="modelMode" value="skip">
+                                    Saltar (no configurar ningún modelo)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-group" id="modelGlobalGroup">
+                            <label class="form-label" for="modelGlobalInput">Modelo para todos (<code>provider/model</code>)</label>
+                            <input type="text" class="text-input" id="modelGlobalInput"
+                                   list="modelCatalogue" placeholder="provider/model"
+                                   autocomplete="off" spellcheck="false">
+                            <datalist id="modelCatalogue"></datalist>
+                        </div>
+                        <div class="form-group" id="modelPerAgentGroup" style="display:none;">
+                            <label class="form-label">Un modelo por subagente (vacío = sin cambio)</label>
+                            <div id="modelAgentRows"></div>
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-primary" id="btnModelApply" onclick="applyModelSelection()">
+                                <span>💾</span> Aplicar selección
+                            </button>
+                            <button class="btn btn-secondary" onclick="skipModelStep()">
+                                <span>⏭️</span> Saltar
+                            </button>
+                            <button class="btn btn-secondary" onclick="loadModels()">
+                                <span>🔄</span> Refrescar
+                            </button>
+                        </div>
+                        <div id="modelRuntimes" class="muted" style="margin-top:16px;"></div>
+                        <div id="modelApplyStatus" class="model-status"></div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card">
+                        <h3>Selección Efectiva</h3>
+                        <p class="p">
+                            Lo que el runtime usará para cada agente.
+                        </p>
+                        <div id="modelCurrent" class="empty-state">Cargando...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOG TAB -->
         <div class="panel" id="panel-log">
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -338,6 +892,34 @@
                 </div>
             </div>
         </div>
+
+        <footer class="app-footer" role="contentinfo">
+            <div class="footer-grid">
+                <div class="footer-item">
+                    <span class="footer-key">se root</span>
+                    <span class="mono footer-val" id="ft-root">—</span>
+                </div>
+                <div class="footer-item">
+                    <span class="footer-key">contrato</span>
+                    <span class="mono footer-val" id="ft-contract">se.report/1</span>
+                </div>
+                <div class="footer-item">
+                    <span class="footer-key">fingerprint</span>
+                    <span class="mono footer-val" id="ft-fp">—</span>
+                </div>
+                <div class="footer-item">
+                    <span class="footer-key">actualizado</span>
+                    <span class="mono footer-val" id="ft-time">—</span>
+                </div>
+            </div>
+            <p class="footer-note" id="ft-capability">
+                <span class="tag tag-UNKNOWN">UNKNOWN</span>
+                <span>visual.review no verificado: esta consola se valida con comprobaciones deterministas
+                (snapshot, capturas, errores de consola), no con revisión visual.</span>
+            </p>
+            <p class="footer-legal">SE Installer Web es una interfaz de instalación para SYSTEM-ENGINEERING.
+            Escribe configuración en <span class="mono">opencode.jsonc</span> y genera capas de adaptador.</p>
+        </footer>
     </div>
 
     <script>
@@ -537,6 +1119,9 @@
             if (document.getElementById('rt-opencode').checked) runtimes.push('opencode');
             if (document.getElementById('rt-codex').checked) runtimes.push('codex');
             if (document.getElementById('rt-claude').checked) runtimes.push('claude_code');
+            if (document.getElementById('rt-pi').checked) runtimes.push('pi');
+            if (document.getElementById('rt-hermes').checked) runtimes.push('hermes');
+            if (document.getElementById('rt-deepseek').checked) runtimes.push('deepseek');
 
             await api('/install', {
                 method: 'POST',
@@ -596,27 +1181,40 @@
 
         // ---------- Adapter ----------
         async function generateAdapter() {
-            await api('/adapter/generate', { method: 'POST' });
-        }
-        async function removeAdapter() {
-            const data = await api('/adapter/remove', { method: 'POST' });
-            document.getElementById('adapterStatus').innerHTML = `<div style="color:${data.status==='removed'?'#3fb950':'#8b949e'}">${data.status === 'removed' ? '✅ Eliminado: ' + data.path : 'No encontrado'}</div>`;
+            const runtimes = [];
+            if (document.getElementById('ad-rt-opencode').checked) runtimes.push('opencode');
+            if (document.getElementById('ad-rt-codex').checked) runtimes.push('codex');
+            if (document.getElementById('ad-rt-claude').checked) runtimes.push('claude_code');
+            if (document.getElementById('ad-rt-pi').checked) runtimes.push('pi');
+            if (document.getElementById('ad-rt-hermes').checked) runtimes.push('hermes');
+            if (document.getElementById('ad-rt-deepseek').checked) runtimes.push('deepseek');
+
+            if (!runtimes.length) {
+                alert('Selecciona al menos un runtime');
+                return;
+            }
+            await api('/adapter/generate', {
+                method: 'POST',
+                body: JSON.stringify({ runtimes })
+            });
             loadComponents();
         }
 
-        // ---------- Init ----------
-        connectWS();
-        loadComponents();
-        loadStatus();
-    // ---------- Model Selection ----------
+        async function removeAdapter() {
+            const data = await api('/adapter/remove', { method: 'POST' });
+            document.getElementById('adapterStatus').innerHTML = `<div style="color:${data.status==='removed'?'var(--H-HEALTHY)':'var(--ink-3)'}">${data.status === 'removed' ? '✅ Eliminado: ' + data.path : 'No encontrado'}</div>`;
+            loadComponents();
+        }
+
+        // ---------- Model Selection ----------
         let modelState = null;
-        let modelRosterKey = null;
 
         async function loadModels() {
             try {
                 const data = await api('/models');
                 modelState = data;
                 renderModelState(data);
+                populateModelCatalogue(data.catalogue);
             } catch (e) {
                 console.error(e);
                 addLog('error', 'Error cargando modelos: ' + e.message);
@@ -624,7 +1222,6 @@
         }
 
         function renderModelState(data) {
-            // Update notice
             const notice = document.getElementById('modelStepNotice');
             if (data.model_step_disabled) {
                 notice.innerHTML = '<div class="notice">El paso de modelo está deshabilitado (--no-model-step).</div>';
@@ -650,6 +1247,25 @@
                     }
                 }
                 current.innerHTML = html;
+            }
+
+            // Populate agent rows for per-agent mode
+            const agentRows = document.getElementById('modelAgentRows');
+            const roster = data.roster || [];
+            if (roster.length) {
+                agentRows.innerHTML = '';
+                const overrides = data.selection?.agents || {};
+                for (const agent of roster) {
+                    const override = overrides[agent] || '';
+                    agentRows.innerHTML += `
+                        <div class="model-row" data-agent="${escapeHtml(agent)}">
+                            <span class="model-key">${escapeHtml(agent)}:</span>
+                            <input type="text" class="text-input" data-agent="${escapeHtml(agent)}"
+                                   placeholder="provider/model" value="${escapeHtml(override)}"
+                                   autocomplete="off" spellcheck="false">
+                        </div>
+                    `;
+                }
             }
 
             // Show runtimes
@@ -694,6 +1310,7 @@
                     const val = input.value.trim();
                     if (val) agents[agent] = val;
                 }
+                if (!Object.keys(agents).length) { alert('No se especificó ningún modelo por agente'); return null; }
                 return { agents };
             }
             return null;
@@ -735,12 +1352,44 @@
             if (!modelState) loadModels();
         });
 
-        // Initialize model state on load
+        // ---------- Init ----------
         let modelState = null;
-        let modelRosterKey = null;
 
-        function loadModels() {
-            api('/models').then(loadModels).catch(e => addLog('error', 'Error cargando modelos: ' + e.message));
+        // Theme toggle
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            const btn = document.getElementById('themeToggle');
+            const label = document.getElementById('themeLabel');
+            if (btn && label) {
+                if (theme === 'dark') {
+                    btn.querySelector('.icon').textContent = '☀️';
+                    label.textContent = 'Claro';
+                } else {
+                    btn.querySelector('.icon').textContent = '🌙';
+                    label.textContent = 'Oscuro';
+                }
+            }
         }
+
+        function initTheme() {
+            const saved = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = saved || (prefersDark ? 'dark' : 'light');
+            applyTheme(theme);
+        }
+
+        document.getElementById('themeToggle')?.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme') || 'light';
+            const next = current === 'dark' ? 'light' : 'dark';
+            applyTheme(next);
+        });
+
+        // Initialize
+        initTheme();
+        connectWS();
+        loadComponents();
+        loadStatus();
+    </script>
 </body>
 </html>
