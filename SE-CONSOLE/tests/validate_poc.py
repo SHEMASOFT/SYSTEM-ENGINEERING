@@ -332,9 +332,9 @@ def browser_evidence() -> dict:
         drawer["backdrop_closed"] = not page.locator("#drawer").is_visible()
 
         # --- record drawer + per-type chip sweep --------------------------
-        # Only the records table wraps its rows with clickable(), so every
-        # `tbody tr[role="button"]` is a record-type row.
-        page.locator('tbody tr[role="button"]').first.click()
+        # Records table rows are marked `.is-clickable` (no role="button", which
+        # would break the table layout); scope the selector to that table.
+        page.locator('table.rec-table tbody tr.is-clickable').first.click()
         page.wait_for_selector("#drawer", state="visible", timeout=15_000)
         page.wait_for_selector("#drawer-body .recx", timeout=15_000)
         page.wait_for_selector("#drawer-body .recx-out", timeout=15_000)

@@ -1761,7 +1761,7 @@
     g.appendChild(el("div", { class: "col-6" }, [
       panel(__t("records.title"), __t("records.sub"), [
         el("div", { class: "table-wrap" }, [
-          el("table", { class: "table" }, [
+          el("table", { class: "table rec-table" }, [
             el("thead", {}, [el("tr", {}, [
               el("th", { text: __t("records.colType") }), el("th", { text: __t("records.colDisk") }),
               el("th", { text: __t("records.colReview") }), el("th", { text: __t("records.colInvalid") })
