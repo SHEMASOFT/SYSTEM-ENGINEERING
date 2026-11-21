@@ -102,6 +102,7 @@
       honesty: "Un proyecto sin PROJECT.json se declara UNMANAGED; nunca se inventa su estado.",
       lifecycle: "ciclo de vida: ",
       unmanagedExplain: "Proyecto sin gestión: no se vigila ni avanza por gates. Solo se muestra tal cual, sin inventar su estado.",
+      changeLogo: "Cambiar logo del proyecto",
       // Friendly one-line summaries (T3). They only re-word what the engine
       // returned; the contract verdict (PASS/WARN/FAIL/UNKNOWN/MANUAL and the
       // gate/state ids) is shown verbatim on purpose.
@@ -378,6 +379,7 @@
       honesty: "A project without PROJECT.json is declared UNMANAGED; its state is never invented.",
       lifecycle: "lifecycle: ",
       unmanagedExplain: "Unmanaged project: it is not monitored or advanced through gates. It is shown as-is, with no invented state.",
+      changeLogo: "Cambiar logo del proyecto",
       gateOk: "Gate {gate} is PASS: the project can advance.",
       gateOkTo: "Gate {gate} is PASS: the project can advance toward {to}.",
       gateWarn: "Gate {gate} is {status}: needs review before advancing.",
@@ -1567,6 +1569,15 @@
     return currentLang === "en" ? en : es;
   }
 
+  // Map project dir_name to logo image files for visual identification on cards.
+  var PROJECT_LOGOS = {
+    "MiApp": "/assets/images/miapp.svg?v=1",
+    "SHEMA": "/assets/images/shema.svg?v=1",
+    "SHEMASEG": "/assets/images/shemaseg.svg?v=1",
+    "workflow-demo": "/assets/images/workflow-demo.svg?v=1",
+    "_template": "/assets/images/_template.svg?v=1"
+  };
+
   function viewProjects() {
     return Promise.all([api("/api/system"), api("/api/projects")]).then(function (res) {
       state.system = res[0];
@@ -1582,14 +1593,50 @@
 
       var grid = el("div", { class: "proj-grid" });
       (pj.projects || []).forEach(function (p) {
+        var logoSrc = "";
+        try { logoSrc = localStorage.getItem("se-console-logo-" + p.rel_path) || ""; } catch (e) {}
         var card = el("button", {
           type: "button", class: "proj-card", "data-rel": p.rel_path,
           onclick: function () { openProject(p.rel_path); }
         }, [
           el("div", { class: "proj-head" }, [
-            el("div", {}, [
-              el("div", { class: "proj-name", text: p.name || p.dir_name }),
-              el("div", { class: "proj-id", text: p.project_id || p.rel_path })
+            el("div", { class: "proj-head-top" }, [
+              el("img", { class: "proj-logo", src: logoSrc || PROJECT_LOGOS[p.dir_name] || "", alt: p.name || p.dir_name }),
+              el("button", {
+                type: "button", class: "proj-logo-btn", title: __t("projects.changeLogo"),
+                onclick: function (e) {
+                  e.stopPropagation();
+                  var inp = document.getElementById("se-console-logo-inp");
+                  if (inp) {
+                    inp.dataset.target = p.rel_path;
+                    inp.click();
+                  }
+                }
+              }, "…"),
+              el("input", {
+                type: "file", id: "se-console-logo-inp", accept: "image/*", style: "display:none",
+                onchange: function (e) {
+                  e.stopPropagation();
+                  var file = e.target.files && e.target.files[0];
+                  if (!file) return;
+                  var reader = new FileReader();
+                  reader.onload = function (ev) {
+                    try { localStorage.setItem("se-console-logo-" + e.target.dataset.target, ev.target.result); } catch (err) {}
+                    var img = document.querySelector('img.proj-logo[src*="' + e.target.dataset.target.replace(/\//g, "\\/") + '"]');
+                    if (!img) {
+                      // re-render no está disponible sin recargar la vista; recargamos proyectos
+                      go("projects");
+                    } else {
+                      img.src = ev.target.result;
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }),
+              el("div", {}, [
+                el("div", { class: "proj-name", text: p.name || p.dir_name }),
+                el("div", { class: "proj-id", text: p.project_id || p.rel_path })
+              ])
             ]),
             p.management === "MANAGED" ? healthChip(p.health) : el("span", { class: "tag tag-UNKNOWN", text: "UNKNOWN" })
           ]),

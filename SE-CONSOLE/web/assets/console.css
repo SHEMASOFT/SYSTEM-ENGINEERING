@@ -454,19 +454,38 @@ main:focus { outline: none; }
 .cond-MANUAL { color: var(--H-WARNING); border-color: color-mix(in srgb, var(--H-WARNING) 35%, transparent); }
 
 /* ---------- project cards ---------- */
-.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--sp-4); }
+.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--sp-4); max-width: 1000px; margin-left: auto; margin-right: auto; }
 .proj-card {
   text-align: left; font: inherit; cursor: pointer;
   background: var(--bg-panel); border: 1px solid var(--line);
   border-radius: var(--r-panel); padding: var(--sp-4);
   display: flex; flex-direction: column; gap: var(--sp-3);
   transition: border-color .12s ease, transform .12s ease;
+  max-width: 480px;
 }
 .proj-card:hover {
   border-color: var(--accent-soft); transform: translateY(-1px);
   box-shadow: var(--glow-soft);
 }
 .proj-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-2); }
+.proj-head-top { display: flex; align-items: center; gap: var(--sp-2); }
+.proj-logo {
+  width: 48px; height: 48px; border-radius: var(--r-1); object-fit: cover;
+  border: 1px solid var(--line-2); background: var(--bg-sunken);
+  flex: none;
+}
+.proj-logo-input {
+  display: none;
+}
+.proj-logo-btn {
+  position: absolute; top: 6px; left: 6px;
+  width: 20px; height: 20px; border-radius: 50%; background: var(--accent);
+  border: none; cursor: pointer; color: #fff; font-size: 10px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 2px var(--shadow);
+}
+.proj-logo-btn:hover { background: var(--accent-strong); }
+.proj-card { position: relative; }
 .proj-name { font-family: var(--font-mono); font-size: var(--fs-h2); font-weight: 700; }
 .proj-id { font-size: var(--fs-12); color: var(--ink-3); }
 .counts { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
@@ -740,11 +759,11 @@ body.drawer-open { overflow: hidden; }
 /* ---------- lifecycle flow (project cards + detail) ---------- */
 .flow {
   display: flex; align-items: flex-start; gap: 0;
-  margin: var(--sp-2) 0 var(--sp-2); overflow-x: auto; padding-bottom: 4px;
+  margin: var(--sp-2) 0 var(--sp-2); overflow-x: auto; padding-bottom: 6px;
 }
 .flow-step {
-  position: relative; flex: 1 1 0; min-width: 58px;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  position: relative; flex: 0 0 auto; min-width: 72px; max-width: 96px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
   text-align: center;
 }
 .flow-step:not(:last-child)::after {
@@ -756,7 +775,8 @@ body.drawer-open { overflow: hidden; }
   border: 2px solid var(--line-2); background: var(--bg-raised);
   position: relative; z-index: 1; flex: none;
 }
-.flow-label { font-size: var(--fs-11); font-family: var(--font-mono); color: var(--ink-3); line-height: 1.1; }
+.flow-label { font-size: var(--fs-11); font-family: var(--font-mono); color: var(--ink-3); line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+@media (max-width: 599px) { .flow-step { min-width: 42px; } .flow-label { font-size: 8px; } }
 .flow-step.is-done .flow-dot { border-color: var(--H-PASS); background: var(--H-PASS); }
 .flow-step.is-done .flow-label { color: var(--ink-2); }
 .flow-step.is-current .flow-dot {
@@ -770,7 +790,7 @@ body.drawer-open { overflow: hidden; }
 .proj-flow-progress { font-size: var(--fs-12); color: var(--ink-2); margin-top: var(--sp-1); }
 .proj-flow-progress .dim, .flow .dim { color: var(--ink-3); font-weight: 400; }
 .proj-flow-help { font-size: var(--fs-11); color: var(--ink-3); margin-top: 2px; }
-@media (max-width: 599px) { .flow-step { min-width: 46px; } .flow-label { font-size: 9px; } }
+@media (max-width: 599px) { .flow-step { min-width: 42px; } .flow-label { font-size: 8px; } }
 
 /* ---------- attention table rows ---------- */
 .attn-table tbody tr { cursor: pointer; }
