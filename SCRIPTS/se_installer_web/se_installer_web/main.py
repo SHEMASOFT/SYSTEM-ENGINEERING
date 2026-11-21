@@ -8,19 +8,21 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 # Add parent paths for imports
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SE_INSTALLER_ROOT = REPO_ROOT / "SE-INSTALLER"
-# Must add SE-INSTALLER to path so 'se_installer' module is found
+SCRIPTS_ROOT = REPO_ROOT / "SCRIPTS"
+# Must add SE-INSTALLER and SCRIPTS to path so modules are found
 sys.path.insert(0, str(SE_INSTALLER_ROOT))
+sys.path.insert(0, str(SCRIPTS_ROOT))
 sys.path.insert(0, str(REPO_ROOT))
 
 from se_installer.orchestrator import InstallerOrchestrator
@@ -325,10 +327,208 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
-# ---------- Health ----------
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+# ---------- Model Selection API ----------
+@app.get("/api/models")
+async def get_models():
+    """Get current model selection state, agent roster, and known model catalogue."""
+    from se_installer.model_step import describe_selection, list_agents
+    from se_installer.model_registry import MODEL_REGISTRY
+    
+    repo_root = get_repo_root()
+    
+    # Current selection
+    selection = describe_selection(repo_root)
+    
+    # Agent roster
+    roster = list_agents(repo_root)
+    
+    # Model catalogue
+    catalogue = {}
+    for model in MODEL_REGISTRY.models.values():
+        if model.provider not in catalogue:
+            catalogue[model.provider] = []
+        catalogue[model.provider].append({
+            "id": model.id,
+            "name": model.name,
+            "capabilities": [c.value for c in model.capabilities],
+            "is_free": model.is_free,
+            "context_window": model.context_window,
+        })
+    
+    return {
+        "selection": selection,
+        "roster": roster,
+        "catalogue": catalogue,
+    }
+
+
+class ModelApplyRequest(BaseModel):
+    """One answer to the MODEL SELECTION step.
+
+    ``global`` and ``agents`` are the model specs; an empty body means "clear",
+    ``skip`` means "write nothing". Unknown fields are rejected so a typo does
+    not look like an answer nobody applied.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    global_model: Optional[str] = Field(default=None, alias="global")
+    agents: dict[str, Optional[str]] = Field(default_factory=dict)
+    skip: bool = False
+
+
+@app.post("/api/models")
+async def apply_models(request: Optional[ModelApplyRequest] = None):
+    """Apply a model selection from the web UI."""
+    from se_installer.model_step import apply_selection, list_agents
+    
+    repo_root = get_repo_root()
+    
+    payload = request or ModelApplyRequest()
+    skip = payload.skip
+    global_spec = payload.global_model
+    agents = payload.agents or {}
+    
+    if skip:
+        return {
+            "status": "cleared",
+            "written": False,
+            "errors": [],
+            "adapters": [],
+            "runtimes_refreshed": [],
+            "message": "Model selection cleared by user",
+        }
+    
+    # Validate roster
+    roster = list_agents(repo_root)
+    for agent_name in agents.keys():
+        if agent_name not in roster:
+            raise HTTPException(status_code=400, detail=f"Unknown agent: {agent_name}")
+        spec = agents[agent_name]
+        if spec and "/" not in spec:
+            raise HTTPException(status_code=400, detail=f"Agent model for {agent_name} must be provider/model format")
+    
+    # Apply selection directly via model_step.apply_selection
+    report = apply_selection(
+        repo_root,
+        global_spec=global_spec,
+        agents=agents,
+        skip=False,
+        save=True,
+        runtimes=["opencode"],
+    )
+    
+    return {
+        "status": report.get("status", "failed"),
+        "written": report.get("written", False),
+        "errors": report.get("errors", []),
+        "adapters": report.get("adapters", []),
+        "runtimes_refreshed": report.get("runtimes_refreshed", []),
+        "selection": {
+            "global": report.get("selection", {}).get("global_model"),
+            "agents": {k: v.to_dict() for k, v in report.get("selection", {}).get("agents", {}).items()},
+        },
+    }
+
+
+@app.get("/api/models")
+async def get_models():
+    """Get current model selection state, agent roster, and known model catalogue."""
+    from se_installer.model_step import describe_selection, list_agents
+    from se_installer.model_registry import MODEL_REGISTRY
+    
+    repo_root = get_repo_root()
+    
+    # Current selection
+    selection = describe_selection(repo_root)
+    
+    # Agent roster
+    roster = list_agents(repo_root)
+    
+    # Model catalogue
+    catalogue = {}
+    for model in MODEL_REGISTRY.models.values():
+        if model.provider not in catalogue:
+            catalogue[model.provider] = []
+        catalogue[model.provider].append({
+            "id": model.id,
+            "name": model.name,
+            "capabilities": [c.value for c in model.capabilities],
+            "is_free": model.is_free,
+            "context_window": model.context_window,
+        })
+    
+    return {
+        "selection": selection,
+        "roster": roster,
+        "catalogue": catalogue,
+    }
+
+
+@app.post("/api/models")
+async def apply_models(request: Optional[ModelApplyRequest] = None):
+    """Apply a model selection from the web UI."""
+    from se_installer.model_step import apply_selection, list_agents
+    from se_core.model_tui.config import resolve_agent_model
+    
+    repo_root = get_repo_root()
+    
+    payload = request or ModelApplyRequest()
+    skip = payload.skip
+    global_spec = payload.global_model
+    agents = payload.agents or {}
+    
+    if skip:
+        # Clear action
+        load_func, _, save_model_config = _load_store()
+        written = save_model_config(repo_root, None, {})
+        return {
+            "status": "cleared",
+            "written": False,
+            "errors": [],
+            "adapters": [],
+            "runtimes_refreshed": [],
+            "message": "Model selection cleared by user",
+        }
+    
+    # Validate roster
+    roster = list_agents(repo_root)
+    for agent_name in agents.keys():
+        if agent_name not in list_agents(repo_root):
+            raise HTTPException(status_code=400, detail=f"Unknown agent: {agent_name}")
+        if agents[agent_name] and "/" not in agents[agent_name]:
+            raise HTTPException(status_code=400, detail=f"Agent model for {agent_name} must be provider/model format")
+    
+    # Build selection
+    selection = {}
+    if global_spec:
+        provider, _, model_id = global_spec.partition("/")
+        if not model_id:
+            provider, model_id = "", provider
+        selection["global_model"] = f"{provider}/{model_id}" if provider and "/" not in model_id else model_id
+    
+    if agents:
+        selection["agents"] = agents
+    
+    # Apply selection
+    report = apply_selection(
+        repo_root,
+        selection,
+        runtimes=["opencode"],
+        save=True,
+    )
+    
+    return {
+        "status": report.get("status", "failed"),
+        "written": report.get("written", False),
+        "errors": report.get("errors", []),
+        "adapters": report.get("adapters", []),
+        "runtimes_refreshed": report.get("runtimes_refreshed", []),
+        "selection": {
+            "global": report.get("selection", {}).get("global_model"),
+            "agents": {k: v.to_dict() for k, v in report.get("selection", {}).get("agents", {}).items()},
+        },
+    }
 
 
 if __name__ == "__main__":
@@ -362,3 +562,18 @@ def main():
             i += 1
     
     uvicorn.run(app, host=host, port=port, reload=reload, log_level="info")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

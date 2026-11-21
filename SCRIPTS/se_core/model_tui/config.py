@@ -10,6 +10,11 @@ from typing import Optional
 import httpx
 
 
+class ModelSelectionError(Exception):
+    """Raised when model selection is invalid or cannot be applied."""
+    pass
+
+
 @dataclass
 class AgentModelOverride:
     """Override for a specific agent's model."""
@@ -40,6 +45,7 @@ class AgentModelOverride:
 class ModelConfig:
     """Model configuration from opencode.jsonc."""
     global_model: Optional[str] = None
+    apply_to_all: bool = True
     agent_overrides: dict[str, AgentModelOverride] = field(default_factory=dict)
 
     @classmethod
@@ -132,23 +138,6 @@ def load_model_config(project_root: Path) -> ModelConfig:
         return ModelConfig()
 
 
-def load_model_config(project_root: Path) -> ModelConfig:
-    """Load model configuration from opencode.jsonc."""
-    config_path = project_root / "opencode.jsonc"
-    if not config_path.exists():
-        # Try .opencode/opencode.jsonc
-        config_path = project_root / ".opencode" / "opencode.jsonc"
-        if not config_path.exists():
-            return ModelConfig()
-
-    try:
-        content = config_path.read_text(encoding="utf-8")
-        config = _parse_jsonc(content)
-        return ModelConfig.from_opencode_config(config)
-    except Exception:
-        return ModelConfig()
-
-
 def resolve_agent_model(project_root: Path, agent_name: str) -> str | None:
     """Resolve the model for a specific agent from the project's opencode.jsonc.
 
@@ -169,6 +158,9 @@ def resolve_agent_model(project_root: Path, agent_name: str) -> str | None:
         return config.global_model
 
     return None
+
+
+def save_model_config(project_root: Path, global_model: str | None = None, agent_overrides: dict | None = None) -> bool:
     """Save model configuration to opencode.jsonc."""
     config_path = project_root / "opencode.jsonc"
     if not config_path.exists():
@@ -201,6 +193,7 @@ def resolve_agent_model(project_root: Path, agent_name: str) -> str | None:
 
     # Write back preserving formatting as much as possible
     config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    return True
 
 
 async def reload_opencode_config(project_root: Path) -> bool:
