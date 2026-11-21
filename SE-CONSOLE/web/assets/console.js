@@ -399,12 +399,12 @@
       lifecycle: "lifecycle: ",
       unmanagedExplain: "Unmanaged project: it is not monitored or advanced through gates. It is shown as-is, with no invented state.",
       changeLogo: "Cambiar logo del proyecto",
-      gateOk: "Gate {gate
+      gateOk: "Gate {gate} is PASS: the project can advance.",
       contextLabel: "Contexto general:",
       contextPlaceholder: "Ej. Estoy trabajando en la UI y el instalador...",
       noNextSteps: "Sin pasos siguientes definidos",
       noNotes: "Sin notas",
-      noContext: "Sin contexto adicional",} is PASS: the project can advance.",
+      noContext: "Sin contexto adicional",
       gateOkTo: "Gate {gate} is PASS: the project can advance toward {to}.",
       gateWarn: "Gate {gate} is {status}: needs review before advancing.",
       gateWarnTo: "Gate {gate} is {status}: needs review before advancing toward {to}.",
@@ -757,7 +757,7 @@
       params.to = ap.to;
       params.conditions = ap.conditions;
 
-      // Show context to the human so they know what they're attesting to
+      // Show context to the human so they are attesting to
       var ctx = ap.context || [];
       var detailLines = ctx.map(function (c) {
         return "- " + (c.id || "?") + ": " + (c.description || c.detail || "sin descripción");
