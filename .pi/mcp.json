@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": [
+        "npx",
+        "-y",
+        "@upstash/context7-mcp@4.4.0"
+      ],
+      "args": [],
+      "env": {
+        "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
+      }
+    },
+    "filesystem": {
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ],
+      "args": []
+    },
+    "se-memory-server": {
+      "command": [
+        "node",
+        "SCRIPTS/se_core/mcp/launch.mjs",
+        "SCRIPTS/se_core/mcp/memory_server.py"
+      ],
+      "args": []
+    },
+    "se-skill-server": {
+      "command": [
+        "node",
+        "SCRIPTS/se_core/mcp/launch.mjs",
+        "SCRIPTS/se_core/mcp/skill_server.py"
+      ],
+      "args": []
+    }
+  }
+}

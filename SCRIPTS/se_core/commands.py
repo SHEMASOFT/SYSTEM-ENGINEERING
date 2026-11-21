@@ -3787,6 +3787,24 @@ def cmd_adapter_deepseek(args) -> int:
     return _report_adapter("DeepSeek Harness Adapter", runtimes.generate_deepseek(root, output, dry_run), dry_run)
 
 
+def cmd_adapter_pi(args) -> int:
+    from . import runtimes
+
+    root = repo_root()
+    output = Path(args.output) if getattr(args, "output", None) else root
+    dry_run = bool(getattr(args, "dry_run", False))
+    return _report_adapter("Pi Adapter", runtimes.generate_pi(root, output, dry_run), dry_run)
+
+
+def cmd_adapter_hermes(args) -> int:
+    from . import runtimes
+
+    root = repo_root()
+    output = Path(args.output) if getattr(args, "output", None) else root
+    dry_run = bool(getattr(args, "dry_run", False))
+    return _report_adapter("Hermes Adapter", runtimes.generate_hermes(root, output, dry_run), dry_run)
+
+
 def cmd_adapter_all(args) -> int:
     from . import runtimes
 
