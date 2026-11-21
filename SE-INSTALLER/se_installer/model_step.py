@@ -1,4 +1,4 @@
-"""MODEL SELECTION step for the SE Installer (shared by CLI and Web UI).
+﻿"""MODEL SELECTION step for the SE Installer (shared by CLI and Web UI).
 
 This module handles the MODEL SELECTION step that runs after a successful
 installation. It writes the model selection to opencode.jsonc using the same
@@ -51,7 +51,7 @@ def describe_selection(repo_root: Path, prefill: Optional[str] = None, model_ste
     return {
         "global_model": global_model,
         "agent_overrides": overrides,
-        "apply_to_all": config.get("apply_to_all", True),
+        "apply_to_all": getattr(config, "apply_to_all", True),
         "roster": roster,
         "prefill": prefill,
         "model_step_disabled": model_step_disabled,
@@ -114,19 +114,36 @@ def apply_selection(
     
     # Validate roster
     roster = list_agents(root)
-    selection = selection_from(global_spec, agents, roster)
+    for agent_name in (agents or {}).keys():
+        if agent_name not in roster:
+            raise HTTPException(status_code=400, detail=f"Unknown agent: {agent_name}")
+        spec = (agents or {})[agent_name]
+        if spec and "/" not in spec:
+            raise HTTPException(status_code=400, detail=f"Agent model for {agent_name} must be provider/model format")
     
-    # Apply via model_step
-    report = model_step.apply_selection(
-        root,
-        selection,
-        runtimes=runtimes,
-        save=save,
-        runner=runner,
-        python=python,
-    )
+    # Apply via save_model_config
+    from se_core.model_tui.config import save_model_config, AgentModelOverride
     
-    return _response(root, report.get("status", "failed"), report.get("written", False), report.get("errors") or [], report.get("adapters") or [], runtimes or [])
+    # Convert string specs to AgentModelOverride objects
+    agent_objs = {}
+    if agents:
+        for agent_name, spec in agents.items():
+            if spec:
+                if "/" in spec:
+                    provider, model = spec.split("/", 1)
+                else:
+                    provider, model = "", spec
+                agent_objs[agent_name] = AgentModelOverride(
+                    provider=provider if provider else None,
+                    model=model,
+                )
+    
+    written = save_model_config(root, global_spec, agent_objs)
+    
+    # Refresh adapter layers
+    adapters, errors = refresh_layers(root, runtimes or ["opencode"])
+    
+    return _response(root, "configured", written, errors, adapters, runtimes or ["opencode"])
 
 
 def _load_store():
@@ -216,72 +233,6 @@ class ModelSelectionError(Exception):
     pass
 
 
-def selection_from(global_spec: Optional[str], agents: Optional[dict[str, str]], roster: list[str]) -> dict:
-    """Parse and validate the selection from the UI."""
-    from se_installer.model_step import selection_from as _selection_from
-    return _selection_from(global_spec, agents, roster)
-
-
-def apply_selection(
-    project_root: Path,
-    global_spec: Optional[str] = None,
-    agents: Optional[dict[str, str]] = None,
-    skip: bool = False,
-    save: bool = True,
-    runtimes: Optional[list[str]] = None,
-    python: Optional[str] = None,
-    runner=None,
-) -> dict:
-    """Apply a model selection from the web UI.
-    
-    This is the main entry point for the web UI's model selection step.
-    """
-    from se_installer.model_step import apply_selection as _apply_selection
-    from se_core.runtimes import generate_all
-    from se_core.model_tui.config import load_model_config, save_model_config, ModelConfig, AgentModelOverride
-    
-    root = Path(project_root)
-    
-    if skip:
-        return {
-            "status": "skipped",
-            "written": False,
-            "errors": [],
-            "adapters": [],
-            "runtimes_refreshed": [],
-            "message": "Model step skipped by user",
-        }
-    
-    # Parse the selection
-    if global_spec is None and not agents:
-        # Clear action
-        load_func, _, save_func = _load_store()
-        written = save_func(root, None, {})
-        adapters, errors = refresh_layers(Path(project_root), runtimes or ["opencode"])
-        return {
-            "status": "cleared",
-            "written": written,
-            "errors": errors,
-            "adapters": adapters,
-            "runtimes_refreshed": runtimes or ["opencode"],
-        }
-    
-    # Build selection
-    from se_installer.model_step import selection_from as _selection_from
-    selection = _selection_from(global_spec, agents, list_agents(Path(".")))
-    
-    report = apply_selection(
-        root,
-        selection,
-        runtimes=runtimes or ["opencode"],
-        save=save,
-        runner=None,
-        python=None,
-    )
-    
-    return _response(Path("."), report.get("status", "failed"), report.get("written", False), report.get("errors") or [], report.get("adapters") or [], runtimes or ["opencode"])
-
-
 def _load_store():
     from se_core.model_tui.config import load_model_config, save_model_config
     return load_model_config, None, save_model_config
@@ -313,28 +264,5 @@ def load_model_config(project_root: Path):
     return _load(Path(project_root))
 
 
-def describe_selection(repo_root: Path, prefill: Optional[str] = None, model_step_disabled: bool = False, runtimes: Optional[list[str]] = None) -> dict:
-    """Return the current model selection state for the UI."""
-    from se_core.model_tui.config import load_model_config
-    
-    config = load_model_config(Path(repo_root))
-    roster = list_agents(Path("."))
-    
-    overrides = {}
-    for name, override in config.agent_overrides.items():
-        if override.provider or override.model:
-            provider = override.provider or ""
-            model = override.model or ""
-            overrides[name] = f"{provider}/{model}" if provider and "/" not in model else model
-    
-    global_model = config.global_model
-    
-    return {
-        "global_model": global_model,
-        "agent_overrides": overrides,
-        "apply_to_all": config.get("apply_to_all", True),
-        "roster": roster,
-        "prefill": None,
-        "model_step_disabled": False,
-        "runtimes": ["opencode"],
-    }
+
+

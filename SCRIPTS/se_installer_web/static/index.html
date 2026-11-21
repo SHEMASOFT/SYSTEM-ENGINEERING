@@ -140,6 +140,7 @@
             <button class="tab active" data-tab="install">📦 Instalar</button>
             <button class="tab" data-tab="uninstall">🗑️ Desinstalar</button>
             <button class="tab" data-tab="adapter">⚙️ Adaptador</button>
+            <button class="tab" data-tab="model">🧠 Modelo</button>
             <button class="tab" data-tab="log">📋 Log</button>
         </div>
 
@@ -257,9 +258,75 @@
                     </div>
                 </div>
             </div>
-        </div>
+    </div>
 
-        <!-- LOG TAB -->
+    <!-- MODEL TAB -->
+    <div class="panel" id="panel-model">
+        <div class="grid">
+            <div>
+                <div class="card">
+                    <h3>🧠 Selección de Modelo</h3>
+                    <p class="muted" style="margin-bottom:16px;">
+                        Elige un modelo para los agentes, o salta el paso. Saltar no escribe
+                        nada: la configuración queda exactamente como está.
+                    </p>
+                    <div id="modelStepNotice"></div>
+                    <div class="form-group">
+                        <label class="form-label">¿Qué quieres configurar?</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="radio" name="modelMode" value="global" checked>
+                                Un mismo modelo para todos los agentes
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="radio" name="modelMode" value="per_agent">
+                                Un modelo por subagente
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="radio" name="modelMode" value="skip">
+                                Saltar (no configurar ningún modelo)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group" id="modelGlobalGroup">
+                        <label class="form-label" for="modelGlobalInput">Modelo para todos (<code>provider/model</code>)</label>
+                        <input type="text" class="text-input" id="modelGlobalInput"
+                               list="modelCatalogue" placeholder="provider/model"
+                               autocomplete="off" spellcheck="false">
+                        <datalist id="modelCatalogue"></datalist>
+                    </div>
+                    <div class="form-group" id="modelPerAgentGroup" style="display:none;">
+                        <label class="form-label">Un modelo por subagente (vacío = sin cambio)</label>
+                        <div id="modelAgentRows"></div>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-primary" id="btnModelApply" onclick="applyModelSelection()">
+                            <span>💾</span> Aplicar selección
+                        </button>
+                        <button class="btn btn-secondary" onclick="skipModelStep()">
+                            <span>⏭️</span> Saltar
+                        </button>
+                        <button class="btn btn-secondary" onclick="loadModels()">
+                            <span>🔄</span> Refrescar
+                        </button>
+                    </div>
+                    <div id="modelRuntimes" class="muted" style="margin-top:16px;"></div>
+                    <div id="modelApplyStatus" class="model-status"></div>
+                </div>
+            </div>
+            <div>
+                <div class="card">
+                    <h3>Selección Efectiva</h3>
+                    <p class="muted" style="margin-bottom:12px;">
+                        Lo que el runtime usará para cada agente.
+                    </p>
+                    <div id="modelCurrent" class="empty-state">Cargando...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOG TAB -->
         <div class="panel" id="panel-log">
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -541,6 +608,139 @@
         connectWS();
         loadComponents();
         loadStatus();
-    </script>
+    // ---------- Model Selection ----------
+        let modelState = null;
+        let modelRosterKey = null;
+
+        async function loadModels() {
+            try {
+                const data = await api('/models');
+                modelState = data;
+                renderModelState(data);
+            } catch (e) {
+                console.error(e);
+                addLog('error', 'Error cargando modelos: ' + e.message);
+            }
+        }
+
+        function renderModelState(data) {
+            // Update notice
+            const notice = document.getElementById('modelStepNotice');
+            if (data.model_step_disabled) {
+                notice.innerHTML = '<div class="notice">El paso de modelo está deshabilitado (--no-model-step).</div>';
+                document.getElementById('btnModelApply').disabled = true;
+                document.getElementById('modelGlobalInput').disabled = true;
+                return;
+            } else {
+                notice.innerHTML = '';
+                document.getElementById('btnModelApply').disabled = false;
+                document.getElementById('modelGlobalInput').disabled = false;
+            }
+
+            // Show current selection
+            const current = document.getElementById('modelCurrent');
+            if (!data.selection || !data.selection.global_model) {
+                current.innerHTML = '<div class="empty-state">Sin modelo configurado</div>';
+            } else {
+                let html = '<div class="model-line"><span class="model-key">Global:</span><span class="model-spec">' + escapeHtml(data.selection.global_model) + '</span></div>';
+                if (data.selection.agents && Object.keys(data.selection.agents).length) {
+                    html += '<div class="model-subtitle">Overrides por agente</div>';
+                    for (const [agent, spec] of Object.entries(data.selection.agents)) {
+                        html += '<div class="model-line"><span class="model-key">' + escapeHtml(agent) + ':</span><span class="model-spec">' + escapeHtml(spec) + '</span></div>';
+                    }
+                }
+                current.innerHTML = html;
+            }
+
+            // Show runtimes
+            const rtEl = document.getElementById('modelRuntimes');
+            if (rtEl && data.runtimes) {
+                rtEl.textContent = 'Capas a refrescar: ' + data.runtimes.join(', ');
+            }
+        }
+
+        function populateModelCatalogue(catalogue) {
+            const dl = document.getElementById('modelCatalogue');
+            dl.innerHTML = '';
+            for (const [provider, models] of Object.entries(catalogue)) {
+                for (const m of models) {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.label = m.name;
+                    dl.appendChild(opt);
+                }
+            }
+        }
+
+        function currentModelMode() {
+            const checked = document.querySelector('input[name="modelMode"]:checked');
+            return checked ? checked.value : 'global';
+        }
+
+        function gatherModelSelection() {
+            const mode = currentModelMode();
+            if (mode === 'skip') return { skip: true };
+            if (mode === 'global') {
+                const global = document.getElementById('modelGlobalInput').value.trim();
+                if (!global) { alert('Ingresa un modelo (provider/model)'); return null; }
+                return { global: global };
+            }
+            if (mode === 'per_agent') {
+                const agents = {};
+                const rows = document.querySelectorAll('#modelAgentRows .model-row');
+                for (const row of rows) {
+                    const agent = row.dataset.agent;
+                    const input = row.querySelector('input');
+                    const val = input.value.trim();
+                    if (val) agents[agent] = val;
+                }
+                return { agents };
+            }
+            return null;
+        }
+
+        async function applyModelSelection() {
+            const selection = gatherModelSelection();
+            if (!selection) return;
+            try {
+                const res = await api('/models', {
+                    method: 'POST',
+                    body: JSON.stringify(selection)
+                });
+                showModelStatus(res.status === 'configured' ? 'ok' : 'error', res);
+                if (res.status === 'configured' || res.status === 'cleared') {
+                    await loadModels();
+                }
+            } catch (e) {
+                console.error(e);
+                addLog('error', 'Error aplicando modelo: ' + e.message);
+            }
+        }
+
+        function skipModelStep() {
+            applyModelSelection({ skip: true });
+        }
+
+        function showModelStatus(type, data) {
+            const el = document.getElementById('modelApplyStatus');
+            if (type === 'ok') {
+                el.innerHTML = '<div class="ok">✅ ' + (data.message || 'Modelo aplicado') + '</div>';
+            } else {
+                el.innerHTML = '<div class="error">❌ ' + (data.message || data.detail || 'Error') + '</div>';
+            }
+        }
+
+        // Load models on model tab click
+        document.querySelector('[data-tab="model"]').addEventListener('click', () => {
+            if (!modelState) loadModels();
+        });
+
+        // Initialize model state on load
+        let modelState = null;
+        let modelRosterKey = null;
+
+        function loadModels() {
+            api('/models').then(loadModels).catch(e => addLog('error', 'Error cargando modelos: ' + e.message));
+        }
 </body>
 </html>
