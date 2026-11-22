@@ -14,6 +14,14 @@ Consola local, solo lectura, para ver el estado de tus proyectos en SYSTEM-ENGIN
 
 ---
 
+## Demo en acción
+
+<img src="assets/demo.gif" width="760" alt="SE-CONSOLE en acción: Resumen, Proyectos, detalle con memoria automática, Atención y pasos a seguir"/>
+
+<sub>Recorrido real: Resumen → Proyectos → detalle con memoria automática → Atención → pasos a seguir.</sub>
+
+---
+
 ## Qué hace (y qué no)
 
 **Qué hace:**

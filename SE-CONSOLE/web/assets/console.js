@@ -128,6 +128,7 @@
       addNote: "Añadir nota",
       newNotePlaceholder: "Ej. El endpoint de login está en /api/auth/login",
       doneStep: "Hecho",
+      pendingStep: "Pendiente",
       deleteStep: "Borrar paso",
       deleteNote: "Borrar nota",
       updateNote: "Guardar nota",
@@ -421,6 +422,7 @@
       addNote: "Add note",
       newNotePlaceholder: "E.g. The login endpoint is at /api/auth/login",
       doneStep: "Done",
+      pendingStep: "Pending",
       deleteStep: "Delete step",
       deleteNote: "Delete note",
       updateNote: "Save note",
@@ -445,6 +447,7 @@
       addNote: "Add note",
       newNotePlaceholder: "E.g. The login endpoint is at /api/auth/login",
       doneStep: "Done",
+      pendingStep: "Pending",
       deleteStep: "Delete step",
       deleteNote: "Delete note",
       updateNote: "Save note"
@@ -2365,8 +2368,6 @@
         el("div", { class: "stat stat-warn" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "WARNING"; }).length }), el("div", { class: "stat-k", text: "WARNING" })]),
         el("div", { class: "stat" }, [el("div", { class: "stat-n", text: all.length }), el("div", { class: "stat-k", text: __t("attention.total") })])
       ]));
-      wrap.appendChild(el("p", { class: "muted", style: "font-size:12px;margin-bottom:12px",
-        text: (att.note || "") }));
       // Explain the order, then group by project so each item says where it belongs.
       var orderNote = __t("attention.orderNote") + " " + __t("attention.groupNote");
       wrap.appendChild(el("div", { class: "callout", style: "margin-bottom:16px" }, orderNote));
