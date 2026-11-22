@@ -25,7 +25,7 @@ import sys
 import urllib.parse
 from typing import Any, Callable
 
-from . import actions, auth, read_cache, read_model, se_cli, se_reader
+from . import actions, auth, read_cache, read_model, project_memory, se_cli, se_reader
 
 WEB_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
 
@@ -342,6 +342,174 @@ def api_heartbeat(_m: dict) -> tuple[int, dict[str, Any]]:
     }
 
 
+def api_memory_project_get(m: dict) -> tuple[int, dict[str, Any]]:
+    """GET /api/memory/project?rel_path=PROJECTS/...
+
+    Return the persistent project memory (focus, next steps, notes, context).
+    Returns an empty skeleton when nothing has been saved yet.
+    """
+    rel = (m.get("rel_path") or "").strip("/")
+    if not _SAFE_RELPATH.match(rel) or ".." in rel:
+        return _error(400, "invalid project path", rel_path=rel)
+    mem = project_memory.load_memory(rel, se_reader.SE_ROOT)
+    return 200, mem
+
+
+def api_memory_project_set(m: dict) -> tuple[int, dict[str, Any]]:
+    """POST-equivalent via GET (local console, no SE state touched).
+
+    Query params:
+      rel_path  -- PROJECTS/...
+      field     -- current_focus | context | next_step | note | done_step | delete_step | delete_note
+      value     -- text value (for focus/context/next_step/note)
+      step_id   -- step id (for done_step/delete_step)
+      note_id   -- note id (for delete_note/update_note)
+      done      -- "true"/"false" (for done_step)
+    """
+    rel = (m.get("rel_path") or "").strip("/")
+    if not _SAFE_RELPATH.match(rel) or ".." in rel:
+        return _error(400, "invalid project path", rel_path=rel)
+    field = (m.get("field") or "").strip()
+    value = m.get("value") or ""
+    step_id = m.get("step_id") or ""
+    note_id = m.get("note_id") or ""
+    done_str = (m.get("done") or "").lower()
+
+    try:
+        if field == "current_focus":
+            result = project_memory.set_focus(rel, se_reader.SE_ROOT, value)
+        elif field == "context":
+            result = project_memory.set_context(rel, se_reader.SE_ROOT, value)
+        elif field == "next_step":
+            result = project_memory.upsert_next_step(rel, se_reader.SE_ROOT, value, step_id or None)
+        elif field == "done_step":
+            result = project_memory.mark_step_done(rel, se_reader.SE_ROOT, step_id, done_str == "true")
+            if result is None:
+                return _error(404, "step not found", step_id=step_id)
+        elif field == "delete_step":
+            result = project_memory.delete_step(rel, se_reader.SE_ROOT, step_id)
+            if result is None:
+                return _error(404, "step not found", step_id=step_id)
+        elif field == "add_note":
+            result = project_memory.add_note(rel, se_reader.SE_ROOT, value, note_id or None)
+        elif field == "update_note":
+            result = project_memory.update_note(rel, se_reader.SE_ROOT, note_id, value)
+            if result is None:
+                return _error(404, "note not found", note_id=note_id)
+        elif field == "delete_note":
+            result = project_memory.delete_note(rel, se_reader.SE_ROOT, note_id)
+            if result is None:
+                return _error(404, "note not found", note_id=note_id)
+        else:
+            return _error(400, "unknown field", field=field)
+    except OSError as exc:
+        return _error(500, f"memory write failed: {exc}")
+    return 200, result
+
+
+def api_memory_project_auto(m: dict) -> tuple[int, dict[str, Any]]:
+    """GET /api/memory/project/auto?rel_path=PROJECTS/...
+
+    Auto-generated memory for a project: what's blocked, what's next,
+    what's pending - all derived from canonical SE data. No manual input required.
+    """
+    rel = (m.get("rel_path") or "").strip("/")
+    if not _SAFE_RELPATH.match(rel) or ".." in rel:
+        return _error(400, "invalid project path", rel_path=rel)
+
+    memory = {
+        "project": rel,
+        "generated_at": read_model._now(),
+        "current_focus": "Estado no disponible",
+        "next_steps": [],
+        "notes": [],
+        "context": "",
+        "auto_generated": True,
+    }
+
+    try:
+        pj = read_cache.get("projects", read_model.build_project_list) or {}
+    except Exception:
+        pj = {"projects": []}
+
+    proj = None
+    for p in (pj.get("projects") or []):
+        if p.get("rel_path") == rel:
+            proj = p
+            break
+
+    if not proj:
+        return _error(404, "project not found", rel_path=rel)
+
+    # Current lifecycle state
+    lifecycle = proj.get("lifecycle", {}) if isinstance(proj.get("lifecycle"), dict) else {}
+    current_state = (lifecycle.get("value") or "UNKNOWN") if isinstance(lifecycle.get("value"), str) else "UNKNOWN"
+    state_descriptions = {
+        "DRAFT": "Proyecto registrado, pendiente de iniciar descubrimiento",
+        "DISCOVERY": "Identificando contexto, restricciones y desconocidos",
+        "PLANNING": "Definiendo requisitos y plan de trabajo",
+        "ACTIVE": "Implementando lo planificado",
+        "VERIFICATION": "Verificando implementación contra requisitos",
+        "ACCEPTANCE": "Esperando aceptación del propietario",
+        "RELEASED": "Versión publicada",
+        "OPERATING": "Sistema en operación",
+        "ARCHIVED": "Proyecto cerrado y preservado",
+    }
+    memory["current_focus"] = state_descriptions.get(current_state, f"Estado: {current_state}")
+
+    # Next step from next_transition
+    nt = lifecycle.get("next_transition", {}) if isinstance(lifecycle.get("next_transition"), dict) else {}
+    nt_value = nt.get("value", {}) if isinstance(nt.get("value"), dict) else {}
+    nt_to = nt_value.get("to")
+    nt_gates = nt_value.get("gates", []) if isinstance(nt_value.get("gates"), list) else []
+    if nt_to:
+        memory["next_steps"].insert(0, {
+            "id": f"next-transition-{nt_to}",
+            "text": f"Avanzar a {nt_to}" + (f" resolviendo gates: {', '.join(nt_gates)}" if nt_gates else ""),
+            "done": False,
+            "type": "next_transition",
+        })
+
+    # Gate health from project list
+    gate = proj.get("gate", {}) if isinstance(proj.get("gate"), dict) else {}
+    gate_value = gate.get("value", {}) if isinstance(gate.get("value"), dict) else {}
+    gate_status = gate_value.get("status") if isinstance(gate_value, dict) else None
+    gate_id = gate_value.get("id") if isinstance(gate_value, dict) else None
+    if gate_status == "FAIL":
+        memory["next_steps"].append({
+            "id": f"gate-fail-{gate_id or proj.get('project_id', rel)}",
+            "text": f"Gate {gate_id} en FAIL: bloquea el avance del proyecto",
+            "done": False,
+            "type": "gate_fail",
+        })
+    elif gate_status == "MANUAL":
+        memory["next_steps"].append({
+            "id": f"gate-manual-{gate_id or proj.get('project_id', rel)}",
+            "text": f"Gate {gate_id} en MANUAL: decisión humana requerida",
+            "done": False,
+            "type": "gate_manual",
+        })
+
+    # Context / context deep counts
+    context = proj.get("context_status", {}) if isinstance(proj.get("context_status"), dict) else {}
+    context_value = context.get("value", {}) if isinstance(context.get("value"), dict) else {}
+    deep_scope = context_value.get("deep_scope") or {}
+    counts = deep_scope.get("counts") or {}
+    if counts:
+        total_records = sum(counts.get(k, 0) for k in ("objectives", "requirements", "tasks", "artifacts", "evidence", "decisions", "acceptances"))
+        if total_records > 0:
+            memory["notes"].append({
+                "id": "note-records-count",
+                "text": f"Registros del proyecto: {total_records} elementos registrados",
+                "type": "info",
+            })
+
+    order = {"BLOCKED": 0, "WARNING": 1, "UNKNOWN": 2, "INFO": 3}
+    memory["next_steps"].sort(key=lambda s: order.get(s.get("type", "INFO").upper(), 9))
+
+    return 200, memory
+
+
 ROUTES: dict[str, Callable[[dict], tuple[int, dict]]] = {
     "/api/health": api_health,
     "/api/heartbeat": api_heartbeat,
@@ -356,6 +524,10 @@ ROUTES: dict[str, Callable[[dict], tuple[int, dict]]] = {
     "/api/memory/query": api_memory_query,
     "/api/memory/search": api_memory_search,
     "/api/memory/gc": api_memory_gc,
+    # P3-C.1: Project memory (persistent workspace aid, read-only for se)
+    "/api/memory/project/get": api_memory_project_get,
+    "/api/memory/project/set": api_memory_project_set,
+    "/api/memory/project/auto": api_memory_project_auto,
 }
 
 
