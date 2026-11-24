@@ -124,7 +124,7 @@ domain-agnostic · human-controlled · tool-independent**.
 |---|---|---|
 | **SYSTEM ENGINEERING** | The system itself: contracts, lifecycle, gates, CLI, adapters. This repository. | the clone |
 | **Managed projects** | The work SE governs: each project keeps its own repository, history and artifacts. SE is never coupled to them. | `PROJECTS/` by default (excluded from version control), or any directory passed with `--dir` |
-| **SE Console** | A local web console that shows what SE is, what state it is in and what needs attention. Read-only views; three token-authenticated actions delegate to `se`. | `SE-CONSOLE/`, on `http://127.0.0.1:8777` |
+| **SE Console** | A local web console that shows what SE is, what state it is in and what needs attention. Read-only views, per-project automatic memory, and three token-authenticated actions that delegate to `se`. | `SE-CONSOLE/`, on `http://127.0.0.1:8777` |
 | **Runtime adapters** | The generated agent layer (agents, commands, skills) for a runtime such as OpenCode, Claude Code or Codex. Generated, never hand-edited. | `.opencode/`, `.claude/`, `.codex/` |
 
 MCP servers (Context7, filesystem, SE's own skill and memory servers) are
@@ -276,10 +276,32 @@ attestation with a written reason, and SE never auto-approves them.
 
 ## Console, memory and work modes
 
-**SE Console** — a local web console over the system. Read-only views, and a single
-token-authenticated `POST /api/action` limited to three catalog actions
-(`run checkpoint`, `run close`, `transition --attest`). The token lives at
-`~/.config/se-console/token`, outside the repository.
+**SE Console** — a local web console over the system, with three views:
+**Overview** (what SE is, its health and its capabilities), **Projects** (every
+managed project with its 9-step lifecycle and gate matrix) and **Attention**
+(everything that needs action: failing gates, manual conditions, review gaps —
+grouped by project and ordered by priority, never a governance verdict).
+
+It is read-only by design: GET routes only, plus a single token-authenticated
+`POST /api/action` limited to three catalog actions (`run checkpoint`,
+`run close`, `transition --attest`). The token lives at
+`~/.config/se-console/token`, outside the repository. Every value on screen
+carries its provenance — `OBSERVED` (relayed from `se`), `DERIVED` (computed by
+the console) or `UNKNOWN` — so a state is never invented.
+
+Opening a project card shows its detail with an **automatic memory panel**
+(current focus, next steps, notes and context) generated from project state, so
+you never have to remember where you left off. Clicking any attention row opens
+a drawer with the steps to follow, what the item belongs to and the actions
+available.
+
+<div align="center">
+
+[![SE-CONSOLE in action: Overview, Projects, automatic memory, Attention and the steps to follow](SE-CONSOLE/docs/assets/demo.gif)](SE-CONSOLE/docs/README.md)
+
+<sub>Overview → Projects → project detail with automatic memory → Attention → the steps to follow.</sub>
+
+</div>
 
 ```bash
 cd SE-CONSOLE
@@ -288,7 +310,13 @@ python scripts/dev_console.py status
 python scripts/dev_console.py stop
 ```
 
-`start` arms a 15-minute idle timeout; `--idle-timeout 0` keeps it up. Details:
+`start` arms a 15-minute idle timeout; `--idle-timeout 0` keeps it up. One-click
+double-click helpers ship for Windows (`Start SE Console.cmd`) and macOS
+(`Start SE Console.command`), and no administrator privileges are needed.
+
+Three themes (`magenta` by default, `azul`, `claro`) with 16 tokens each and
+verified AA contrast; English or Spanish UI, switchable in the header; no
+animations. The full guide, in simple Spanish and fully visual, lives in
 [`SE-CONSOLE/docs/README.md`](SE-CONSOLE/docs/README.md).
 
 **Persistent memory** — built in, no external server: one JSON record per memory
