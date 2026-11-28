@@ -98,8 +98,12 @@ instalación, coordinador, MCP, modelo y troubleshooting.
       `-c <id>` sigue instalando cualquiera directamente.
       Evidencia: 170 tests del instalador OK; `install --all --dry-run --json`
       → `gated_excluded: [firecrawl, codegraph, rust, codex, claude_code]`.
-- [ ] **T11** Unificar `bootstrap.ps1` + `se install --bootstrap` +
-      `install-web.ps1` en una sola ruta documentada.
+- [x] **T11** Unificar `bootstrap.ps1` + `se install --bootstrap` +
+      `install-web.ps1` en una sola ruta documentada. No se refactoriza código:
+      las tres son entradas al mismo `se_installer.orchestrator`. Tabla en
+      `installation.md` (§ "Una sola ruta, tres entradas") y puntero desde
+      `se-installer.md`. El instalador web no se tocó.
+      Evidencia: `se validate` PASS tras rebase; mismos scripts y flags que antes.
 
 **Criterio de cierre:** una instalación limpia con `--runtimes codex,deepseek`
 deja ambos adapters generados y 4/4 MCP registrados.
@@ -133,7 +137,8 @@ comando y sin leer documentación.
 - [ ] **T24** Incluir Hermes en `se adapter all` (o renombrar el comando).
 - [ ] **T25** Eliminar `_pi_patch()` o conectarlo.
 - [ ] **T26** Eliminar `runtime_config_generator.py` o conectarlo (depende de T8).
-- [ ] **T27** Corregir el conteo del dry-run del adapter.
+- [🗑️] **T27** Corregir el conteo del dry-run del adapter → descartado: F12 no
+      era un bug (`AGENTS.local.md` ya existía y se cuenta como `unchanged`).
 - [ ] **T28** Evitar dos consolas simultáneas (bloqueo de puerto o aviso).
 
 ---

@@ -437,7 +437,8 @@ The SE Installer is **independent** from the SE Core lifecycle commands (`se ins
 (installing SE Core, Console, MCPs and runtimes) and then continues with the MCP
 registration described in [`installation.md`](installation.md). The one-command
 entry points are `SE-INSTALLER/bootstrap.ps1` (Windows) and `SE-INSTALLER/install.sh`
-(Linux/macOS).
+(Linux/macOS). `installation.md` compares all three entries (including the web UI)
+in § "Una sola ruta, tres entradas".
 
 ---
 
