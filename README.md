@@ -125,7 +125,7 @@ domain-agnostic · human-controlled · tool-independent**.
 | **SYSTEM ENGINEERING** | The system itself: contracts, lifecycle, gates, CLI, adapters. This repository. | the clone |
 | **Managed projects** | The work SE governs: each project keeps its own repository, history and artifacts. SE is never coupled to them. | `PROJECTS/` by default (excluded from version control), or any directory passed with `--dir` |
 | **SE Console** | A local web console that shows what SE is, what state it is in and what needs attention. Read-only views, per-project automatic memory, and three token-authenticated actions that delegate to `se`. | `SE-CONSOLE/`, on `http://127.0.0.1:8777` |
-| **Runtime adapters** | The generated agent layer (agents, commands, skills) for a runtime such as OpenCode, Claude Code or Codex. Generated, never hand-edited. | `.opencode/`, `.claude/`, `.codex/` |
+| **Runtime adapters** | The generated agent layer (agents, commands, skills) for a runtime such as OpenCode, Claude Code, Codex, DeepSeek Harness, Pi or Hermes. Generated, never hand-edited. | `.opencode/`, `.claude/`, `.codex/`, `.dsh/` |
 
 MCP servers (Context7, filesystem, SE's own skill and memory servers) are
 **optional integrations**. None of them is required by SE.
@@ -195,7 +195,10 @@ adapter and point the runtime at it:
 python SCRIPTS/se.py adapter opencode      # .opencode/   (audited by se doctor)
 python SCRIPTS/se.py adapter claude-code   # .claude/ + .mcp.json + CLAUDE.md
 python SCRIPTS/se.py adapter codex         # .codex/ + AGENTS.md
-python SCRIPTS/se.py adapter all           # every runtime at one output root
+python SCRIPTS/se.py adapter deepseek      # .dsh/ + AGENTS.local.md (patch overlay)
+python SCRIPTS/se.py adapter pi            # settings.json + .pi/ + skills
+python SCRIPTS/se.py adapter hermes        # settings.json + AGENTS.md + .hermes/ + skills
+python SCRIPTS/se.py adapter all           # claude-code, codex, deepseek and pi at one output root
 ```
 
 `se adapter opencode` writes **12 agents, 27 commands and 7 skills**, all generated
@@ -404,7 +407,7 @@ References: [`project-bootstrap.md`](DOCS/reference/project-bootstrap.md),
 | `TEMPLATES/` | Fill-in templates for artifacts, projects and MCP servers |
 | `SCRIPTS/` | Reference Python CLI (`se.py`, `se_core/`) |
 | `POLICIES/` | Human-readable policies (permissions, evidence, release, security) |
-| `INTEGRATIONS/` | Runtime adapters (OpenCode, Claude Code, Codex) and the provider-neutral CI governance adapter |
+| `INTEGRATIONS/` | Runtime adapters (OpenCode, Claude Code, Codex, DeepSeek Harness) and the provider-neutral CI governance adapter |
 | `SE-CONSOLE/` | Local-first web console: read-only views, authenticated actions |
 | `SE-INSTALLER/` | Unified installer + TUI for SE + MCP servers + runtimes |
 | `DOCS/` | Architecture, references, the workflow visualization and the video sources |
