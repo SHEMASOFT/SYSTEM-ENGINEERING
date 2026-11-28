@@ -96,6 +96,15 @@ class AdapterInvariantsTests(unittest.TestCase):
             second = runtimes.generate_all(ROOT, Path(tmp))
             self.assertEqual({f["action"] for f in second["files"]}, {"unchanged"})
 
+    def test_all_excludes_hermes_to_avoid_shared_file_collisions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = runtimes.generate_all(ROOT, Path(tmp), dry_run=True)
+            self.assertEqual(
+                set(result["adapters"]),
+                {"claude-code", "codex", "deepseek", "pi"},
+            )
+            self.assertNotIn("hermes", result["adapters"])
+
     def test_cli_dry_run_writes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             code, out = support.run_cli("adapter", "claude-code", "--output", tmp, "--dry-run")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import argparse
+from pathlib import Path
 
 from .orchestrator import InstallerOrchestrator
 from .components import get_all_components, get_recommended_components
@@ -26,7 +27,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
     install_parser.add_argument(
         "--all", "-a", action="store_true",
-        help="Install all components"
+        help="Install every component that needs no account or extra toolchain"
     )
     install_parser.add_argument(
         "--recommended", "-r", action="store_true",
@@ -38,7 +39,11 @@ def create_parser() -> argparse.ArgumentParser:
     )
     install_parser.add_argument(
         "--runtimes", nargs="+", default=["opencode"],
-        help="Target runtimes to configure (opencode, codex, claude_code)"
+        help="Target runtimes to configure (opencode, codex, claude-code, deepseek, pi, hermes)"
+    )
+    install_parser.add_argument(
+        "--include-gated", action="store_true",
+        help="With --all, also include components needing an account or toolchain"
     )
     install_parser.add_argument(
         "--force", action="store_true",
@@ -449,9 +454,25 @@ def cmd_install(args) -> int:
 
     orchestrator = InstallerOrchestrator(plan)
 
-    # Determine components to install
+    # Determine components to install. `--all` stays unattended-safe: a
+    # component needing a human account or a separate toolchain is skipped
+    # unless the operator explicitly opts in with --include-gated.
+    gated_excluded = []
     if args.all:
-        selected = [c.id for c in get_all_components()]
+        all_components = get_all_components()
+        gated_excluded = [c for c in all_components if c.is_gated]
+        if getattr(args, "include_gated", False):
+            selected = [c.id for c in all_components]
+        else:
+            selected = [c.id for c in all_components if not c.is_gated]
+            for comp in gated_excluded:
+                needs = []
+                if comp.requires_account:
+                    needs.append("cuenta")
+                if comp.requires_toolchain:
+                    needs.append("toolchain")
+                print(f"  [SKIP] {comp.id}: requiere {' + '.join(needs)} "
+                      "(usar --include-gated)", file=sys.stderr)
     elif args.components:
         selected = args.components
     else:
@@ -482,6 +503,14 @@ def cmd_install(args) -> int:
                 print("[FAIL] Instalación completada con errores", file=out)
         elif event == "shortcut":
             _print_shortcut(data, out)
+        elif event == "adapters":
+            for item in data["adapters"]:
+                if item["status"] == "FAILED":
+                    print(f"  [FAIL] adapter {item['runtime']}: {item.get('error')}", file=out)
+                else:
+                    label = "plan" if args.dry_run else "OK"
+                    print(f"  [{label}] adapter {item['runtime']} "
+                          f"({item.get('files', 0)} archivos)", file=out)
 
     orchestrator = InstallerOrchestrator(
         plan=plan,
@@ -492,7 +521,20 @@ def cmd_install(args) -> int:
     orchestrator.prepare_plan(selected, args.runtimes)
     success = orchestrator.run_installation()
 
+    # `--runtimes` used to be stored on the plan and never acted upon. Render
+    # the adapters here (CLI only), after the components are in place, and
+    # report each outcome. The TUI and the web installer drive the orchestrator
+    # directly and keep their own behaviour.
+    adapters = []
+    if getattr(args, "runtimes", None):
+        from .runtime_adapters import generate as generate_adapters
+
+        adapters = generate_adapters(Path.cwd(), args.runtimes, dry_run=args.dry_run)
+        progress_cb("adapters", {"adapters": adapters})
+
     summary = orchestrator.get_summary()
+    summary["adapters"] = adapters
+    summary["gated_excluded"] = [c.id for c in gated_excluded]
 
     if args.json:
         print(json.dumps(summary, indent=2, ensure_ascii=False))
@@ -502,7 +544,15 @@ def cmd_install(args) -> int:
         print(f"  [OK] Exitos: {summary['success']}")
         print(f"  [FAIL] Fallos: {summary['failed']}")
         print(f"  [SKIP] Omitidos (no seleccionados): {summary['skipped']}")
+        if summary.get("gated_excluded"):
+            print(f"  [SKIP] Requieren cuenta/toolchain: "
+                  f"{', '.join(summary['gated_excluded'])}")
         _print_shortcut(summary.get("shortcut"), sys.stdout)
+        if adapters:
+            print("  Adaptadores:")
+            for item in adapters:
+                print(f"    - {item['runtime']}: {item['status']}"
+                      + (f" ({item.get('error')})" if item.get("error") else ""))
 
     return 0 if success else 1
 

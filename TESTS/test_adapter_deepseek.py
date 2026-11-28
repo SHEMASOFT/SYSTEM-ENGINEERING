@@ -147,6 +147,21 @@ class DeepseekStructureTests(unittest.TestCase):
             # The role contract is the persona body, not just its description.
             self.assertIn("Must not invent requirements without a stated source.", patch)
 
+    def test_patch_parses_as_yaml(self):
+        """A patch DSH cannot load is a failed install, not a formatting nit."""
+        import yaml
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out, _ = render(Path(tmp), model="openai/gpt-4o")
+            document = yaml.safe_load(read(out, ".dsh/se.patch.yml"))
+            self.assertIsInstance(document, list)
+            rows = document[0]["insert"]
+            presets = {row["config"]["id"]: row for row in rows if row["id"].startswith("preset-")}
+            self.assertIn("analyst", presets)
+            self.assertEqual(presets["analyst"]["name"], "@deepseek-ai/dsh-agent-preset")
+            self.assertEqual(presets["analyst"]["config"]["order"], 1)
+            self.assertTrue(presets["analyst"]["config"]["plugins"])
+
     def test_presets_load_project_instructions_and_the_skill_surface(self):
         with tempfile.TemporaryDirectory() as tmp:
             out, _ = render(Path(tmp))

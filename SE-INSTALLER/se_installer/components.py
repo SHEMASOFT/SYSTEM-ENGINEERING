@@ -132,6 +132,7 @@ def get_all_components() -> list:
         verification_command="npx -y firecrawl-mcp --help",
         homepage="https://firecrawl.dev",
         docs_url="https://docs.firecrawl.dev",
+        requires_account=True,  # FIRECRAWL_API_KEY
         recommended=False,
         category="Web Scraping",
     ))
@@ -176,6 +177,7 @@ def get_all_components() -> list:
         verification_command="codegraph --version",
         homepage="https://codegraph.dev",
         docs_url="https://codegraph.dev/docs",
+        requires_toolchain=True,  # Rust/Cargo
         recommended=False,
         category="Code Intelligence",
     ))
@@ -215,6 +217,7 @@ def get_all_components() -> list:
         install_method="rustup",
         verification_command="cargo --version",
         homepage="https://rustup.rs",
+        requires_toolchain=True,  # rustup
         recommended=False,
         category="Runtime",
     ))
@@ -257,6 +260,8 @@ def get_all_components() -> list:
         install_method="npm",
         verification_command="codex --version",
         homepage="https://github.com/openai/codex",
+        requires_account=True,     # OpenAI key
+        requires_toolchain=True,   # npm
         recommended=False,
         category="Runtime",
     ))
@@ -275,6 +280,8 @@ def get_all_components() -> list:
         install_method="npm",
         verification_command="claude --version",
         homepage="https://github.com/anthropics/claude-code",
+        requires_account=True,     # Anthropic key
+        requires_toolchain=True,   # npm
         recommended=False,
         category="Runtime",
     ))

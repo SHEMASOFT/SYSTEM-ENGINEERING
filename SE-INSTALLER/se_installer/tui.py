@@ -12,7 +12,7 @@ from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.widgets import (
-    Header, Footer, Static, Button, Checkbox, Label, 
+    Header, Footer, Static, Button, Checkbox, Label, Input,
     ProgressBar, Log, TabbedContent, TabPane, Select
 )
 from textual.widgets import Tree, Collapsible
@@ -101,6 +101,49 @@ def register_mcps(
         )
         return 1
     return 0
+
+
+# T16: the third TUI step configures what comes after a successful install.
+# Kept as pure helpers so the mapping from checkboxes to `se` behaviour can be
+# tested without starting a Textual event loop. Hermes is deliberately absent:
+# it writes the shared AGENTS.md/settings.json and must be run on its own (T24).
+CONFIG_RUNTIMES = ("opencode", "claude-code", "codex", "deepseek", "pi")
+
+
+def selected_runtimes(flags: dict[str, bool]) -> list[str]:
+    """Map the Configure tab checkboxes to the runtime id list."""
+    return [r for r in CONFIG_RUNTIMES if flags.get(f"chk-rt-{r}")]
+
+
+def finish_config(
+    root: Path,
+    *,
+    runtimes: list[str],
+    model_spec: str = "",
+    dry_run: bool = False,
+    generate=None,
+    save_model=None,
+) -> dict:
+    """Apply the model + adapter steps after installation (dry-run aware).
+
+    Dependencies are injected so tests never write to a real opencode.jsonc or
+    generate real adapter files. The TUI passes the real functions at runtime.
+    """
+    result: dict = {"model": "skipped", "adapters": []}
+    spec = (model_spec or "").strip()
+    if spec and "/" not in spec:
+        raise ValueError("El modelo debe tener formato provider/model")
+    if spec:
+        if dry_run:
+            result["model"] = "planned"
+        else:
+            if save_model is None:
+                raise RuntimeError("save_model is required when applying a model")
+            save_model(Path(root), spec, {})
+            result["model"] = "written"
+    if runtimes and generate is not None:
+        result["adapters"] = generate(Path(root), runtimes, dry_run=dry_run)
+    return result
 
 
 def run_uninstall(
@@ -382,7 +425,10 @@ class InstallerApp(App):
         self.install_succeeded = False
         self.install_was_dry_run = False
         self.installed_mcp_ids: list[str] = []
-    
+        # T16: decisions from the Configure tab, read at install time.
+        self.config_runtimes: list[str] = ["opencode"]
+        self.model_spec: str = ""
+
     def compose(self) -> ComposeResult:
         yield Header()
         
@@ -450,11 +496,64 @@ class InstallerApp(App):
                     
                     yield Static("## Log de Desinstalación", id="uninstall-log-title")
                     yield LogWidget(id="uninstall-log-widget")
-        
+
+            # Tab 3: Configurar (T16) -- the same three decisions the CLI
+            # exposes, in the order an operator makes them.
+            with TabPane("Configurar", id="tab-config"):
+                with Vertical(id="config-container"):
+                    yield Static("## 1. Modelo", id="config-model-title")
+                    yield Static(
+                        "Provider/model para todos los agentes. Ejemplo: deepseek/deepseek-chat. "
+                        "Vacío = no cambiar.",
+                        id="config-model-hint",
+                    )
+                    yield Input(placeholder="provider/model", id="inp-model")
+                    yield Static("## 2. Runtimes (adaptadores)", id="config-runtime-title")
+                    yield Static(
+                        "Los adaptadores se generan después de instalar. Hermes se ejecuta aparte: "
+                        "escribe AGENTS.md y settings.json compartidos.",
+                        id="config-runtime-hint",
+                    )
+                    for runtime in CONFIG_RUNTIMES:
+                        yield Checkbox(
+                            runtime,
+                            id=f"chk-rt-{runtime}",
+                            value=runtime == "opencode",
+                        )
+                    yield Static("## 3. Resumen", id="config-summary-title")
+                    yield Static("Sin cambios pendientes.", id="config-summary")
+
         yield Footer()
     
     def on_mount(self) -> None:
         self._load_state()
+        self._refresh_config_summary()
+
+    def on_checkbox_changed(self, event) -> None:
+        if str(getattr(event.checkbox, "id", "") or "").startswith("chk-rt-"):
+            self._refresh_config_summary()
+
+    def on_input_changed(self, event) -> None:
+        if getattr(event.input, "id", None) == "inp-model":
+            self._refresh_config_summary()
+
+    def _refresh_config_summary(self) -> None:
+        """Show what the Configure tab will actually do, before Install."""
+        try:
+            flags = {
+                f"chk-rt-{r}": bool(self.query_one(f"#chk-rt-{r}", Checkbox).value)
+                for r in CONFIG_RUNTIMES
+            }
+            model = self.query_one("#inp-model", Input).value.strip()
+            summary = self.query_one("#config-summary", Static)
+        except Exception:
+            return
+        runtimes = selected_runtimes(flags)
+        summary.update(
+            f"Modelo: {model or 'sin cambios'} · Adaptadores: "
+            f"{', '.join(runtimes) if runtimes else 'ninguno'} · "
+            f"{'dry-run' if self.dry_run else 'se aplicará al instalar'}"
+        )
     
     @property
     def all_components(self):
@@ -506,6 +605,7 @@ class InstallerApp(App):
         btn = self.query_one("#btn-dryrun", Button)
         btn.label = f"Dry Run: {'ON' if self.dry_run else 'OFF'}"
         btn.variant = "primary" if self.dry_run else "default"
+        self._refresh_config_summary()
     
     def action_install(self) -> None:
         if not self.selected_ids:
@@ -538,9 +638,18 @@ class InstallerApp(App):
             self.query_one("#chk-shortcuts", Checkbox).value
         )
         
+        # T16: read the three Configure-step decisions here, at install time,
+        # so the plan and the generated layers match what the operator saw.
+        flags = {}
+        for runtime in CONFIG_RUNTIMES:
+            widget = self.query_one(f"#chk-rt-{runtime}", Checkbox)
+            flags[f"chk-rt-{runtime}"] = bool(widget.value)
+        self.config_runtimes = selected_runtimes(flags)
+        self.model_spec = self.query_one("#inp-model", Input).value.strip()
+
         self.orchestrator.prepare_plan(
             selected_ids=list(self.selected_ids),
-            target_runtimes=["opencode"]  # default
+            target_runtimes=self.config_runtimes or ["opencode"],
         )
         
         # Disable buttons during installation
@@ -572,6 +681,41 @@ class InstallerApp(App):
         self.query_one("#btn-dryrun", Button).disabled = False
         self.query_one("#chk-shortcuts", Checkbox).disabled = False
         
+        # T16: model selection + adapter generation are the last two steps,
+        # after components exist, exactly as in the CLI path. A failure here is
+        # logged but never turns a successful component install into a lie.
+        log = self.query_one("#log-widget", LogWidget)
+        try:
+            save_model = None
+            generate = None
+            if self.model_spec:
+                try:
+                    from se_core.model_tui.config import save_model_config as save_model
+                except ImportError as exc:
+                    log.add_entry("ERROR", f"Modelo no disponible: {exc}")
+                    self.model_spec = ""
+            if self.config_runtimes:
+                from .runtime_adapters import generate as generate_adapters
+
+                generate = generate_adapters
+            layer_result = finish_config(
+                Path.cwd(),
+                runtimes=self.config_runtimes,
+                model_spec=self.model_spec,
+                dry_run=self.dry_run,
+                generate=generate,
+                save_model=save_model,
+            )
+            if layer_result["model"] != "skipped":
+                log.add_entry("INFO", f"Modelo: {layer_result['model']}")
+            for item in layer_result["adapters"]:
+                log.add_entry(
+                    "INFO" if item.get("status") != "FAILED" else "ERROR",
+                    f"Adapter {item.get('runtime')}: {item.get('status')}",
+                )
+        except Exception as exc:
+            log.add_entry("ERROR", f"Paso de configuración: {exc}")
+
         summary = self.orchestrator.get_summary()
         if success:
             self.notify(f"Instalación completada: {summary['success']}/{summary['total']} OK", severity="success")

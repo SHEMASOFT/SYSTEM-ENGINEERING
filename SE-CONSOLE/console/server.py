@@ -25,6 +25,7 @@ ever runs at all.
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 import sys
@@ -364,6 +365,29 @@ def preflight() -> int:
     return 0
 
 
+def bind_console(
+    host: str, port: int
+) -> tuple["ThreadingHTTPServer | None", str | None]:
+    """Bind once, fail loudly, and never start a second console silently.
+
+    Two consoles on the same port are not harmless: the second one either dies
+    with a raw traceback or (on some stacks) steals the address while the first
+    keeps serving stale reads. Binding is the only reliable check -- probing the
+    port first has a TOCTOU race -- so the error comes from the real bind and is
+    translated into an operator-facing message with the next action to take.
+    """
+    try:
+        return ThreadingHTTPServer((host, port), ConsoleHandler), None
+    except OSError as exc:
+        if exc.errno in (errno.EADDRINUSE, errno.EACCES):
+            return None, (
+                f"console port {host}:{port} is already in use or unavailable "
+                f"({exc.strerror or exc}). Reuse the running console, or start "
+                f"this one with --port <free-port> (or SE_CONSOLE_PORT)."
+            )
+        return None, f"cannot bind console to {host}:{port}: {exc}"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m console.server",
@@ -381,10 +405,25 @@ def main(argv: list[str] | None = None) -> int:
             "itself. Env: SE_CONSOLE_IDLE_TIMEOUT."
         ),
     )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=BIND_PORT,
+        help="TCP port to bind (default: SE_CONSOLE_PORT or 8777)",
+    )
     args = parser.parse_args(argv)
+
+    # Bind BEFORE warming anything: a second console must fail fast instead of
+    # running two audit passes and two attention warmers before it notices.
+    httpd, bind_error = bind_console(BIND_HOST, args.port)
+    if bind_error is not None:
+        sys.stderr.write(f"[se-console] REFUSED: {bind_error}\n")
+        return 2
+    assert httpd is not None
 
     rc = preflight()
     if rc != 0:
+        httpd.server_close()
         return rc
     # Warm the shared audit once and keep it refreshed, so /api/system does not
     # re-run `se doctor` on every request (see console/audit.py).
@@ -392,7 +431,6 @@ def main(argv: list[str] | None = None) -> int:
     # Warm the project reads the Attention view needs, so opening that tab does
     # not pay for one deep read per managed project.
     api.warm_attention()
-    httpd = ThreadingHTTPServer((BIND_HOST, BIND_PORT), ConsoleHandler)
     # The handler reaches the watch through the server instance it already has.
     httpd.idle = IdleWatch(args.idle_timeout)
     state = "OK" if se_cli.probe_se()["operational"] else "DEGRADED (se engine down)"
@@ -401,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         idle_note = "no idle timeout"
     sys.stderr.write(
-        f"[se-console] console on http://{BIND_HOST}:{BIND_PORT}  "
+        f"[se-console] console on http://{BIND_HOST}:{args.port}  "
         f"(GET-only; POST /api/action is token-authenticated)  "
         f"(se_root={se_reader.SE_ROOT})  health={state}  ({idle_note})\n"
         f"[se-console] warming the shared audit pass (one `se doctor`, then "

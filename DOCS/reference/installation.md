@@ -206,6 +206,23 @@ After a successful `install` they also run this registration automatically. The
 TUI does the same for the selected MCPs. Custom `-c/--components` selections on
 `install` and `--skip-mcp-registration` skip it.
 
+### Una sola ruta, tres entradas
+
+Hay una sola implementación del bootstrap: `se_installer.orchestrator`. Las
+formas de llegar a ella no son instaladores distintos, sino entradas distintas:
+
+| Entrada | Cuándo usarla | Qué hace |
+|---|---|---|
+| `SE-INSTALLER/bootstrap.ps1 install --recommended` | Windows, clon limpio | Crea el venv, corre `se-installer` y registra los MCP con `se install` |
+| `SE-INSTALLER/install.sh install --recommended` | macOS/Linux, clon limpio | Igual que la anterior |
+| `python3 SCRIPTS/se.py install --bootstrap` | Ya estás en el CLI de SE | Corre `se-installer` y continúa con el registro |
+| `SE-INSTALLER/install-web.ps1` | Prefieres una interfaz en el navegador | Levanta el mismo orquestador; cambia la UI, no el instalador |
+
+Regla práctica: desde cero usa el script de tu sistema; `--bootstrap` es el atajo
+cuando ya estás dentro del CLI; la interfaz web solo cambia cómo se eligen los
+componentes. `--runtimes`, `--all` y `--include-gated` pertenecen al CLI de
+`se-installer` (o al script que lo reenvía); en la web se seleccionan en pantalla.
+
 The reproducible clean-Windows check (Windows Sandbox or disposable VM) is documented in
 [clean-machine-smoke.md](clean-machine-smoke.md).
 

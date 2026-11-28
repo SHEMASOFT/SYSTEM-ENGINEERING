@@ -3702,6 +3702,12 @@ def cmd_install(args) -> int:
     )
 
 
+def cmd_setup(args) -> int:
+    from .setup import run_setup
+
+    return run_setup(args)
+
+
 def cmd_sync(args) -> int:
     from . import sync
 

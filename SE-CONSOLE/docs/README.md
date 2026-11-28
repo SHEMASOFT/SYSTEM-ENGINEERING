@@ -50,7 +50,7 @@ Desde la carpeta `SE-CONSOLE/`:
 python scripts\dev_console.py start
 
 # Abrir en el navegador
-# http://localhost:8631
+# http://localhost:8777
 
 # Ver estado
 python scripts\dev_console.py status
@@ -63,7 +63,10 @@ O directamente, sin el helper:
 
 ```powershell
 python -m console.server
-# -> http://localhost:8631
+# -> http://localhost:8777
+# Si ya hay una consola corriendo, el segundo intento se rechaza con un mensaje
+# accionable. Para abrir otra, elige otro puerto:
+python -m console.server --port 8778
 ```
 
 ---
@@ -79,7 +82,15 @@ Estado general del sistema SE: salud, versión, capacidades, agentes y gates.
 Tarjetas con el flujo de 9 fases de cada proyecto. Haz clic en una para ver su detalle: memoria automática (foco, próximos pasos, notas, contexto) y matriz de gates.
 
 ### 3 · Atención
-Todo lo que necesita tu acción, agrupado por proyecto. 64 BLOCKED y 36 WARNING en orden de prioridad. Haz clic en cualquier fila para abrir un cajón con pasos a seguir, a qué pertenece y acciones disponibles.
+Todo lo que necesita tu acción. Puedes agruparlo por proyecto (default) o por causa raíz con el selector **Agrupar por**. En el desplegable **Silenciar causas** puedes ocultar causas repetidas: la preferencia se guarda solo en este navegador y no cambia ningún dato del sistema. Haz clic en cualquier fila para abrir un cajón con pasos a seguir, a qué pertenece y acciones disponibles.
+
+### 4 · Informes
+Ejecuta `health`, `verify`, `gate` y `plan` sobre un proyecto con un argv validado. Son solo lectura: la consola muestra el sobre `se.report/1` tal como lo emite el motor. `plan` nunca crea tareas.
+
+### 5 · Buscar
+Coincidencias léxicas sobre nombres de proyecto, memoria de la consola y registros canónicos. Es una ayuda para encontrar información, no un veredicto de governance.
+
+Cuando `se doctor` falla o avisa, cada check tiene un botón **Arreglar**: abre los comandos exactos para copiar en tu terminal. La consola no los ejecuta por ti.
 
 ---
 

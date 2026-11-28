@@ -25,7 +25,7 @@ import sys
 import urllib.parse
 from typing import Any, Callable
 
-from . import actions, auth, read_cache, read_model, project_memory, se_cli, se_reader
+from . import actions, auth, read_cache, read_model, project_memory, reports, se_cli, se_reader
 
 WEB_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
 
@@ -131,6 +131,30 @@ def warm_attention() -> None:
     threading.Thread(target=_bg, daemon=True).start()
 
 
+def attention_cause(item: dict[str, Any]) -> str:
+    """A stable, UI-only root-cause bucket for an attention item.
+
+    This is a grouping hint, NOT a governance verdict: it never changes the
+    item's severity or its engine-derived fields. Gate failures bucket by gate,
+    RUN interventions by their intervention point, and everything else by area
+    plus a digit-normalised title so repeated instances stay together.
+    """
+    explicit = item.get("root_cause") or item.get("cause")
+    if explicit:
+        return str(explicit)[:80]
+    area = str(item.get("area") or "other").lower()
+    title = str(item.get("title") or "")
+    if area == "gate":
+        match = re.search(r"\b(G\d+)\b", title, flags=re.IGNORECASE)
+        return f"gate:{(match.group(1) if match else 'unknown').upper()}"
+    if area == "run":
+        return "run:intervention"
+    if area == "integrity":
+        return "integrity:schema"
+    normalized = re.sub(r"\d+", "#", title).strip()[:48] or "none"
+    return f"{area}:{normalized}"
+
+
 def api_attention(_m: dict) -> tuple[int, dict[str, Any]]:
     """Aggregate every managed project's attention items in ONE request.
 
@@ -153,6 +177,7 @@ def api_attention(_m: dict) -> tuple[int, dict[str, Any]]:
             it = dict(item)
             it["_project"] = rel
             it["_project_name"] = p.get("dir_name") or p.get("name") or rel
+            it["_cause"] = attention_cause(it)
             out_items.append(it)
     order = {"BLOCKED": 0, "WARNING": 1, "UNKNOWN": 2, "INFO": 3}
     out_items.sort(key=lambda i: (order.get(str(i.get("severity", "")).upper(), 9),
@@ -162,8 +187,17 @@ def api_attention(_m: dict) -> tuple[int, dict[str, Any]]:
         "BLOCKED": sum(1 for i in out_items if i.get("severity") == "BLOCKED"),
         "WARNING": sum(1 for i in out_items if i.get("severity") == "WARNING"),
     }
+    causes: dict[str, dict[str, Any]] = {}
+    for item in out_items:
+        bucket = causes.setdefault(
+            item["_cause"], {"cause": item["_cause"], "total": 0, "BLOCKED": 0, "WARNING": 0}
+        )
+        bucket["total"] += 1
+        if item.get("severity") in ("BLOCKED", "WARNING"):
+            bucket[item["severity"]] += 1
     return 200, {
         "counts": counts,
+        "causes": sorted(causes.values(), key=lambda c: (-c["BLOCKED"], -c["WARNING"], c["cause"])),
         "items": out_items,
         "projects": [p.get("rel_path") for p in (projects.get("projects", []) or [])
                      if p.get("management") == "MANAGED"],
@@ -206,7 +240,7 @@ def api_memory_get(m: dict) -> tuple[int, dict[str, Any]]:
         return _error(400, "--memory_id required")
 
     # Resolve project path
-    project_path = os.path.join(_SE_ROOT, project_rel)
+    project_path = os.path.join(SE_ROOT, project_rel)
     if not os.path.isdir(project_path):
         return _error(404, "project not found", project=project_rel)
 
@@ -224,7 +258,7 @@ def api_memory_query(m: dict) -> tuple[int, dict[str, Any]]:
     if not project_rel or not _SAFE_RELPATH.match(project_rel):
         return _error(400, "valid --project required (PROJECTS/...)", project=project_rel)
 
-    project_path = os.path.join(_SE_ROOT, project_rel)
+    project_path = os.path.join(SE_ROOT, project_rel)
     if not os.path.isdir(project_path):
         return _error(404, "project not found", project=project_rel)
 
@@ -262,7 +296,7 @@ def api_memory_search(m: dict) -> tuple[int, dict[str, Any]]:
     if not query:
         return _error(400, "--query required")
 
-    project_path = os.path.join(_SE_ROOT, project_rel)
+    project_path = os.path.join(SE_ROOT, project_rel)
     if not os.path.isdir(project_path):
         return _error(404, "project not found", project=project_rel)
 
@@ -290,7 +324,7 @@ def api_memory_gc(m: dict) -> tuple[int, dict[str, Any]]:
     if not project_rel or not _SAFE_RELPATH.match(project_rel):
         return _error(400, "valid --project required (PROJECTS/...)", project=project_rel)
 
-    project_path = os.path.join(_SE_ROOT, project_rel)
+    project_path = os.path.join(SE_ROOT, project_rel)
     if not os.path.isdir(project_path):
         return _error(404, "project not found", project=project_rel)
 
@@ -510,8 +544,117 @@ def api_memory_project_auto(m: dict) -> tuple[int, dict[str, Any]]:
     return 200, memory
 
 
+def api_report(m: dict) -> tuple[int, dict[str, Any]]:
+    """GET /api/report?report=<id>&project=PROJECTS/...: one allow-listed read.
+
+    The argv is built by `console/reports.py` and re-parsed by `se_cli.run_se`,
+    so a query string cannot smuggle `--create-tasks`, `--force` or an extra
+    subcommand. `explore` is refused because it writes canonical state.
+    """
+    report = (m.get("report") or m.get("verb") or "").strip()
+    params = {
+        key: m[key]
+        for key in ("project", "gate", "scope")
+        if m.get(key) not in (None, "")
+    }
+    try:
+        argv = reports.build_argv(report, params)
+    except reports.Refused as exc:
+        return _error(400, str(exc))
+    try:
+        result, meta = se_cli.run_se(argv, timeout=120)
+    except se_cli.SeError as exc:
+        return _error(400, f"report refused: {exc}")
+    return 200, {**result, "report_request": report, "argv": meta["argv"]}
+
+
+_SEARCH_LIMIT = 40
+
+
+def _snippet(text: str, needle: str) -> str:
+    """A short, honest excerpt around the first match (no invented context)."""
+    index = text.casefold().find(needle)
+    if index < 0:
+        return text[:140]
+    start = max(0, index - 40)
+    end = min(len(text), index + len(needle) + 100)
+    return ("…" if start else "") + text[start:end] + ("…" if end < len(text) else "")
+
+
+def _build_search(q: str) -> dict[str, Any]:
+    needle = q.casefold()
+    projects = read_cache.get("projects", read_model.build_project_list) or {}
+    results: list[dict[str, Any]] = []
+
+    for p in projects.get("projects", []) or []:
+        rel = p.get("rel_path")
+        if not rel:
+            continue
+        name = p.get("dir_name") or p.get("name") or rel
+        if needle in f"{rel} {name}".casefold():
+            results.append(
+                {"kind": "project", "project": rel, "title": name, "snippet": rel}
+            )
+
+        memory = project_memory.load_memory(rel, SE_ROOT)
+        entries = [
+            ("note", item.get("id"), item.get("text"))
+            for item in (memory.get("notes") or [])
+        ] + [
+            ("step", item.get("id"), item.get("text"))
+            for item in (memory.get("next_steps") or [])
+        ]
+        for kind, ident, text in entries:
+            if isinstance(text, str) and needle in text.casefold():
+                results.append(
+                    {
+                        "kind": "memory",
+                        "project": rel,
+                        "title": f"{kind}: {ident or ''}".strip(),
+                        "snippet": _snippet(text, needle),
+                    }
+                )
+
+        project_path = os.path.join(SE_ROOT, rel)
+        for rtype in se_reader.RECORD_LAYOUT:
+            loaded = se_reader.load_records(project_path, rtype)
+            for record in loaded.get("records") or []:
+                blob = json.dumps(record.get("data") or {}, ensure_ascii=False)
+                if needle in blob.casefold():
+                    results.append(
+                        {
+                            "kind": "record",
+                            "project": rel,
+                            "title": f"{rtype}/{record.get('id')}",
+                            "snippet": _snippet(blob, needle),
+                        }
+                    )
+        if len(results) >= _SEARCH_LIMIT:
+            break
+
+    return {
+        "query": q,
+        "results": results[:_SEARCH_LIMIT],
+        "count": min(len(results), _SEARCH_LIMIT),
+        "truncated": len(results) > _SEARCH_LIMIT,
+        "note": "Lexical matches over canonical project names, console memory and records; "
+                "not a governance verdict.",
+        "generated_at": read_model._now(),
+    }
+
+
+def api_search(m: dict) -> tuple[int, dict[str, Any]]:
+    """GET /api/search?q=... -- global lexical search across the console's reads."""
+    q = str(m.get("q") or "").strip()
+    if len(q) < 2 or len(q) > 200:
+        return _error(400, "q must be between 2 and 200 characters", query=q)
+    return 200, read_cache.get(f"search:{q.casefold()}", lambda: _build_search(q))
+
+
 ROUTES: dict[str, Callable[[dict], tuple[int, dict]]] = {
     "/api/health": api_health,
+    "/api/search": api_search,
+    "/api/report": api_report,
     "/api/heartbeat": api_heartbeat,
     "/api/system": api_system,
     "/api/projects": api_projects,

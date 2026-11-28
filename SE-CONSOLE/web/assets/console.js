@@ -41,7 +41,12 @@
       checkNote: "cada check se lista abajo, sin agregar",
       explain: "Cuántas comprobaciones del sistema están bien (PASS), avisan (WARN) o fallan (FAIL). Muestra si el sistema de ingeniería necesita atención.",
       evidenceNote: "De dónde sale cada dato: medido directamente (OBSERVED), calculado (DERIVED) o no disponible (UNKNOWN).",
-      focusTitle: "Checks que requieren atención"
+      focusTitle: "Checks que requieren atención",
+      fix: "Arreglar",
+      fixIntro: "La consola no ejecuta arreglos por su cuenta. Copie estos comandos en una terminal y vuelva a verificar.",
+      fixCheck: "Diagnosticar de nuevo",
+      fixApply: "Reinstalar y regenerar adapters",
+      fixDocs: "Si el fallo es de documentación, rebase el baseline de coverage"
     },
     healthCmd: {
       title: "Salud del motor (CMD-0016)",
@@ -230,6 +235,12 @@
       intro: "Consolida los gates FAIL, las condiciones MANUAL, los gaps de se review y los registros que fallan schema. La severidad ordena la atención; no sustituye un veredicto del motor.",
       orderNote: "el orden es prioridad de atención, no un veredicto de governance",
       groupNote: "Están agrupados por proyecto para saber a qué pertenece cada uno. Empiece por el primer proyecto: de arriba abajo, primero lo que bloquea y después lo que solo advierte.",
+      groupByLabel: "Agrupar por",
+      cause: "causa raíz",
+      projectGroup: "proyecto",
+      muteTitle: "Silenciar causas (solo en este navegador)",
+      mutedNote: "causa(s) silenciada(s)",
+      unmuteAll: "Mostrar todas",
       openProject: "Ver el estado del proyecto",
       projectColumn: "proyecto",
       resolveFirst: "Orden para resolver",
@@ -258,6 +269,24 @@
       step_release: "Publique el release y vincúlelo a la evidencia.",
       step_operations: "Cree el documento de operaciones (docs/operations.md).",
       step_generic: "Revise el detalle del elemento y resuelva lo que corresponda."
+    },
+    reports: {
+      title: "Informes de SE",
+      intro: "Solo lectura: cada informe se delega a se con un argv validado. La consola no interpreta ni reescribe el veredicto del motor.",
+      project: "Proyecto (PROJECTS/...)",
+      gate: "Gate (G0, G1...)",
+      scope: "Alcance",
+      run: "Ejecutar",
+      hint: "Elija un proyecto y presione un informe. plan solo deriva un se.plan/1; nunca crea tareas.",
+      error: "El informe no se pudo ejecutar"
+    },
+    search: {
+      title: "Búsqueda global",
+      intro: "Coincidencias léxicas sobre nombres de proyecto, memoria de la consola y registros canónicos. No es un veredicto de governance.",
+      placeholder: "Buscar (mínimo 2 caracteres)",
+      button: "Buscar",
+      empty: "Sin coincidencias",
+      error: "La búsqueda falló"
     },
     action: {
       checkpoint: "Registrar avance",
@@ -338,7 +367,12 @@
       checkNote: "each check is listed below, as-is",
       explain: "How many system checks pass (PASS), warn (WARN) or fail (FAIL). Shows whether the engineering system needs attention.",
       evidenceNote: "Where each datum comes from: measured directly (OBSERVED), calculated (DERIVED) or unavailable (UNKNOWN).",
-      focusTitle: "Checks needing attention"
+      focusTitle: "Checks needing attention",
+      fix: "Fix",
+      fixIntro: "The console never runs fixes. Copy these commands into a terminal and re-check.",
+      fixCheck: "Re-run diagnostics",
+      fixApply: "Reinstall and regenerate adapters",
+      fixDocs: "If the failure is documentation, rebase the coverage baseline"
     },
     healthCmd: {
       title: "Engine health (CMD-0016)",
@@ -544,6 +578,12 @@
       intro: "Consolidates FAIL gates, MANUAL conditions, se review gaps and records that fail schema. Severity orders attention; it does not replace an engine verdict.",
       orderNote: "the order is attention priority, not a governance verdict",
       groupNote: "They are grouped by project so you know what each one belongs to. Start with the first project: from the top down, what blocks before what merely warns.",
+      groupByLabel: "Group by",
+      cause: "root cause",
+      projectGroup: "project",
+      muteTitle: "Mute causes (this browser only)",
+      mutedNote: "muted cause(s)",
+      unmuteAll: "Show all",
       openProject: "Open the project",
       projectColumn: "project",
       resolveFirst: "Resolution order",
@@ -554,6 +594,24 @@
       actions: "Actions",
       empty: "no items needing attention",
       total: "total"
+    },
+    reports: {
+      title: "SE reports",
+      intro: "Read-only: each report is delegated to se with a validated argv. The console neither interprets nor rewrites the engine verdict.",
+      project: "Project (PROJECTS/...)",
+      gate: "Gate (G0, G1...)",
+      scope: "Scope",
+      run: "Run",
+      hint: "Pick a project and press a report. plan only derives a se.plan/1; it never creates tasks.",
+      error: "The report could not be run"
+    },
+    search: {
+      title: "Global search",
+      intro: "Lexical matches over project names, console memory and canonical records. Not a governance verdict.",
+      placeholder: "Search (at least 2 characters)",
+      button: "Search",
+      empty: "No matches",
+      error: "Search failed"
     },
     action: {
       checkpoint: "Register progress",
@@ -1211,6 +1269,61 @@
   }
 
   // ------------------------------------------------------- screen: overview
+  // T18: "Arreglar" never executes anything. The console stays read-only: it
+  // hands the operator the exact `se` commands for that doctor check, ordered
+  // diagnosis first, and lets them copy each one to a real terminal.
+  var FIX_COMMANDS = {
+    adapter: "se adapter all --dry-run",
+    baseline_ledger: 'se coverage rebase --reason "<motivo>" --by <actor>',
+    runtime: "se setup --check",
+    structure: "se setup --dry-run",
+    required_files: "se setup --dry-run"
+  };
+  var FIX_NOTE = {
+    adapter: "fixApply",
+    baseline_ledger: "fixDocs"
+  };
+
+  function fixCommands(check) {
+    var id = String((check && check.id) || "");
+    var cmds = [
+      { label: __t("health.fixCheck"), cmd: "se doctor" },
+      { label: __t("health.fixCheck"), cmd: "se validate" }
+    ];
+    if (FIX_COMMANDS[id]) {
+      cmds.push({ label: __t("health." + (FIX_NOTE[id] || "fixApply")), cmd: FIX_COMMANDS[id] });
+    }
+    return cmds;
+  }
+
+  function fixDrawer(check) {
+    var body = el("div");
+    body.appendChild(el("p", { class: "muted", text: __t("health.fixIntro") }));
+    body.appendChild(el("div", { class: "callout", text: check.detail || check.description || check.id || "" }));
+    fixCommands(check).forEach(function (entry) {
+      var pre = el("pre", { class: "mono", style: "white-space:pre-wrap;margin:6px 0", text: entry.cmd });
+      body.appendChild(el("div", { class: "tag-row", style: "margin-top:10px" }, [
+        el("span", { class: "muted", text: entry.label + ": " }),
+        pre,
+        el("button", { type: "button", class: "btn btn-small", text: "copiar", onclick: function () {
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(entry.cmd);
+            } else {
+              var ta = document.createElement("textarea");
+              ta.value = entry.cmd;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand("copy");
+              document.body.removeChild(ta);
+            }
+          } catch (e) { /* clipboard can be blocked; the text stays selectable */ }
+        } })
+      ]));
+    });
+    openDrawer(__t("health.fix") + " · " + (check.id || ""), body);
+  }
+
   function viewOverview() {
     // The overview renders only /api/system. It does not show an attention
     // table, so it does not fetch one: no unused requests, no dead route.
@@ -1291,7 +1404,11 @@
                 el("div", { class: "li-title", text: c.description || c.id }),
                 el("div", { class: "li-sub", text: c.detail || "" })
               ]),
-              statusChip(c.status)
+              el("div", { class: "tag-row" }, [
+                statusChip(c.status),
+                el("button", { type: "button", class: "btn btn-small", text: __t("health.fix"),
+                               onclick: function () { fixDrawer(c); } })
+              ])
             ]);
           })
         ])
@@ -2332,6 +2449,59 @@
     });
   }
 
+  // T19: root-cause buckets are a UI grouping hint from /api/attention. They
+  // never alter a severity or an engine verdict. Mutes live in localStorage so
+  // the console keeps writing no SE state and no extra auth surface is needed.
+  var MUTE_KEY = "se-console.muted-causes";
+  function mutedCauses() {
+    try {
+      var raw = window.localStorage.getItem(MUTE_KEY);
+      var parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) { return []; }
+  }
+  function saveMutedCauses(list) {
+    try { window.localStorage.setItem(MUTE_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  function groupByCause(items) {
+    var by = {};
+    var order = [];
+    (items || []).forEach(function (i) {
+      var k = i._cause || "other:none";
+      if (!by[k]) { by[k] = []; order.push(k); }
+      by[k].push(i);
+    });
+    return order.map(function (k) {
+      var its = by[k].slice().sort(function (a, b) { return severityRank(a.severity) - severityRank(b.severity); });
+      return { key: k, name: k, items: its };
+    }).sort(function (a, b) {
+      return severityRank(a.items[0] && a.items[0].severity) - severityRank(b.items[0] && b.items[0].severity);
+    });
+  }
+
+  function renderCauseGroup(g) {
+    var blocked = g.items.filter(function (i) { return i.severity === "BLOCKED"; }).length;
+    var warning = g.items.filter(function (i) { return i.severity === "WARNING"; }).length;
+    var projects = [];
+    g.items.forEach(function (i) {
+      var p = i._project || i.project;
+      if (p && projects.indexOf(p) === -1) projects.push(p);
+    });
+    return el("section", { class: "attn-group" }, [
+      el("div", { class: "attn-group-head" }, [
+        el("h3", { class: "attn-group-title", text: g.name }),
+        el("div", { class: "tag-row" }, [
+          blocked ? el("span", { class: "stat-chip stat-chip-fail", text: blocked + " BLOCKED" }) : null,
+          warning ? el("span", { class: "stat-chip stat-chip-warn", text: warning + " WARNING" }) : null,
+          el("span", { class: "stat-chip", text: g.items.length + " " + __t("attention.total") }),
+          el("span", { class: "muted", style: "font-size:12px", text: projects.join(", ") })
+        ])
+      ]),
+      renderAttentionTable({ items: g.items })
+    ]);
+  }
+
   function renderProjectGroup(g) {
     var blocked = g.items.filter(function (i) { return i.severity === "BLOCKED"; }).length;
     var warning = g.items.filter(function (i) { return i.severity === "WARNING"; }).length;
@@ -2361,19 +2531,133 @@
       wrap.appendChild(el("h2", { class: "section-title", text: __t("attention.title") }));
       wrap.appendChild(el("p", { class: "muted", style: "margin-bottom:16px",
         text: __t("attention.intro") }));
-      var all = (att.items || []);
+      var muted = mutedCauses();
+      var all = (att.items || []).filter(function (i) { return muted.indexOf(i._cause) === -1; });
       var counts = att.counts || {};
       wrap.appendChild(el("div", { class: "stat-row", style: "margin-bottom:16px" }, [
         el("div", { class: "stat stat-fail" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "BLOCKED"; }).length }), el("div", { class: "stat-k", text: "BLOCKED" })]),
         el("div", { class: "stat stat-warn" }, [el("div", { class: "stat-n", text: all.filter(function (i) { return i.severity === "WARNING"; }).length }), el("div", { class: "stat-k", text: "WARNING" })]),
         el("div", { class: "stat" }, [el("div", { class: "stat-n", text: all.length }), el("div", { class: "stat-k", text: __t("attention.total") })])
       ]));
-      // Explain the order, then group by project so each item says where it belongs.
+      // Explain the order, then let the operator choose the grouping and mute
+      // repeated causes locally. Muting never changes the canonical data.
       var orderNote = __t("attention.orderNote") + " " + __t("attention.groupNote");
       wrap.appendChild(el("div", { class: "callout", style: "margin-bottom:16px" }, orderNote));
-      wrap.appendChild(el("div", { class: "attn-groups" }, groupByProject(all).map(renderProjectGroup)));
+      var groupBy = state.attnGroupBy === "cause" ? "cause" : "project";
+      var selector = el("select", { id: "attn-group-by", class: "sel-theme", onchange: function (e) {
+        state.attnGroupBy = e.target.value; go("attention");
+      } }, [
+        el("option", { value: "project", text: __t("attention.projectGroup") }),
+        el("option", { value: "cause", text: __t("attention.cause") })
+      ]);
+      selector.value = groupBy;
+      var muteBox = el("details", { class: "callout", style: "margin-bottom:16px" }, [
+        el("summary", { text: __t("attention.muteTitle") })
+      ]);
+      (att.causes || []).forEach(function (c) {
+        muteBox.appendChild(el("label", { style: "display:block;margin-top:6px" }, [
+          el("input", { type: "checkbox", checked: muted.indexOf(c.cause) !== -1, onchange: function (e) {
+            var next = mutedCauses().filter(function (k) { return k !== c.cause; });
+            if (e.target.checked) next.push(c.cause);
+            saveMutedCauses(next); go("attention");
+          } }),
+          " " + c.cause + " (" + c.total + ")"
+        ]));
+      });
+      if (muted.length) {
+        muteBox.appendChild(el("button", { type: "button", class: "btn btn-small", style: "margin-top:8px", text: __t("attention.unmuteAll"), onclick: function () {
+          saveMutedCauses([]); go("attention");
+        } }));
+        wrap.appendChild(el("p", { class: "muted", text: muted.length + " " + __t("attention.mutedNote") }));
+      }
+      wrap.appendChild(el("div", { class: "tag-row", style: "margin-bottom:16px" }, [
+        el("label", { class: "muted", text: __t("attention.groupByLabel") + " " }), selector, muteBox
+      ]));
+      var groups = groupBy === "cause" ? groupByCause(all) : groupByProject(all);
+      wrap.appendChild(el("div", { class: "attn-groups" }, groups.map(groupBy === "cause" ? renderCauseGroup : renderProjectGroup)));
       return wrap;
       });
+  }
+
+  // ------------------------------------------------------- screen: reports
+  function viewReports() {
+    var wrap = el("div");
+    wrap.appendChild(el("h2", { class: "section-title", text: __t("reports.title") }));
+    wrap.appendChild(el("p", { class: "muted", style: "margin-bottom:16px", text: __t("reports.intro") }));
+
+    var project = el("input", {
+      type: "text", class: "token-inp", placeholder: __t("reports.project"),
+      value: state.project || ""
+    });
+    var gate = el("input", { type: "text", class: "token-inp", placeholder: __t("reports.gate"), value: "G0" });
+    var scope = el("select", { class: "sel-theme" }, [
+      el("option", { value: "", text: "identity" }),
+      el("option", { value: "work", text: "work" }),
+      el("option", { value: "authority", text: "authority" }),
+      el("option", { value: "trace", text: "trace" }),
+      el("option", { value: "deep", text: "deep" })
+    ]);
+    var out = el("div", { class: "callout", text: __t("reports.hint") });
+
+    function run(report) {
+      var params = ["report=" + encodeURIComponent(report),
+                    "project=" + encodeURIComponent(project.value.trim())];
+      if (report === "gate") params.push("gate=" + encodeURIComponent(gate.value.trim()));
+      if (report === "health" && scope.value) params.push("scope=" + encodeURIComponent(scope.value));
+      out.textContent = "cargando " + report + "…";
+      api("/api/report?" + params.join("&")).then(function (d) {
+        out.innerHTML = "";
+        out.appendChild(el("div", { class: "tag-row", text: "se.report/1 · " + (d.status || "UNKNOWN") }));
+        var pre = el("pre", { class: "mono", style: "white-space:pre-wrap;max-height:420px;overflow:auto" });
+        pre.textContent = JSON.stringify(d, null, 2);
+        out.appendChild(pre);
+      }).catch(function (e) { out.textContent = __t("reports.error") + ": " + e.message; });
+    }
+
+    wrap.appendChild(el("div", { class: "tag-row", style: "margin-bottom:12px" }, [project, gate, scope]));
+    wrap.appendChild(el("div", { class: "tag-row", style: "margin-bottom:16px" },
+      ["health", "verify", "gate", "plan"].map(function (id) {
+        return el("button", { type: "button", class: "btn btn-small", text: id,
+                              onclick: function () { run(id); } });
+      })));
+    wrap.appendChild(out);
+    return wrap;
+  }
+
+  // -------------------------------------------------------- screen: search
+  function viewSearch() {
+    var wrap = el("div");
+    wrap.appendChild(el("h2", { class: "section-title", text: __t("search.title") }));
+    wrap.appendChild(el("p", { class: "muted", style: "margin-bottom:16px", text: __t("search.intro") }));
+    var input = el("input", { type: "search", class: "token-inp", placeholder: __t("search.placeholder") });
+    var out = el("div", { class: "callout", text: __t("search.placeholder") });
+    function submit() {
+      var q = input.value.trim();
+      if (q.length < 2) { out.textContent = __t("search.placeholder"); return; }
+      out.textContent = "cargando…";
+      api("/api/search?q=" + encodeURIComponent(q)).then(function (d) {
+        out.innerHTML = "";
+        if (!d.results || !d.results.length) { out.textContent = __t("search.empty"); return; }
+        out.appendChild(el("p", { class: "muted", text: d.count + (d.truncated ? "+" : "") + " resultados" }));
+        d.results.forEach(function (r) {
+          out.appendChild(el("div", { class: "callout", style: "margin-top:8px" }, [
+            el("div", { class: "tag-row" }, [
+              el("span", { class: "tag", text: r.kind }),
+              el("span", { class: "mono", text: r.title }),
+              el("span", { class: "muted", text: r.project })
+            ]),
+            el("div", { class: "muted", text: r.snippet })
+          ]));
+        });
+      }).catch(function (e) { out.textContent = __t("search.error") + ": " + e.message; });
+    }
+    input.addEventListener("keydown", function (e) { if (e.key === "Enter") submit(); });
+    wrap.appendChild(el("div", { class: "tag-row", style: "margin-bottom:16px" }, [
+      input,
+      el("button", { type: "button", class: "btn btn-small", text: __t("search.button"), onclick: submit })
+    ]));
+    wrap.appendChild(out);
+    return wrap;
   }
 
   // ---------------------------------------------------------------- router
@@ -2389,6 +2673,8 @@
     var p;
     if (view === "projects") p = viewProjects();
     else if (view === "attention") p = viewAttention();
+    else if (view === "reports") p = viewReports();
+    else if (view === "search") p = viewSearch();
     else p = viewOverview();
     p.then(function (node) {
       root.innerHTML = "";
