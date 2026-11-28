@@ -31,6 +31,58 @@ class TestCLI:
         assert args.recommended is True
         assert args.json is True
 
+    def test_install_all_flags_exist(self):
+        args = create_parser().parse_args(["install", "--all", "--include-gated"])
+        assert args.all is True
+        assert args.include_gated is True
+
+    @staticmethod
+    def _capture_selection(monkeypatch):
+        """Install with a fake orchestrator and return the selected ids."""
+        from se_installer import orchestrator as orchestrator_module
+        from se_installer import runtime_adapters
+
+        seen = {}
+
+        class FakeOrchestrator:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def prepare_plan(self, selected, runtimes):
+                seen["selected"] = selected
+
+            def run_installation(self):
+                return True
+
+            def get_summary(self):
+                return {
+                    "total": len(seen["selected"]), "success": len(seen["selected"]),
+                    "failed": 0, "skipped": 0, "shortcut": None, "components": [],
+                }
+
+        monkeypatch.setattr(orchestrator_module, "InstallerOrchestrator", FakeOrchestrator)
+        monkeypatch.setattr(runtime_adapters, "generate", lambda *a, **kw: [])
+        return seen
+
+    def test_all_skips_account_and_toolchain_components(self, monkeypatch, capsys):
+        seen = self._capture_selection(monkeypatch)
+        args = create_parser().parse_args(["install", "--all", "--dry-run"])
+        assert cmd_install(args) == 0
+        assert "se_core" in seen["selected"]
+        assert "context7" in seen["selected"]
+        for gated in ("firecrawl", "codex", "claude_code", "codegraph", "rust"):
+            assert gated not in seen["selected"]
+        assert "--include-gated" in capsys.readouterr().err
+
+    def test_include_gated_opt_in_installs_everything(self, monkeypatch):
+        seen = self._capture_selection(monkeypatch)
+        args = create_parser().parse_args(
+            ["install", "--all", "--include-gated", "--dry-run"]
+        )
+        assert cmd_install(args) == 0
+        for gated in ("firecrawl", "codex", "claude_code", "codegraph", "rust"):
+            assert gated in seen["selected"]
+
     def test_install_bootstrap_args_not_in_se_installer(self):
         """--bootstrap is in `se` CLI, not `se-installer` CLI."""
         parser = create_parser()

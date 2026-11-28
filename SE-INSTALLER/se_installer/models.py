@@ -64,6 +64,14 @@ class InstallableComponent:
     recommended: bool = True
     category: str = ""
     long_description: str = ""
+    # An unattended install cannot satisfy these: they need a human account or
+    # a separate toolchain. `--all` skips them unless --include-gated is given.
+    requires_account: bool = False
+    requires_toolchain: bool = False
+
+    @property
+    def is_gated(self) -> bool:
+        return self.requires_account or self.requires_toolchain
 
     def is_supported_on(self, os_type: OSType) -> bool:
         return os_type in self.supported_os

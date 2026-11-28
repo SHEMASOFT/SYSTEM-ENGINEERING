@@ -371,9 +371,9 @@ def _kill_process_tree(proc) -> None:
         pass
 
 
-def probe_mcp_server(spec: dict, *, timeout: float = MCP_PROBE_TIMEOUT,
-                     cwd=None, env: dict | None = None) -> tuple[bool, str]:
-    """Start an MCP stdio server and prove it answers ``initialize``.
+def _probe_mcp_server_once(spec: dict, *, timeout: float = MCP_PROBE_TIMEOUT,
+                           cwd=None, env: dict | None = None) -> tuple[bool, str]:
+    """One MCP stdio handshake attempt (see :func:`probe_mcp_server`).
 
     A server can be "installed" (``npx`` exists, the package is cached) and still
     fail to start: a moved Node install, a broken shim, a package that needs a
@@ -487,6 +487,44 @@ def probe_mcp_server(spec: dict, *, timeout: float = MCP_PROBE_TIMEOUT,
                 pass
 
 
+#: A cold ``npx`` server can need a second start (package warming, shim repair).
+#: Only handshake/transport failures are retried; configuration errors are not.
+MCP_PROBE_ATTEMPTS = 3
+MCP_PROBE_BACKOFF = 0.25
+_RETRYABLE_PROBE_HINTS = (
+    "did not answer initialize",
+    "could not read server output",
+    "could not talk to",
+)
+
+
+def probe_mcp_server(spec: dict, *, timeout: float = MCP_PROBE_TIMEOUT,
+                     cwd=None, env: dict | None = None,
+                     attempts: int = MCP_PROBE_ATTEMPTS,
+                     backoff: float = MCP_PROBE_BACKOFF,
+                     sleep=None) -> tuple[bool, str]:
+    """Start an MCP stdio server and prove it answers ``initialize``.
+
+    A silent or broken-pipe handshake is retried up to ``attempts`` times with
+    exponential backoff (0.25s, 0.5s by default). Empty commands, missing
+    executables and explicit JSON-RPC errors are deterministic: they fail on
+    the first try. ``sleep`` is a test seam. The detail names the attempt count
+    only when a retryable failure was actually exhausted.
+    """
+    attempts = max(1, int(attempts))
+    sleeper = sleep or time.sleep
+    ok, detail = False, ""
+    for attempt in range(1, attempts + 1):
+        ok, detail = _probe_mcp_server_once(spec, timeout=timeout, cwd=cwd, env=env)
+        retryable = any(hint in detail for hint in _RETRYABLE_PROBE_HINTS)
+        if ok or attempt == attempts or not retryable:
+            break
+        sleeper(backoff * (2 ** (attempt - 1)))
+    if not ok and attempts > 1 and any(hint in detail for hint in _RETRYABLE_PROBE_HINTS):
+        detail = f"{detail} (tras {attempts} intentos)"
+    return ok, detail
+
+
 def _probe_environment(values: dict) -> dict:
     """Turn declared ``{env:NAME}`` references into the caller's real values."""
     resolved = {}
@@ -515,6 +553,7 @@ def verify_mcp_servers(
 
     Only npx-based servers are probed: the Python servers are covered by the
     dependency preflight and are launched through the portable Node launcher.
+    :func:`probe_mcp_server` retries transient handshakes before giving up.
     A failed probe is a ``WARN`` item, never an exception;
     :func:`build_registrations` turns it into a skipped server so a broken entry
     is not written to the runtime config.

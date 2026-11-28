@@ -289,8 +289,11 @@ se-installer install --recommended
 # Install specific components
 se-installer install -c se_core se_console context7 filesystem opencode
 
-# Install all components
+# Install all components that need no account or extra toolchain
 se-installer install --all
+
+# Opt in to the gated ones (have the keys and toolchains ready first)
+se-installer install --all --include-gated
 
 # Dry run (plan only)
 se-installer install --dry-run --recommended --json
@@ -314,10 +317,29 @@ se-installer doctor --json
 se-installer tui
 ```
 
+`--all` is unattended-safe: `firecrawl` and the CLI runtimes need an account,
+`codegraph`/`rust` need a toolchain, and `codex`/`claude_code` need both. They
+are reported in `gated_excluded` in the JSON summary (and on stderr in text
+mode). Nothing is hidden — `se-installer list --json` still shows them, and an
+explicit `-c firecrawl` installs it; `--include-gated` only changes what `--all`
+selects.
+
 ### Target Runtimes
+
 ```bash
-se-installer install --recommended --runtimes opencode codex claude_code
+se-installer install --recommended --runtimes opencode deepseek claude-code
 ```
+
+`--runtimes` is not plan metadata: after a successful install, the CLI renders
+the requested adapter layers from the canonical contracts. Accepted ids are
+`opencode`, `claude-code` (alias `claude_code`), `codex`, `deepseek`, `pi` and
+`hermes`. OpenCode writes under `.opencode/`; the rest write their files at the
+project root. `--dry-run` reports the files it would write. Each runtime gets
+its own line in the summary, and a failed adapter is reported without making a
+successful component install look failed.
+
+This helper is CLI-only: the TUI and the web installer drive the orchestrator
+directly and keep their own behaviour.
 
 ---
 

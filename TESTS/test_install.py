@@ -392,6 +392,50 @@ sys.stdin.readline()
         self.assertFalse(ok)
         self.assertIn("not found", detail)
 
+    def test_transient_silence_is_retried_and_can_succeed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            flag = Path(tmp) / "warm"
+            script = self._script(tmp, f"""
+import json, os, sys, time
+flag = r"{flag}"
+if not os.path.exists(flag):
+    with open(flag, "w"):
+        pass
+    time.sleep(0.2)
+    sys.exit(0)
+request = json.loads(sys.stdin.readline())
+print(json.dumps({{"jsonrpc": "2.0", "id": request["id"],
+    "result": {{"serverInfo": {{"name": "flaky", "version": "1"}}}}}}), flush=True)
+""")
+            ok, detail = install.probe_mcp_server(
+                {"name": "flaky", "command": [sys.executable, str(script)]},
+                timeout=1, attempts=3, backoff=0,
+            )
+        self.assertTrue(ok, detail)
+        self.assertIn("flaky", detail)
+
+    def test_deterministic_failure_is_not_retried(self):
+        sleeps = []
+        ok, detail = install.probe_mcp_server(
+            {"name": "fake", "command": ["definitely-not-a-real-mcp-xyz"]},
+            timeout=1, attempts=3, backoff=1, sleep=sleeps.append,
+        )
+        self.assertFalse(ok)
+        self.assertEqual(sleeps, [])
+        self.assertNotIn("intentos", detail)
+
+    def test_exhausted_retries_report_the_attempt_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = self._script(tmp, "import time\ntime.sleep(30)\n")
+            sleeps = []
+            ok, detail = install.probe_mcp_server(
+                {"name": "fake", "command": [sys.executable, str(script)]},
+                timeout=0.2, attempts=2, backoff=0.01, sleep=sleeps.append,
+            )
+        self.assertFalse(ok)
+        self.assertEqual(len(sleeps), 1)
+        self.assertIn("tras 2 intentos", detail)
+
 
 class VerifyMcpServersTests(unittest.TestCase):
     def setUp(self):

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-11-18T04:26:24Z",
+  "created_at": "2026-11-28T03:07:46Z",
   "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
   "minimums": {
     "reference": 30
@@ -13,7 +13,7 @@
       },
       {
         "path": "DOCS/reference/adapters.md",
-        "hash": "725bbce30271c986"
+        "hash": "fc522fff77a8d74d"
       },
       {
         "path": "DOCS/reference/architecture.md",
@@ -80,6 +80,10 @@
         "hash": "0cf42c071be6f4f5"
       },
       {
+        "path": "DOCS/reference/deepseek-harness-install.es.md",
+        "hash": "181d06e15af93722"
+      },
+      {
         "path": "DOCS/reference/development-workflow.md",
         "hash": "a3470514b1cc0689"
       },
@@ -106,6 +110,10 @@
       {
         "path": "DOCS/reference/installation.md",
         "hash": "d909e13964d750a6"
+      },
+      {
+        "path": "DOCS/reference/installer-web.md",
+        "hash": "d693d37386ddb117"
       },
       {
         "path": "DOCS/reference/lifecycle.md",
@@ -152,12 +160,16 @@
         "hash": "aff3cb58193ca9b3"
       },
       {
+        "path": "DOCS/reference/roadmap-mejoras.es.md",
+        "hash": "17b854c0da0d1b7c"
+      },
+      {
         "path": "DOCS/reference/schemas.md",
         "hash": "60144fbfab002016"
       },
       {
         "path": "DOCS/reference/se-installer.md",
-        "hash": "5a9a064d46b2a4e3"
+        "hash": "cff04bf002721754"
       },
       {
         "path": "DOCS/reference/skills/SKILL_AUTHORING.md",

@@ -48,9 +48,11 @@ Ese estado es la línea base: cualquier regresión se compara contra esto.
 | F9 | `se adapter all` omite Hermes | `generate_all()` incluye claude-code, codex, deepseek y pi | P2 |
 | F10 | `_pi_patch()` es código muerto | Definido, nunca llamado | P2 |
 | F11 | `runtime_config_generator.py` es código muerto | 12 KB sin consumidores | P2 |
-| F12 | El dry-run del adapter cuenta un archivo menos | Dijo 8, escribió 9 | P3 |
+| F12 | ~~El dry-run del adapter cuenta un archivo menos~~ | **No era un bug**: `AGENTS.local.md` ya existía y se cuenta como `unchanged`; el dry-run y la escritura coinciden para el mismo destino | 🗑️ Descartado |
 | F13 | Dos consolas pueden quedar corriendo | `:8631` de prueba y `:8777` del clon | P3 |
 | F14 | Sin `gh` CLI en el entorno | PRs creados por REST | P3 |
+
+Los hallazgos P0 F1, F2 y F3 y los P1 F4 y F5 están resueltos; ver el detalle en la sección 8.
 
 ---
 
@@ -74,15 +76,28 @@ instalación, coordinador, MCP, modelo y troubleshooting.
 
 ### Fase 2 — Instalador honesto (P0/P1)
 
-- [ ] **T8** Conectar `--runtimes` a `runtimes.generate_*`, o eliminarlo.
-      Decisión pendiente: ¿el instalador genera adapters o solo componentes?
-      - Si se conecta: tras instalar, ejecutar `se adapter <runtime>` por cada
-        runtime pedido y reportarlo en el resumen.
-      - Si se elimina: quitar el flag de `cli.py`, `orchestrator` y la TUI.
-- [ ] **T9** Reintentos con backoff en el probe MCP (3 intentos, timeout
-      creciente) antes de marcar `skipped`.
-- [ ] **T10** Marcar componentes con `requires_account` / `requires_toolchain`
-      y excluirlos de `--all` (o pedir confirmación explícita).
+- [x] **T8** Conectar `--runtimes` a los generadores de adapters. Decisión:
+      **conectarlo** en el CLI (el flag dice "runtimes a configurar", no
+      "runtimes a recordar"). Implementado en
+      `SE-INSTALLER/se_installer/runtime_adapters.py` y `cli.py`. La TUI y el
+      instalador web se dejaron intactos a propósito.
+      Evidencia: `pytest SE-INSTALLER/tests -q` → 167 passed, 3 skipped;
+      `install --runtimes deepseek --json` → `adapters: [{deepseek, PASS, 9}]`.
+- [x] **T9** Reintentos con backoff en el probe MCP antes de marcar `skipped`.
+      Decisión: reintentar dentro de `probe_mcp_server`
+      (`SCRIPTS/se_core/install.py`), no en `verify_mcp_servers`, para no tocar
+      los `probe=` inyectados por los tests. Solo se reintentan timeouts y
+      fallos de transporte; comandos inexistentes o errores JSON-RPC fallan a
+      la primera. Backoff 0.25 s → 0.5 s, 3 intentos.
+      Evidencia: `pytest TESTS/test_install.py -q` → 103 passed (3 tests nuevos:
+      flaky que responde al 2.º intento, fallo determinista sin reintento y
+      agotamiento con `tras 2 intentos`).
+- [x] **T10** Marcar componentes con `requires_account` / `requires_toolchain`
+      y excluirlos de `--all`, con `--include-gated` como opt-in explícito.
+      Los omitidos se reportan en `gated_excluded` (JSON) y en stderr (texto);
+      `-c <id>` sigue instalando cualquiera directamente.
+      Evidencia: 170 tests del instalador OK; `install --all --dry-run --json`
+      → `gated_excluded: [firecrawl, codegraph, rust, codex, claude_code]`.
 - [ ] **T11** Unificar `bootstrap.ps1` + `se install --bootstrap` +
       `install-web.ps1` en una sola ruta documentada.
 
@@ -162,3 +177,15 @@ comando y sin leer documentación.
 2. Si una tarea cambia de alcance, actualiza el hallazgo, no lo borres.
 3. Si se descarta, usa 🗑️ y escribe el motivo en Decisiones.
 4. La fecha de cabecera se actualiza en cada PR que toque este archivo.
+
+---
+
+## 8. Resueltos
+
+| ID | Cierre | Evidencia |
+|---|---|---|
+| F1 | Preset movido dentro de `config` en `_deepseek_patch` y `_pi_patch` | `yaml.safe_load` OK: 12 presets, 7 skills |
+| F2 | `INTEGRATIONS/deepseek/README.md` + guía en español + tabla de 6 adapters | PR #111 |
+| F3 | `--runtimes` conectado en el CLI | 167 tests del instalador OK; `adapters` en el resumen JSON |
+| F4 | Probe MCP con 3 intentos y backoff 0.25/0.5 s | 103 tests de `test_install.py` OK; detalle `tras N intentos` solo tras agotar |
+| F5 | `--all` excluye componentes con cuenta/toolchain | 170 tests del instalador OK; `gated_excluded` en el resumen JSON |
