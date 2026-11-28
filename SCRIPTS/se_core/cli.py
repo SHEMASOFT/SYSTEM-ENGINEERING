@@ -339,7 +339,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_hermes.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
     p_hermes.set_defaults(func=commands.cmd_adapter_hermes)
 
-    p_adapter_all = p_adapter_sub.add_parser("all", help="Generate every runtime adapter")
+    p_adapter_all = p_adapter_sub.add_parser(
+        "all",
+        help="Generate claude-code, codex, deepseek and pi (Hermes writes shared AGENTS.md/settings.json: run adapter hermes separately)",
+    )
     p_adapter_all.add_argument("--output", default=None, help="Output directory (default: repo root)")
     p_adapter_all.add_argument("--dry-run", action="store_true", help="Show the generation plan without writing files")
     p_adapter_all.set_defaults(func=commands.cmd_adapter_all)

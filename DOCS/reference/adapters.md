@@ -72,7 +72,8 @@ artifacts, never edited by hand.
 ## See also
 
 - `INTEGRATIONS/opencode/README.md`, `INTEGRATIONS/claude-code/README.md`,
-  `INTEGRATIONS/codex/README.md`, `INTEGRATIONS/deepseek/README.md` — per-runtime notes.
+  `INTEGRATIONS/codex/README.md`, `INTEGRATIONS/deepseek/README.md`,
+  `INTEGRATIONS/pi/README.md`, `INTEGRATIONS/hermes/README.md` — per-runtime notes.
 - `INTEGRATIONS/ci/README.md` — a different plane: a CI adapter that runs SE
   governance (pinned release, `se validate`, declared gates) inside any provider.
   SE decides; the provider enforces.

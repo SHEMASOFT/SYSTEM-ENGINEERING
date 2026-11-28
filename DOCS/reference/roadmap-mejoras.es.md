@@ -3,7 +3,7 @@
 Documento vivo. Cada tarea tiene un ID, prioridad y estado. Se actualiza en el
 mismo PR que resuelve la tarea.
 
-**Última actualización:** 2026-11-27
+**Última actualización:** 2026-11-28
 
 ## Leyenda
 
@@ -52,7 +52,7 @@ Ese estado es la línea base: cualquier regresión se compara contra esto.
 | F13 | Dos consolas pueden quedar corriendo | `:8631` de prueba y `:8777` del clon | P3 |
 | F14 | Sin `gh` CLI en el entorno | PRs creados por REST | P3 |
 
-Los hallazgos P0 F1, F2 y F3 y los P1 F4 y F5 están resueltos; ver el detalle en la sección 8.
+Los hallazgos P0 F1-F3, los P1 F4-F5 y los P2 F8-F11 están resueltos; ver el detalle en la sección 8.
 
 ---
 
@@ -138,10 +138,22 @@ consola y puede verificar todo con `--explain` / `--check` antes de escribir.
 
 ### Fase 5 — Limpieza y coherencia (P2/P3)
 
-- [ ] **T23** Documentar Pi y Hermes (README de integración + tabla).
-- [ ] **T24** Incluir Hermes en `se adapter all` (o renombrar el comando).
-- [ ] **T25** Eliminar `_pi_patch()` o conectarlo.
-- [ ] **T26** Eliminar `runtime_config_generator.py` o conectarlo (depende de T8).
+- [x] **T23** Documentar Pi y Hermes: `INTEGRATIONS/pi/README.md` y
+      `INTEGRATIONS/hermes/README.md`; tabla de adapters y `INTEGRATIONS/` ya
+      los incluían.
+- [x] **T24** Decisión: **no incluir Hermes en `se adapter all`**. Escribe
+      `AGENTS.md` y `settings.json`, los mismos archivos compartidos que otros
+      adapters; meterlo en el lote los sobrescribiría en silencio. El help del
+      comando y los READMEs lo dicen, y un test fija la exclusión. Hermes se
+      genera con `se adapter hermes` o `se setup --harness hermes`.
+- [x] **T25** Eliminar `_pi_patch()`: estaba definido pero nunca se llamaba.
+      El fix de YAML de Fase 1 se fue con la función al confirmar que era
+      inalcanzable; `_deepseek_patch` (sí usado) conserva el arreglo.
+- [x] **T26** Decisión: **conservar `runtime_config_generator.py`**. Es API
+      pública exportada en `se_installer/__init__.py` y cubierta por
+      `test_registries.py`. T8 usa los generadores canónicos de `se_core`, así
+      que conectarlo duplicaría la generación; borrarlo rompería consumidores.
+      Queda documentado como biblioteca opcional, no como código muerto.
 - [🗑️] **T27** Corregir el conteo del dry-run del adapter → descartado: F12 no
       era un bug (`AGENTS.local.md` ya existía y se cuenta como `unchanged`).
 - [ ] **T28** Evitar dos consolas simultáneas (bloqueo de puerto o aviso).
@@ -156,6 +168,7 @@ consola y puede verificar todo con `--explain` / `--check` antes de escribir.
 | 2026-11-27 | El adapter DSH emite un **overlay**, no archivos por rol | DSH solo lee presets desde patch lists de Cordis |
 | 2026-11-27 | `AGENTS.local.md` en vez de `AGENTS.md` | Evitar colisión con el adapter de Codex |
 | 2026-11-27 | El modelo por rol se anota; el default solo si es uniforme | Un default process-wide misroutea un roster mixto |
+| 2026-11-28 | Hermes queda fuera de `se adapter all` | Escribe `AGENTS.md` y `settings.json`; en un lote sobrescribiría a otros adapters |
 
 ---
 
@@ -163,11 +176,11 @@ consola y puede verificar todo con `--explain` / `--check` antes de escribir.
 
 | Elemento | Estado | Acción |
 |---|---|---|
-| `_pi_patch()` | Muerto | T25 |
-| `runtime_config_generator.py` | Muerto | T26 |
-| `--runtimes` (si no se conecta) | No-op | T8 |
-| Componentes con cuenta en `--all` | Fallan siempre | T10 |
-| Tres bootstraps distintos | Duplicación | T11 |
+| `_pi_patch()` | Eliminado | ✅ T25 |
+| `runtime_config_generator.py` | API pública con tests; no se usa en el flujo de install | ✅ T26: conservar |
+| `--runtimes` (si no se conecta) | Conectado en el CLI | ✅ T8 |
+| Componentes con cuenta en `--all` | Excluidos con opt-in | ✅ T10 |
+| Tres bootstraps distintos | Una implementación, tres entradas documentadas | ✅ T11 |
 
 ---
 
@@ -194,8 +207,12 @@ consola y puede verificar todo con `--explain` / `--check` antes de escribir.
 
 | ID | Cierre | Evidencia |
 |---|---|---|
-| F1 | Preset movido dentro de `config` en `_deepseek_patch` y `_pi_patch` | `yaml.safe_load` OK: 12 presets, 7 skills |
+| F1 | Preset movido dentro de `config` en `_deepseek_patch` y `_pi_patch` | `yaml.safe_load` OK: 12 presets, 7 skills; `_pi_patch` después eliminado en T25 |
 | F2 | `INTEGRATIONS/deepseek/README.md` + guía en español + tabla de 6 adapters | PR #111 |
 | F3 | `--runtimes` conectado en el CLI | 167 tests del instalador OK; `adapters` en el resumen JSON |
 | F4 | Probe MCP con 3 intentos y backoff 0.25/0.5 s | 103 tests de `test_install.py` OK; detalle `tras N intentos` solo tras agotar |
 | F5 | `--all` excluye componentes con cuenta/toolchain | 170 tests del instalador OK; `gated_excluded` en el resumen JSON |
+| F8 | Pi y Hermes documentados | `INTEGRATIONS/pi/README.md`, `INTEGRATIONS/hermes/README.md`, tabla en `adapters.md` |
+| F9 | Hermes queda fuera de `adapter all` a propósito | Test en `test_runtime_adapters.py`; motivo: colisión de `AGENTS.md`/`settings.json` |
+| F10 | `_pi_patch()` eliminado | Sin referencias en código; `_deepseek_patch` conserva el fix de YAML |
+| F11 | `runtime_config_generator.py` conservado como API pública | Exportado en `se_installer/__init__.py`, cubierto por `test_registries.py` |
