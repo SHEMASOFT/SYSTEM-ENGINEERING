@@ -69,6 +69,8 @@ READ_ONLY_COMMANDS = frozenset(
         # It aggregates doctor/validate/capabilities/review. The console relays
         # its envelope; it does not re-derive health from it.
         "health",
+        # T17: verification readiness is a read-only report (mutates=false).
+        "verify",
         # P3-B.1: memory read-only subcommands (get, query, search, gc dry-run)
         "memory",
     }
@@ -371,13 +373,22 @@ def run_se(
     # everything else must be on the read-only allow-list.
     action_id = _action_allows(list(args))
     if action_id is None:
-        if verb in FORBIDDEN_COMMANDS:
+        # T17: a second, narrower gate for the report catalog. `plan` stays in
+        # FORBIDDEN_COMMANDS for every other caller; only the exact derivation
+        # argv built by `console/reports.py` passes here. Imported lazily so the
+        # catalog stays a plain data module with no dependency on this runner.
+        from . import reports
+
+        if reports.is_allowed_readonly(list(args)):
+            json_flag = ["--json"]
+        elif verb in FORBIDDEN_COMMANDS:
             raise SeError(
                 f"refused: '{verb}' is a mutating SE command; SE-CONSOLE is read-only"
             )
-        if verb not in READ_ONLY_COMMANDS:
+        elif verb not in READ_ONLY_COMMANDS:
             raise SeError(f"refused: '{verb}' is not on the console read-only allow-list")
-        json_flag = ["--json"]
+        else:
+            json_flag = ["--json"]
     else:
         json_flag = []
 
