@@ -9,19 +9,21 @@ Interfaz web interactiva para instalar, desinstalar y gestionar componentes del 
 ### Arranque rápido (recomendado)
 
 ```powershell
-# Windows (PowerShell)
+# Windows (PowerShell): los parámetros son -Port, -NoBrowser, -Dev, -Help
 .\SE-INSTALLER\install-web.ps1
 
 # Linux / macOS
 bash SE-INSTALLER/install-web.sh
 ```
 
-El script detecta un puerto libre (8765, 8766, 8767...), abre el navegador automáticamente y limpia el puerto al salir (Ctrl+C).
+El script detecta un puerto libre en 8765–8784, abre el navegador automáticamente
+y el puerto queda libre cuando termina el proceso (Ctrl+C). No crea venv ni
+registra MCPs: para eso usa `bootstrap.ps1`/`install.sh` o `se install --bootstrap`.
 
 ### Comando directo
 
 ```powershell
-# Requiere pip install -e SE-INSTALLER
+# Requiere pip install -e SCRIPTS/se_installer_web
 se-installer-web --port 8765 --reload
 
 # Directo con uvicorn (sin instalar paquete)
@@ -126,8 +128,11 @@ La resolución de prioridad es: **agent contract → harness config (opencode.js
 ## 5. Requisitos
 
 - Python 3.10+
-- `pip install -e SE-INSTALLER` (instala el comando `se-installer-web`)
+- `pip install -e SCRIPTS/se_installer_web` (instala el comando `se-installer-web`;
+  `pip install -e SE-INSTALLER` instala el CLI `se-installer`, no el backend web)
 - O directo: `python -m uvicorn se_installer_web.main:app --host 127.0.0.1 --port 8765 --reload`
+- `se-installer-web` solo acepta `--host`, `--port` y `--reload`; `--dev`, `--all` y
+  `--apply` se ignoran. El backend usa el repositorio desde el que se lanzó.
 
 ---
 

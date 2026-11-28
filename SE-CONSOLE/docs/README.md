@@ -117,7 +117,10 @@ Los scripts viven en `SE-CONSOLE/scripts/`:
 
 En Windows también puedes crear un acceso directo en el escritorio apuntando a `scripts\Start SE Console.cmd`.
 
-El servidor se detiene solo tras 15 minutos sin nadie usando la consola, o cuando cierras el navegador.
+El helper (`dev_console.py`) detiene el servidor tras 15 minutos sin peticiones
+de ningún cliente; el temporizador se arma con la primera conexión, así que
+cerrar el navegador **no** lo apaga de inmediato. `python -m console.server` no
+tiene temporizador por defecto (`0`); puedes fijarlo con `--idle-timeout`.
 
 ---
 
@@ -133,10 +136,11 @@ Puedes cambiar la carpeta de SE con `SE_ROOT` y el puerto con `SE_CONSOLE_PORT`.
 
 ## Seguridad: solo lectura
 
-Capa tras capa, la consola no puede escribir:
+Capa tras capa, la consola no puede cambiar datos del sistema:
 
-1. Solo hay rutas GET. No existe POST/PUT/PATCH/DELETE.
-2. Cualquier verbo de escritura recibe `405`.
+1. Las lecturas son GET. Existe un único `POST /api/action`, autenticado por
+   token (`~/.config/se-console/token`) y limitado a tres acciones del catálogo.
+2. Cualquier otro verbo de escritura recibe `405`.
 3. El lector de SE rechaza comandos mutantes por nombre (`new`, `update`, `transition`, etc.).
 
 Cada valor en pantalla trae su procedencia: `OBSERVED` (vino de `se`), `DERIVED` (calculado por la consola) o `UNKNOWN` (no se pudo determinar). Nunca se inventa un estado.

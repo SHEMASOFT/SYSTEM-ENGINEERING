@@ -7,6 +7,21 @@ llegar a un proyecto usable sin memorizar cuatro comandos.
 python SCRIPTS/se.py setup --project .
 ```
 
+## Antes de empezar en un equipo nuevo
+
+`se setup` **no aprovisiona el sistema**. Necesitas, en el intérprete que ejecuta
+`se.py`:
+
+- Python 3.10+ con `jsonschema` (`pip install jsonschema`).
+- `se-installer` importable (`pip install -e SE-INSTALLER`).
+
+En una máquina limpia usa primero los wrappers:
+`SE-INSTALLER/bootstrap.ps1 install --recommended` (Windows, puede instalar Python
+y Node) o `SE-INSTALLER/install.sh install --recommended` (Linux/macOS). Crean
+`SE-INSTALLER/.venv` e instalan el paquete; en Linux/macOS **no** instalan
+Python, así que instala `python3`, `venv` y `pip` con el gestor del sistema.
+`se setup` es el atajo cuando esos prerrequisitos ya están resueltos.
+
 ## ¿Qué hace?
 
 | Paso | Comando que ejecuta | Qué toca |
@@ -25,7 +40,7 @@ se reportan como `unchanged`.
 
 | Modo | Efecto |
 |---|---|
-| `--dry-run` | Los pasos 1 y 2 solo planean; no se escribe nada ni se abre el navegador. |
+| `--dry-run` | Los pasos 1 y 2 solo planean y no se abre el navegador; `doctor` corre igual y el orquestador puede crear `~/.se-installer/state/`. |
 | `--explain` | Imprime cada paso y qué superficie toca. **No ejecuta nada.** |
 | `--check` | Ejecuta únicamente `se doctor` (diagnóstico de solo lectura). |
 
@@ -38,6 +53,9 @@ python SCRIPTS/se.py setup --check          # solo health check
 python SCRIPTS/se.py setup --harness deepseek   # forzar un harness
 python SCRIPTS/se.py setup --open           # abrir la URL (si el servidor ya corre)
 ```
+
+`--project <dir>` se aplica a la instalación y al `doctor`, pero **no** se propaga
+al generador de adapters: esos archivos se escriben en la raíz del repositorio SE.
 
 ## Detección del harness
 
@@ -66,5 +84,5 @@ El puerto canónico es **8777**. El comando **no** levanta la consola por su
 cuenta: así se evita dejar dos instancias compitiendo por el puerto. `--open`
 solo abre la URL en el navegador y asume que el servidor ya está corriendo.
 
-Para las tres formas de llegar al instalador (scripts, `se install --bootstrap`
-y la interfaz web), ver `installation.md`, § "Una sola ruta, tres entradas".
+Para las tres entradas de bootstrap (scripts y `se install --bootstrap`) y la
+interfaz web como UI alternativa, ver `installation.md`, § "Una sola ruta, tres entradas".

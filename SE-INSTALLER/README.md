@@ -19,7 +19,9 @@ Instalador unificado para **System Engineering Master System (SE)**.
 - **Python 3.10+**. En Windows, si no lo encuentra, el bootstrap intenta instalar
   Python 3.12 con winget, Chocolatey o Scoop y, si ninguno está disponible, usa el
   instalador oficial firmado de python.org para el usuario actual. En Linux/macOS
-  instala `python3` y el paquete `python3-venv` antes de empezar.
+  **no instala Python**: `install.sh` solo verifica `python3`, `venv` y `pip` y
+  termina con instrucciones si faltan (en Debian/Ubuntu instala `python3-venv`
+  con el gestor de paquetes del sistema antes de ejecutar el script).
 - **Git** para clonar el repositorio.
 - **Node.js si no está instalado**. En Windows se instala con winget, Chocolatey o
   Scoop; sin gestor de paquetes se usa el ZIP LTS oficial de nodejs.org verificado
@@ -49,6 +51,9 @@ Instalador unificado para **System Engineering Master System (SE)**.
 | **OpenCode** | Runtime principal SE (TUI + MCP host) |
 | **Codex** | OpenAI Codex CLI |
 | **Claude Code** | Anthropic Claude Code CLI |
+| **DeepSeek Harness** | `AGENTS.local.md` + overlay `.dsh/se.patch.yml` |
+| **Pi** | `settings.json` + `.pi/` |
+| **Hermes** | `settings.json`, `AGENTS.md` + `.hermes/` (se genera aparte; no entra en `adapter all`) |
 
 ## Instalación rápida — un solo comando
 
@@ -114,7 +119,7 @@ se-installer tui
 
 # O CLI directo
 se-installer install --recommended     # Solo recomendados
-se-installer install --all             # Todo
+se-installer install --all             # Todos salvo los que piden cuenta/toolchain; añade --include-gated para incluirlos
 se-installer install -c context7 filesystem # Selección específica
 se-installer install --dry-run         # Solo planificar
 se-installer install --shortcuts       # Además, atajo en el Escritorio

@@ -264,3 +264,34 @@ consola y puede verificar todo con `--explain` / `--check` antes de escribir.
 | F12 | Descartado: no era un bug | `AGENTS.local.md` ya existía y se cuenta como `unchanged` |
 | F13 | Consola única por bind | `bind_console()` en `server.py`; 3 tests en `test_port_guard.py` |
 | F14 | Sin `gh` CLI: PRs por REST | Decisión operativa, sin código; ver `git credential fill` + API de GitHub |
+
+---
+
+## 9. Verificación de instalación en equipos nuevos (2026-11-28)
+
+Auditoría de las cuatro formas de llegar a SE (CLI, scripts, TUI y web) contra el
+código y las guías. No cambió el comportamiento: se corrigió la documentación
+para que describa lo que realmente hace una máquina limpia.
+
+| Hallazgo | Corrección aplicada |
+|---|---|
+| `installation.md` anunciaba 3 adapters y `all` para todos | 6 adapters; `all` = claude-code + codex + deepseek + pi, Hermes aparte |
+| «CLI para modelos no implementado» | Existe `se shema-ai model --list/--set/--global-model` |
+| Probe MCP descrito como un solo intento | 3 intentos con backoff 0.25/0.5 s; `tras N intentos` solo al agotar |
+| `--skip-mcp-registration` como flag de `se install` | Solo lo aceptan los wrappers y la TUI |
+| «`se install` nunca instala herramientas» | Cierto sin `--bootstrap`; con `--bootstrap` delega en `se-installer` |
+| `se install --bootstrap --json` | Devuelve el resumen y omite el registro MCP |
+| «22 componentes» / «14 componentes» | 13 componentes en `components.py` |
+| `~/.se-installer/state.json` | `state/installation_state.json` + `installation_history.jsonl` |
+| `pip install -e SE-INSTALLER` instalaba la web | El entry point está en `SCRIPTS/se_installer_web` |
+| `se-installer-web --dev/--all/--apply` | Se ignoran: la UI elige opciones y el CLI acepta solo `--host/--port/--reload` |
+| PowerShell con `--port` | Parámetros reales: `-Port`, `-NoBrowser`, `-Dev`, `-Help` |
+| Consola «solo GET» | GET + un `POST /api/action` autenticado; guardia de puerto por bind con `--port` |
+| Guía «otra computadora» en rama vieja | Ahora parte de `main` |
+| Smoke sin Python en CI | CI hace `setup-python` 3.12; la instalación de Python se prueba en Sandbox/VM |
+
+Evidencia: lectura de los parsers y comandos citados, `pip install -e
+SCRIPTS/se_installer_web --dry-run` (rc=0), `se validate` y `se doctor` en verde.
+La suite completa de este PR se registró en el commit de cierre. Detalle en
+`installation.md`, `setup.es.md`, `installer-web.md`, `clean-machine-smoke.md` y
+la guía resumida `instalacion-equipos-nuevos.es.md`.

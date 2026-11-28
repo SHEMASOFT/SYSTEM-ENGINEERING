@@ -1,17 +1,18 @@
 # Probar SYSTEM-ENGINEERING en otra computadora
 
-La rama `integrate-shema-ai` está publicada en GitHub con los 3 defectos
-corregidos. Esta guía sirve para verificarla desde cualquier otra máquina.
+Los 3 defectos corregidos en `integrate-shema-ai` ya están en `main`. Esta guía
+sirve para verificarlos desde cualquier otra máquina usando el código publicado.
 
 En los comandos siguientes, `<repo>` es la ruta donde clonaste el repositorio y
 `<proyecto>` el directorio de un proyecto gestionado que ya exista en esa máquina.
 
-## 1. Bajar la rama
+## 1. Bajar el código
 
 ```powershell
 cd <repo>\SYSTEM-ENGINEERING
 git fetch origin --tags --prune
-git switch integrate-shema-ai
+git switch main
+git pull --ff-only origin main
 git log --oneline -3
 ```
 
@@ -71,7 +72,8 @@ python SCRIPTS\release_master.py --check            # Esperado: "Release check: 
 > versión que la del archivo `VERSION`, el comando falla (exit 1); con `--ci`
 > ese desfase se degrada a exit 3 para no bloquear el pipeline.
 
-## 4. Estado de la rama
+## 4. Estado del código
 
-La rama `integrate-shema-ai` fue mergeada en `main` y CI pasa en `ubuntu-latest`,
-`windows-latest` y el smoke del bootstrap en Windows.
+`integrate-shema-ai` ya fue mergeada en `main` y CI pasa en `ubuntu-latest`,
+`windows-latest` y el smoke del bootstrap en Windows. Para instalar desde cero en
+la otra máquina, sigue `installation.md` o la guía en español `setup.es.md`.

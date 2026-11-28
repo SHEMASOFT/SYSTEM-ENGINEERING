@@ -9,13 +9,16 @@ The reference implementation is a Python CLI: `python3 SCRIPTS/se.py <command>`.
 On Windows the interpreter is `python`, so throughout this guide read `python3` as
 `python` and use backslash paths (`python SCRIPTS\se.py <command>`).
 
+Resumen en español para una máquina limpia:
+[`instalacion-equipos-nuevos.es.md`](instalacion-equipos-nuevos.es.md).
+
 ---
 
 ## 1. Runtime base
 
 | Dependency | Required | Purpose |
 |---|---|---|
-| `python3` | **yes** | Runs the reference CLI (`SCRIPTS/se.py`) and the SE Python MCP servers |
+| `python3` 3.10+ | **yes** | Runs the reference CLI (`SCRIPTS/se.py`) and the SE Python MCP servers |
 | `node` | **yes for MCP** | Runs the portable Python MCP launcher |
 | `npx` | **yes for MCP** | Runs the package-based MCP servers (`context7`, `filesystem`) |
 | `jsonschema` | **yes** | Schema validation; `se doctor` reports FAIL without it |
@@ -27,7 +30,15 @@ The Windows one-command bootstrap installs Python 3.12 when no 3.10+ interpreter
 is found: it tries winget, Chocolatey and Scoop, then the official signed
 python.org installer for the current user (no administrator required).
 `--dry-run` never installs prerequisites. On Linux/macOS install `python3` (and
-`python3-venv` on Debian/Ubuntu) first.
+`python3-venv` on Debian/Ubuntu) first: `install.sh` checks them and exits with
+instructions, it does not install them.
+
+`se install --bootstrap` and `se setup` run `se_installer` **inside the
+interpreter that launched `se.py`**. On a clean machine, either use the wrappers
+(`bootstrap.ps1` / `install.sh`, which create `SE-INSTALLER/.venv`) or run
+`pip install -e SE-INSTALLER` first; otherwise you get `No module named
+se_installer`. Neither command installs Python, authenticates a provider or
+starts the console.
 
 Validate the runtime at any time:
 
@@ -74,10 +85,12 @@ bash SE-INSTALLER/install.sh install --recommended
 ```
 
 Add `--dry-run` to plan without installing. The interactive selector is launched
-with `tui` (Windows `bootstrap.ps1 tui`; Linux/macOS `install.sh tui`). After a
-successful install it registers the selected MCPs that have a template; pass
-`--skip-mcp-registration` to opt out. From an already-cloned checkout you can
-also chain it through the CLI with `se install --bootstrap` (see §7).
+with `tui` (Windows `bootstrap.ps1 tui`; Linux/macOS `install.sh tui`). The
+wrappers register the MCPs that have a template after a successful install; pass
+`--skip-mcp-registration` **to the wrapper** to opt out (the direct
+`se-installer install` CLI does not accept that flag). From an already-cloned
+checkout you can also chain it through the CLI with `se install --bootstrap`
+(see §7).
 
 The Windows bootstrap installs Node/OpenCode through a package manager when they
 are missing and refreshes the process `PATH` before running `se install`. If no
@@ -130,9 +143,11 @@ OpenCode V2's discovery paths. The output is **generated only** — never edit
 To start new sessions as the orchestrator, add
 `"default_agent": "shema-ai-coordinador"` to `opencode.jsonc`.
 
-> All three adapters ship today: `se adapter opencode`, `se adapter claude-code` and
-> `se adapter codex` (or `se adapter all` for every runtime at one output root).
-> Runtime-specific behavior belongs in `INTEGRATIONS/`, never in `CORE/` or `SCHEMAS/`.
+> Six adapters ship today: `opencode`, `claude-code`, `codex`, `deepseek`, `pi` and
+> `hermes`. `se adapter all` generates claude-code + codex + deepseek + pi at one
+> output root; Hermes is excluded because it would overwrite the shared
+> `AGENTS.md`/`settings.json`, so run `se adapter hermes` explicitly. Runtime-specific
+> behavior belongs in `INTEGRATIONS/`, never in `CORE/` or `SCHEMAS/`.
 
 ---
 
@@ -162,8 +177,10 @@ otherwise the `provider` is prepended. The aliases `free` → `openrouter` and
 `local` → `ollama` are provided for convenience. For another provider, use its
 OpenCode provider ID.
 
-> A dedicated CLI command to set this is not implemented yet; edit the contract and
-> re-run the adapter.
+> Overrides can also be set without editing contracts:
+> `python3 SCRIPTS/se.py shema-ai model --list`, `--set <AGENT> <provider/model>`
+> or `--global-model <provider/model>`. Re-run the adapter afterwards to render
+> the change into the runtime files.
 
 ### OpenCode provider auth
 
@@ -184,16 +201,21 @@ alternative to the interactive login.
 ## 7. Register MCPs with `se install` (optional)
 
 MCP integrations are **optional**; none is required by SE. `se install` takes you from a
-cloned checkout to a runtime-configured OpenCode environment: it detects the OS, preflights
-the external tools (never installing them for you), writes the servers declared in
-`TEMPLATES/mcp/*.json.tmpl` straight into the runtime config (surgical, portable edits — the
-`opencode` CLI is not needed for registration), and reports what was registered, skipped or
-still missing.
+cloned checkout to a runtime-configured OpenCode environment: it detects the OS and
+preflights the external tools. A plain `se install` does **not** install third-party
+tools; it warns and skips their servers. `--bootstrap` runs the unified installer first,
+which can install Node/OpenCode via its installer components, then continues with
+registration.
+It writes the servers declared in `TEMPLATES/mcp/*.json.tmpl` straight into the runtime
+config (surgical, portable edits — the `opencode` CLI is not needed for registration),
+and reports what was registered, skipped or still missing.
 
 Before registration, every selected `npx` server is started and asked for an MCP
 `initialize` response. This catches a broken Node install, a bad shim or a package that
 cannot start; a server that does not answer is reported and **skipped** instead of being
-written into the config. The check may download the package into the `npx` cache on first
+written into the config. A timeout is retried up to 3 times with 0.25 s and 0.5 s backoff;
+deterministic failures are not retried and `tras N intentos` is printed only after the
+retries are exhausted. The check may download the package into the `npx` cache on first
 use. Pass `--no-verify-servers` to skip the handshake (for example, offline).
 
 For a full bootstrap — SE Core + Console + MCPs + runtimes installed, then the MCP servers
@@ -204,12 +226,15 @@ then continues with the registration below. The one-command entry points are
 isolated venv, install `se-installer` into it, and forward the arguments to the CLI.
 After a successful `install` they also run this registration automatically. The
 TUI does the same for the selected MCPs. Custom `-c/--components` selections on
-`install` and `--skip-mcp-registration` skip it.
+`install`, runtimes without `opencode`, and `--skip-mcp-registration` skip it.
+`se install --bootstrap --json` returns the bootstrap summary only and **skips MCP
+registration**; omit `--json` when you want registration in the same command.
 
 ### Una sola ruta, tres entradas
 
-Hay una sola implementación del bootstrap: `se_installer.orchestrator`. Las
-formas de llegar a ella no son instaladores distintos, sino entradas distintas:
+Hay una sola implementación del bootstrap: `se_installer.orchestrator`. Las tres
+primeras filas son entradas de bootstrap; la cuarta es la misma implementación
+detrás de otra interfaz. No son instaladores distintos:
 
 | Entrada | Cuándo usarla | Qué hace |
 |---|---|---|
@@ -280,9 +305,9 @@ python3 SCRIPTS/se.py install --generate-adapter --project PROJECTS/MyApp
 
 A server whose external binary is missing (for example `context7` before its CLI is
 available) is **skipped** with per-OS install guidance; a server that fails the
-`initialize` handshake is also skipped with the probe output. `se install` never installs
-third-party tools itself (the handshake only lets `npx` fetch its own package into its
-cache). The SE Python servers are launched through
+`initialize` handshake is also skipped with the probe output. A plain `se install` never
+installs third-party tools itself (the handshake only lets `npx` fetch its own package into
+its cache); `--bootstrap` delegates that work to the installer. The SE Python servers are launched through
 `SCRIPTS/se_core/mcp/launch.mjs`, a portable Node launcher that resolves `python3` or
 `python` at startup; `SE_PYTHON` can pin a specific interpreter. `se install` only
 registers a server when its dependencies are present and, unless disabled, its runtime
@@ -357,7 +382,9 @@ python scripts/dev_console.py stop    # clean shutdown
 ```
 
 `python -m console.server` runs the same console directly, in the foreground, with no
-idle timeout and no helper.
+idle timeout and no helper. The bind itself is the single-console guard: a second
+instance on the same port is refused with an actionable message and exit code 2.
+Use `--port 8778` (or `SE_CONSOLE_PORT`) to run another one deliberately.
 
 - **Requirements:** Python + `jsonschema` (already used by `se doctor`); no Node, no build step
 - **Read-only by design:** writes answered 405; no DB, no cache, no manifest of its own
@@ -382,8 +409,9 @@ by the helper). The timer stays disarmed until the first client connects, so a c
 nobody opens never stops on its own.
 
 Installing SE with `se-installer install --shortcuts` (or the checkbox in
-`se-installer tui`) creates **one** desktop shortcut that starts the console. There is no
-Stop shortcut: the console stops itself (DESIGN-5C D3).
+`se-installer tui`) creates **one** desktop shortcut that starts the console. No Stop
+shortcut is created: the console stops itself (DESIGN-5C D3). The repository's
+`SE-CONSOLE/scripts/` does include `Stop SE Console.cmd`/`.command` for manual use.
 
 ---
 
@@ -395,20 +423,24 @@ Una **interfaz visual completa** para instalar, desinstalar y gestionar componen
 
 ```bash
 # Opción 1: Script unificado (recomendado - detecta puerto libre, abre navegador)
-# Windows (PowerShell)
-.\SE-INSTALLER\install-web.ps1
+# Windows (PowerShell): parámetros con guion simple (-Dev, -Port, -NoBrowser)
+.\SE-INSTALLER\install-web.ps1 -Dev
 # Linux / macOS
 bash SE-INSTALLER/install-web.sh
 
-# Opción 2: Comando directo (requiere instalación previa)
-pip install -e SE-INSTALLER
+# Opción 2: Comando directo (requiere el paquete web, no el CLI se-installer)
+pip install -e SCRIPTS/se_installer_web
 se-installer-web --port 8765 --reload
 
 # Opción 3: Directo con uvicorn (sin instalar paquete)
 python -m uvicorn se_installer_web.main:app --host 127.0.0.1 --port 8765 --reload
 ```
 
-El script detecta un puerto libre (8765, 8766, 8767...), abre el navegador automáticamente y limpia el puerto al salir (Ctrl+C).
+El script detecta un puerto libre en el rango 8765–8784 y abre el navegador
+automáticamente; el puerto queda libre cuando termina el proceso (Ctrl+C). La
+interfaz web **no** aprovisiona Python, crea venv ni registra MCPs: para eso usa
+`bootstrap.ps1`/`install.sh` o `se install --bootstrap`. En Debian/Ubuntu con
+PEP 668, instala el paquete web en un venv.
 
 ### Abre en tu navegador
 
@@ -418,7 +450,7 @@ El script detecta un puerto libre (8765, 8766, 8767...), abre el navegador autom
 
 | Pestaña | Funcionalidad |
 |---|---|
-| **📦 Instalar** | Lista de 22 componentes con checkboxes. Selección de runtimes (OpenCode, Codex, Claude Code). Opciones: Dry-run, Force reinstall, Skip verification, Crear acceso directo. Botón "Instalar Seleccionados" con barra de progreso. |
+| **📦 Instalar** | Lista de 13 componentes con checkboxes. Selección de runtimes (OpenCode, Codex, Claude Code). Opciones: Dry-run, Force reinstall, Skip verification, Crear acceso directo. Botón "Instalar Seleccionados" con barra de progreso. |
 | **🗑️ Desinstalar** | Limpieza completa de artefactos SE en OpenCode. Checkboxes: `--all` (todo SE), `--include-untracked-se-mcps` (se-memory-server, se-skill-server), `--remove-opencode-dir` (capa generada), `--purge-adapter`, `--keep-opencode-jsonc`, `--force`, `--apply`. Botones "Ver Plan (Dry-Run)" y "Aplicar Desinstalación". |
 | **⚙️ Adaptador** | Generar/eliminar adaptador OpenCode (`.opencode/` con agentes, comandos, skills). |
 | **📋 Log** | Streaming en tiempo real vía WebSocket. Muestra progreso de instalación/desinstalación, errores, completado. |
@@ -442,14 +474,13 @@ El script detecta un puerto libre (8765, 8766, 8767...), abre el navegador autom
 se-installer-web --port 8765
 # En la UI: selecciona componentes → clic "Instalar Seleccionados"
 
-# Desinstalar todo (dry-run)
-se-installer-web --all --dry-run
-# O vía se.py:
+# Desinstalar todo (dry-run): marca las opciones en la pestaña Desinstalar
+se-installer-web --port 8765
+# Equivalente por CLI:
 python SCRIPTS/se.py uninstall --all --dry-run
 
-# Desinstalar todo (aplicar)
-se-installer-web --all --apply
-# O vía se.py:
+# Desinstalar todo (aplicar): botón "Aplicar Desinstalación" en la UI
+# Equivalente por CLI:
 python SCRIPTS/se.py uninstall --all --apply
 
 # Generar adaptador
@@ -460,14 +491,17 @@ se-installer-web --port 8765
 ### Requisitos
 
 - Python 3.10+
-- `pip install -e SE-INSTALLER` (instala `se-installer-web` command)
+- `pip install -e SCRIPTS/se_installer_web` (instala el comando `se-installer-web`;
+  `pip install -e SE-INSTALLER` instala `se-installer`, no el backend web)
 - O ejecuta directo: `python -m uvicorn se_installer_web.main:app --host 127.0.0.1 --port 8765 --reload`
+- `se-installer-web` solo acepta `--host`, `--port` y `--reload`; `--dev`, `--all` y
+  `--apply` se ignoran. Las opciones de desinstalación se eligen en la UI.
 
 ### Desarrollo
 
 ```bash
 # Con auto-reload
-se-installer-web --dev --reload
+se-installer-web --port 8765 --reload
 # O
 python -m uvicorn se_installer_web.main:app --reload
 ```

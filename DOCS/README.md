@@ -17,6 +17,8 @@ Start here to understand, install and operate SYSTEM ENGINEERING.
 | Document | What it explains |
 |---|---|
 | [`reference/installation.md`](reference/installation.md) | Obtain SE, install, run the console, register MCPs, update |
+| [`reference/instalacion-equipos-nuevos.es.md`](reference/instalacion-equipos-nuevos.es.md) | Instalar SE en un equipo nuevo: elegir entrada, prerrequisitos y trampas |
+| [`reference/setup.es.md`](reference/setup.es.md) | `se setup`: de clon a consola en un comando (español) |
 | [`reference/lifecycle.md`](reference/lifecycle.md) | `se install` / `sync` / `update` / `uninstall` and their safety rules |
 | [`reference/project-bootstrap.md`](reference/project-bootstrap.md) | Creating and bootstrapping managed projects |
 | [`reference/project-profile.md`](reference/project-profile.md) | Project manifest and profile fields |
@@ -33,7 +35,7 @@ Start here to understand, install and operate SYSTEM ENGINEERING.
 | [`reference/workflows.md`](reference/workflows.md) | Multi-agent workflows: DAGs, gates, context passing |
 | [`reference/checkpoint-recovery.md`](reference/checkpoint-recovery.md) | Workflow checkpoints and resuming an interrupted run (`--resume-from`) |
 | [`reference/work-modes.md`](reference/work-modes.md) | organic / spec / receipt: when the agent must apply each one |
-| [`reference/adapters.md`](reference/adapters.md) | Runtime adapters: OpenCode, Claude Code, Codex |
+| [`reference/adapters.md`](reference/adapters.md) | Runtime adapters: OpenCode, Claude Code, Codex, DeepSeek Harness, Pi, Hermes |
 | [`../INTEGRATIONS/ci/README.md`](../INTEGRATIONS/ci/README.md) | CI governance adapter: provider-neutral scripts + GitHub Actions reference workflow |
 | [`reference/opencode-adapter.md`](reference/opencode-adapter.md) | How the OpenCode agent layer is generated |
 | [`reference/development-workflow.md`](reference/development-workflow.md) | Day-to-day development flow inside SE |
