@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-11-28T03:43:41Z",
+  "created_at": "2026-11-28T04:29:39Z",
   "description": "Document coverage baseline for SYSTEM-ENGINEERING. Tracks document identity by content hash to detect loss vs growth vs moves.",
   "minimums": {
     "reference": 30
@@ -9,11 +9,11 @@
     "reference": [
       {
         "path": "DOCS/README.md",
-        "hash": "254b031bbbe8119c"
+        "hash": "b82cb02f1f516a35"
       },
       {
         "path": "DOCS/reference/adapters.md",
-        "hash": "003a08d39736c86c"
+        "hash": "55204ad09b152002"
       },
       {
         "path": "DOCS/reference/architecture.md",
@@ -25,7 +25,7 @@
       },
       {
         "path": "DOCS/reference/clean-machine-smoke.md",
-        "hash": "69ff3913333b1c6f"
+        "hash": "b151aa0287b788cd"
       },
       {
         "path": "DOCS/reference/commands.md",
@@ -108,12 +108,16 @@
         "hash": "ed77065ebb48a47c"
       },
       {
+        "path": "DOCS/reference/instalacion-equipos-nuevos.es.md",
+        "hash": "09b6fd5812c6914e"
+      },
+      {
         "path": "DOCS/reference/installation.md",
-        "hash": "1e07f0364d591564"
+        "hash": "60587b40e2652e4e"
       },
       {
         "path": "DOCS/reference/installer-web.md",
-        "hash": "d693d37386ddb117"
+        "hash": "3c0bfb4a31ed34c8"
       },
       {
         "path": "DOCS/reference/lifecycle.md",
@@ -141,7 +145,7 @@
       },
       {
         "path": "DOCS/reference/probar-en-otra-computadora.md",
-        "hash": "7342be6d0b5712e9"
+        "hash": "082ddc8999e38fbd"
       },
       {
         "path": "DOCS/reference/project-bootstrap.md",
@@ -161,7 +165,7 @@
       },
       {
         "path": "DOCS/reference/roadmap-mejoras.es.md",
-        "hash": "553085e2f5e73506"
+        "hash": "9c8b4548efbc9045"
       },
       {
         "path": "DOCS/reference/schemas.md",
@@ -169,11 +173,11 @@
       },
       {
         "path": "DOCS/reference/se-installer.md",
-        "hash": "0ad2db556defa61a"
+        "hash": "76f8d88a9e354875"
       },
       {
         "path": "DOCS/reference/setup.es.md",
-        "hash": "b2724d15e3d00016"
+        "hash": "3b40ff7cf38fe624"
       },
       {
         "path": "DOCS/reference/skills/SKILL_AUTHORING.md",

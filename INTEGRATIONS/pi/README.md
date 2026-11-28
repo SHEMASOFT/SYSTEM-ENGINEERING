@@ -47,5 +47,6 @@ unconfigured route stays unset. A process-wide default is written only when
 ## Relationship with `adapter all`
 
 `se adapter all` covers Claude Code, Codex, DeepSeek and Pi at one output root.
-It does **not** write the shared `AGENTS.md` or `settings.json`. Generate Hermes
-separately with `se adapter hermes`.
+Codex writes the shared `AGENTS.md` and Pi writes `settings.json`; `se adapter pi`
+also writes `settings.json`. Hermes is left out because it would overwrite both
+files with different content — generate it separately with `se adapter hermes`.

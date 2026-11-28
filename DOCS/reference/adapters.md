@@ -17,8 +17,10 @@ absolute host paths.
 | **Hermes** | `se adapter hermes` | `settings.json`, `AGENTS.md`, `.hermes/mcp.json`, `.hermes/skills/<id>/SKILL.md` | IMPLEMENTED |
 | all | `se adapter all` | claude-code + codex + deepseek + pi at one output root | IMPLEMENTED (Hermes is not included; run `se adapter hermes` explicitly) |
 
-`--output <dir>` (default: the repository root) and `--dry-run` apply to every
-adapter.
+`--dry-run` applies to every adapter. `--output <dir>` defaults to the repository
+root for all of them **except OpenCode**, which defaults to `<repo>/.opencode`.
+`se adapter all` writes the shared `AGENTS.md` (from Codex) and `settings.json`
+(from Pi); Hermes is excluded precisely because it would overwrite both.
 
 ## Mapping
 

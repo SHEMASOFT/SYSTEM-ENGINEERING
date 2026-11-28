@@ -16,6 +16,13 @@ The script is [`SE-INSTALLER/scripts/smoke-clean-machine.ps1`](../../SE-INSTALLE
 Both modes write a JSON report (`se.smoke/1`) and exit non-zero if a check fails.
 Use `-ReportPath` to choose the file.
 
+> CI (`.github/workflows/ci.yml`) runs `actions/setup-python` 3.12 before the
+> `DryRun` smoke: it validates the wrapper and the bootstrap, **not** Python
+> installation from scratch. Use a Sandbox/VM without Python to verify that part.
+
+In `Install` mode, check `node`/`npx`/`opencode` from a **new** terminal: the
+bootstrap updates `PATH` for its child process only.
+
 ## Windows Sandbox
 
 Windows Sandbox is the fastest way to get a clean image. Enable it once from an

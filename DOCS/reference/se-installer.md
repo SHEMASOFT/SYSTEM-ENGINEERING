@@ -17,7 +17,7 @@ The **SE Installer** (`se-installer`) is a standalone package that provides an i
 ```
 se_installer/
 ├── models.py                 # Core data models (Component, Plan, Status, OSType)
-├── components.py             # 14 component definitions with metadata
+├── components.py             # 13 component definitions with metadata
 ├── orchestrator.py           # Installation orchestration (topo sort, progress, state)
 ├── state/                    # Persistent installation state (JSON)
 ├── cli.py                    # CLI: install, list, status, doctor, tui
@@ -407,7 +407,8 @@ The Textual TUI provides:
 
 ## Installation State
 
-State persisted to `~/.se-installer/state.json`:
+State persisted to `~/.se-installer/state/installation_state.json`, with the audit
+trail in `~/.se-installer/state/installation_history.jsonl`:
 ```json
 {
   "plan": { ... },

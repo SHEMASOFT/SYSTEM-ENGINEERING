@@ -144,7 +144,7 @@ MCP servers (Context7, filesystem, SE's own skill and memory servers) are
 | `jsonschema` (`pip install jsonschema`) | Schema validation; `se doctor` fails without it |
 | git | Version control checks and project isolation |
 | [OpenCode](https://opencode.ai) *(optional)* | Running the generated agent layer |
-| Node.js *(optional)* | MCP servers that use `npx` |
+| [Node.js](https://nodejs.org) *(required for MCP)* | MCP servers that use `npx`; not needed for the CLI or console |
 
 Windows, Linux, WSL and macOS are supported. CI runs the full suite on
 `ubuntu-latest` and `windows-latest`; the platform-by-platform install notes
@@ -283,11 +283,12 @@ attestation with a written reason, and SE never auto-approves them.
 
 ## Console, memory and work modes
 
-**SE Console** — a local web console over the system, with three views:
-**Overview** (what SE is, its health and its capabilities), **Projects** (every
-managed project with its 9-step lifecycle and gate matrix) and **Attention**
-(everything that needs action: failing gates, manual conditions, review gaps —
-grouped by project and ordered by priority, never a governance verdict).
+**SE Console** — a local web console over the system, with five views:
+**Overview** (health, version, capabilities and agents), **Projects** (every
+managed project with its 9-step lifecycle and gate matrix), **Attention**
+(everything that needs action, groupable by project or root cause, with local
+muting), **Reports** (read-only `health`/`verify`/`gate`/`plan`) and **Search**
+(lexical matches across projects, memory and records — not a governance verdict).
 
 It is read-only by design: GET routes only, plus a single token-authenticated
 `POST /api/action` limited to three catalog actions (`run checkpoint`,
@@ -423,7 +424,7 @@ References: [`project-bootstrap.md`](DOCS/reference/project-bootstrap.md),
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `FAIL` on `jsonschema` | The optional validation dependency is missing | `pip install jsonschema` (or use the installer venv) |
+| `FAIL` on `jsonschema` | The required validation dependency is missing | `pip install jsonschema` (or use the installer venv) |
 | `FAIL` on `secrets` + `WARN` on `root_hygiene` | A virtualenv was created inside the repo with a name other than `.venv` | Keep the venv outside the repo, or name it `.venv` at the root |
 | `[WARN] git_available` | `git` is not on `PATH` for this shell | Install git or open a new terminal; it is a `WARN` |
 | `[WARN] self_containment ... none on operational surfaces` | Guidance text mentions host paths | Informational. A hit **on an operational surface** is what must be fixed |
