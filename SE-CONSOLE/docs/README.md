@@ -50,7 +50,7 @@ Desde la carpeta `SE-CONSOLE/`:
 python scripts\dev_console.py start
 
 # Abrir en el navegador
-# http://localhost:8631
+# http://localhost:8777
 
 # Ver estado
 python scripts\dev_console.py status
@@ -63,7 +63,7 @@ O directamente, sin el helper:
 
 ```powershell
 python -m console.server
-# -> http://localhost:8631
+# -> http://localhost:8777
 ```
 
 ---
