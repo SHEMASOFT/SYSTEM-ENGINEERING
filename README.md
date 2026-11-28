@@ -82,10 +82,14 @@ receipts instead of claims.
   calls no provider by itself; it generates the agent layer for a runtime you
   already use.
 - It does **not install third-party tools for you** — with one explicit exception:
-  the one-command bootstrap (`SE-INSTALLER/bootstrap.ps1`, `SE-INSTALLER/install.sh`
-  or `se install --bootstrap`) delegates to the unified installer, which is what
+  the one-command bootstrap (`SE-INSTALLER/bootstrap.ps1`, `SE-INSTALLER/install.sh`,
+  `se install --bootstrap` or `se setup`) delegates to the unified installer, which is what
   installs a missing Python, Node.js or OpenCode. A plain `se install` registers
   only servers whose dependencies are already present and reports the rest as skipped.
+- `se setup` is the newcomer's single command: bootstrap, adapter for the detected
+  harness, MCP registration and `se doctor`. `--dry-run`, `--explain` and `--check`
+  inspect before changing anything; the console URL is printed, never started
+  automatically (see `DOCS/reference/setup.es.md`).
 - It does **not touch anything you did not ask it to touch**. Commands write inside
   the repository or the project directory you name; the console's views are
   read-only, and its only writes come from three explicit, token-authenticated

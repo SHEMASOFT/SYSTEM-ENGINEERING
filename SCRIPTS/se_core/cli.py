@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from . import commands
+from .setup import HARNESS_DIRS
 from .lifecycle_state import read_se_version
 from .paths import repo_root
 
@@ -393,6 +394,38 @@ def build_parser() -> argparse.ArgumentParser:
     p_install.add_argument("--json", action="store_true",
                            help="Emit a machine-readable se.report/1 envelope")
     p_install.set_defaults(func=commands.cmd_install, verify_servers=True)
+
+    # setup: one command for a newcomer (install + adapter + MCP + doctor).
+    p_setup = sub.add_parser(
+        "setup",
+        help="One command: install + adapter (auto-detected) + MCP + doctor + console URL",
+    )
+    p_setup.add_argument(
+        "--project", default=".",
+        help="Target project directory (default: current directory)",
+    )
+    p_setup.add_argument(
+        "--harness", default="auto", choices=["auto", *sorted(HARNESS_DIRS)],
+        help="Adapter to generate (default: auto-detect from artifacts)",
+    )
+    setup_mode = p_setup.add_mutually_exclusive_group()
+    setup_mode.add_argument(
+        "--dry-run", action="store_true",
+        help="Plan every step; write nothing and do not open the browser",
+    )
+    setup_mode.add_argument(
+        "--explain", action="store_true",
+        help="Describe each step and the surface it touches; run nothing",
+    )
+    setup_mode.add_argument(
+        "--check", action="store_true",
+        help="Run only the read-only diagnosis (doctor)",
+    )
+    p_setup.add_argument(
+        "--open", action="store_true",
+        help="Open the console URL after success (the server must already be running)",
+    )
+    p_setup.set_defaults(func=commands.cmd_setup)
 
     # sync
     p_sync = sub.add_parser(

@@ -110,15 +110,20 @@ deja ambos adapters generados y 4/4 MCP registrados.
 
 ### Fase 3 — Comando único para principiantes (P1)
 
-- [ ] **T12** `se setup`: install + adapter (autodetectado) + MCP + doctor +
-      abrir consola, idempotente y con `--dry-run`.
-- [ ] **T13** Detección automática del harness por artefactos presentes
-      (`.opencode/`, `.claude/`, `.codex/`, `.dsh/`, `.pi/`, `.hermes/`).
-- [ ] **T14** Modo `--explain`: cada paso dice qué hace y qué archivo toca.
-- [ ] **T15** `se setup --check` que solo diagnostique.
+- [x] **T12** `se setup`: install + adapter (autodetectado) + MCP + doctor +
+      URL de la consola, idempotente y con `--dry-run`. Implementado en
+      `SCRIPTS/se_core/setup.py`; la consola **no** se inicia sola (evita T28).
+- [x] **T13** Detección automática del harness por artefactos presentes
+      (`.opencode/`, `.claude/`, `.codex/`, `.dsh/`, `.pi/`, `.hermes/`),
+      con `opencode` como predeterminado.
+- [x] **T14** Modo `--explain`: cada paso dice qué hace y qué superficie toca.
+- [x] **T15** `se setup --check` que solo ejecuta `se doctor`.
+      Evidencia: 16 tests de `test_setup.py` + 6 subtests; contract de CLI OK;
+      `se setup --dry-run` real → install PASS, adapter PASS, doctor 21 PASS /
+      0 FAIL, sin archivos nuevos. Guía: `DOCS/reference/setup.es.md`.
 
-**Criterio de cierre:** un usuario nuevo pasa de clon a consola abierta con un
-comando y sin leer documentación.
+**Criterio de cierre:** un usuario nuevo ejecuta `se setup`, ve la URL de la
+consola y puede verificar todo con `--explain` / `--check` antes de escribir.
 
 ### Fase 4 — Interfaz (P2)
 

@@ -48,6 +48,7 @@ DECLARED_SUPPORT = frozenset(
         "memory",  # reads and writes persistent memory
         "resume",  # resumes work from a stored session
         "run",  # runs a declared pipeline step
+        "setup",  # install + adapter + MCP + doctor, one command for newcomers
         "skill",  # lists and inspects available skills
         "status",  # reports session/tool status
         "subagent",  # executes a subagent with full token economy (reuses AgentRunner)
